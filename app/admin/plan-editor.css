@@ -17,4 +17,4 @@
 .admin-plan-footer{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .admin-plan-notice:empty{display:none}
 .admin-plan-notice:not(:empty){margin-top:12px}
-@media(max-width:620px){.admin-plan-help,.admin-plan-empty,.admin-plan-footer>p,.admin-plan-notice{font-size:12px}.admin-plan-actions{align-items:flex-start;gap:10px;flex-wrap:wrap}.admin-plan-publish{font-size:12px;min-height:40px}.admin-plan-remove{min-height:40px}.admin-plan-row .admin-form-grid{gap:18px}}
+@media(max-width:620px){.admin-plan-help,.admin-plan-empty,.admin-plan-footer>p,.admin-plan-notice{font-size:12px}.admin-plan-actions{align-items:flex-start;gap:10px;flex-wrap:wrap}.admin-plan-publish{font-size:12px;min-height:44px}.admin-plan-remove{min-height:44px}.admin-plan-row .admin-form-grid{gap:18px}}

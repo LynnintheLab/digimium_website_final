@@ -1,58 +1,93 @@
 # Digimium website
 
-Minimal bilingual service catalog using a soft blue gradient canvas, deep blue panels, and Digimium Persian Blue. Built with React and Vinext. Myanmar text uses supplied Wa Lone; English headings, body copy, and controls use self-hosted Manrope (400, 500, 600, 700), with semibold headings.
+Digimium is a bilingual digital subscription catalog for browsing products, choosing a plan, and ordering through Telegram. The storefront uses a soft blue/lavender gradient, navy sections, colored brand marks, Manrope for English, and Wa Lone for Myanmar.
 
-## Development
+- Website: [Digimium](https://digimium-minimal.aungnyeinchantun23.chatgpt.site)
+- Administration: [Manage catalog](https://digimium-minimal.aungnyeinchantun23.chatgpt.site/admin)
+- Source: [LynnintheLab/digimium_website_final](https://github.com/LynnintheLab/digimium_website_final)
+
+Website visitor access is controlled separately in Sites. A GitHub repository or branch does not change the website's audience.
+
+## What is included
+
+| Area | Behavior |
+| --- | --- |
+| Storefront | Category browsing, search, featured collections, FAQ, English/Myanmar language preference, and contact links. |
+| Product plans | Only published plans appear to customers. Unpriced products remain available for enquiries. |
+| Cart | Add a selected plan and continue browsing, change quantities, remove items, and retain the cart in the same browser. |
+| Telegram checkout | Combine the cart and selected plan, copy the order, and open the store's Telegram DM with a draft. The customer sends the message. |
+| Admin | Create and edit products, plans, descriptions, categories, availability, featured state, publication, and contact settings. |
+| Short descriptions | One switch hides all short descriptions from public cards, product dialogs, and public catalog data while preserving the saved text. |
+| Logos | Upload a logo, save its durable path, reuse it on another product, or use a built-in service mark. |
+| Storage | D1 holds the saved catalog; R2 holds uploaded logos. Revision checks prevent overwriting another editor's changes. |
+| Mobile | Sticky header, larger touch controls, single-column cards on narrow phones, scrolling order sheets, and separate admin list/editor views with reachable save controls. |
+| Motion | Subtle blue cursor light outside cards and separate violet light clipped inside cards, respecting pointer and reduced-motion preferences. |
+
+The starting catalog contains **54 products and 104 plan records**, with **50 plans selected for public display**. Admin edits can alter these counts. Keep the current plan visibility unless the owner explicitly changes it. Source and pricing decisions are documented in [data/IMPORT-SOURCES.md](data/IMPORT-SOURCES.md).
+
+This release does not process payments, automatically send Telegram messages, or maintain a server-side order history. Those are future extensions, not active checkout features.
+
+## Quick start
+
+Install Git, GitHub CLI, and Node.js 24 with npm. The package declares Node.js 22.13 or later; Node.js 24 is recommended because the tests import TypeScript directly.
 
 ```sh
-npm install
+gh repo clone LynnintheLab/digimium_website_final
+cd digimium_website_final
+git switch testing
+git pull --ff-only
+npm run install:ci
+```
+
+Create a git-ignored `.dev.vars` containing the local preview identity:
+
+```dotenv
+ADMIN_EMAILS=seedy@sites.test
+```
+
+Build and initialize the local database **once on a new clone**:
+
+```sh
+npm run build
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --config dist/server/wrangler.json --local --persist-to .wrangler/state --file drizzle/0000_supreme_salo.sql
 npm run dev -- --host 127.0.0.1 --port 5185
 ```
+
+Open `http://127.0.0.1:5185` and `http://127.0.0.1:5185/admin`. Local sign-in uses the development identity above. Production uses ChatGPT sign-in and a separate runtime allowlist. Do not replay the initial migration against an existing database.
+
+See [Development setup](docs/DEVELOPMENT.md) for Windows PowerShell commands, troubleshooting, and tests.
+
+## Branches and release workflow
+
+| Branch | Purpose |
+| --- | --- |
+| `production` | Default branch with stable, reviewed source intended for the live release. |
+| `testing` | Working branch for changes and verification before promotion. |
+
+Both branches start from the same completed website revision. Future work belongs on `testing`; merge validated changes into `production`. Git pushes synchronize source only. Sites publishing is a separate operation, and `testing` is not automatically connected to a separate staging URL or database.
+
+See [Deployment and recovery](docs/DEPLOYMENT.md) for the release sequence and runtime backups.
 
 ## Verification
 
 ```sh
-node --test tests/cart-order.test.mjs tests/shop-language.test.mjs
-npx tsc --noEmit
+npm test
+npm run typecheck
 npm run build
 ```
 
-## Content and behavior
+`npm run test:integration` needs a running, initialized local preview and an explicit `TEST_BASE_URL`. These tests modify local catalog data and restore the catalog afterward. Use the commands in [Development setup](docs/DEVELOPMENT.md); never target production.
 
-- `app/page.tsx`: server-rendered catalog loader. `app/storefront.tsx`: category filters, search, collection tabs, FAQ, and language preference. `app/shop-order.tsx` handles plan selection, the cart and Telegram checkout. `app/admin`: catalog administration.
-- `app/globals.css`: layout, type, palette, responsive behavior, reduced motion, and focus states.
-- `public/assets`: local brand assets and fonts; origins recorded in `PROVENANCE.md`.
-- `PRODUCT.md` and `DESIGN.md`: product scope and design system.
+Automated checks cover ordering rules, localization, admin authorization, persistence, concurrent saves, description visibility, logo storage, and published-plan filtering. They do not establish that a layout has been visually checked on a physical phone. Current verification status and remaining work belong in [NOTES.md](NOTES.md).
 
-Customers can switch between English and Myanmar, choose a published plan and add it to a cart that stays in their browser. Checkout combines the selected plan with the cart, copies the order, and opens the store’s Telegram DM with a draft. The customer taps Send. Prices without a known amount require confirmation. Email and Viber remain available for support; the site does not collect payment.
+## Project guide
 
-## Future checkout
+- [Admin guide](docs/ADMIN.md): products, plans, logo paths, descriptions, and contacts.
+- [Architecture](docs/ARCHITECTURE.md): routes, data model, storage, and order flow.
+- [Development setup](docs/DEVELOPMENT.md): Mac/Windows setup and checks.
+- [Deployment and recovery](docs/DEPLOYMENT.md): branches, Sites publishing, and backups.
+- [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md): scope and visual direction.
+- [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md): matching contributor and sync instructions.
+- [Asset provenance](public/assets/PROVENANCE.md) and [service mark sources](public/assets/marks/SOURCES.md): assets and font origins. Existing service marks retain their original colors in the current UI.
 
-Add an order backend and payment provider only when chosen. Keep contact ordering available as a fallback.
-
-## Hosting
-
-Site identity lives in `.openai/hosting.json`. Sites publication uses a build archive from the exact pushed source revision. Credentials must never be saved in source. Local tool and dependency state is ignored.
-
-
-## Catalog administration
-
-Open `/admin` and sign in with the site owner's account. Only emails in the server-side `ADMIN_EMAILS` environment setting may edit. The production value is configured through Sites; local development uses the starter's local sign-in with `ADMIN_EMAILS=seedy@sites.test` in git-ignored `.dev.vars`.
-
-The editor manages service descriptions (English/Myanmar), categories, prices, durations, icons, availability, featured visibility, publishing, and Telegram, email and Viber contacts. Save changes publishes the full catalog atomically to D1. Hidden services remain editable but are excluded from the public API and storefront. Conflicting saves require loading the latest catalog.
-
-The initial catalog combines `data/catalog.json` with plans and services from `data/import-catalog.json`. See `data/IMPORT-SOURCES.md` for source files and price conflicts. Once saved, D1 is authoritative. API and database failures are reported instead of replacing user content with default data.
-
-Generate migrations with `npm run db:generate`; build before applying local SQL. See `drizzle/0000_supreme_salo.sql`. Sites applies production migrations during deployment. Do not replay an applied migration.
-
-Run the local integration checks with `node tests/catalog.integration.mjs` while dev preview is running on port 5185. The checks deliberately edit only a localhost database and restore its original catalog content. Never use them against production.
-
-Third-party logo origins are in `public/assets/marks/SOURCES.md`. Meitu uses a neutral fallback where no verified mark was sourced. VPN uses a generic shield.
-
-This checkout is a copy published under the current account, as requested after an account switch. The earlier checkout remains separate. Always reuse the project ID in this checkout’s `.openai/hosting.json`.
-
-## Product logos and plans
-
-Under Product logo, choose Upload logo, select a PNG, JPEG or WebP file up to 2 MiB and 4096 pixels per side, then select Save changes. The upload has a durable path under `/media/logos/`. Use Copy path to reuse it on another product within the same site. The BUCKET storage binding holds the image and the catalog records its path. Replacing a logo keeps its original path available for products that share it.
-
-Use the Show on website option on a plan, publish the product and save. The card highlights its first visible plan. Customers can select among visible plans before adding a plan or checking out.
+Dependencies, generated builds, local databases, runtime credentials, and uploaded production images are not Git source files. Reinstall dependencies on each machine and back up live storage separately.

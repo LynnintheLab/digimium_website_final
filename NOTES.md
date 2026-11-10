@@ -2,14 +2,16 @@
 
 ## Current status
 
-This is the Digimium project owned by the currently connected account. It includes the latest 54-product catalog, the 50 selected public plans, English/Myanmar browsing, a persistent cart and Telegram ordering. Admin edits use D1 and uploaded logos use R2. The complete source was retained through account switches.
+The complete Digimium storefront and admin source is maintained in the private GitHub repository `LynnintheLab/digimium_website_final`. `production` holds the release baseline; `testing` is the working branch. Both start from this completed mobile release. GitHub pushes do not automatically publish the hosted site.
+
+The site includes 54 products, 104 stored plans with 50 selected public plans, English/Myanmar browsing, blue/lavender surfaces, distinct clipped cursor lights, a persistent cart, Telegram ordering, and authenticated administration. D1 stores catalog edits; R2 stores uploaded logos. The hosting identity in `.openai/hosting.json` belongs to the currently connected account. The source and assets from previous accounts are retained.
 
 ## Last thing done
 
-Added a sticky phone header, larger search and filter controls, readable single-column cards on narrow phones, and phone cart sheets with reachable checkout actions. Mobile admin switches between the service list and editor and keeps Save changes at the bottom. Full WOFF2 versions reduce font transfer size from 502,696 to 198,000 bytes.
+Compared the previous account checkouts and verified that their colors/features are present. Improved phone/tablet touch targets, safe-area/keyboard spacing, cart action visibility, and the admin list/editor experience. Corrected the unpriced-plan enquiry note. Added cross-platform Git settings, reusable test commands, detailed setup/admin/architecture/deployment documentation, and matching agent instructions.
 
-TypeScript, production build, cart/language tests and local catalog/logo integration checks passed. Browser inspection of the final mobile layout is unavailable because browser access is disabled in the connected account. Previous screenshot previews do not verify this mobile release.
+TypeScript, six unit tests, both local integration suites, and production compilation passed. The source/history secret scan passed. Final visual mobile testing remains unavailable because local browser control is disabled in the connected account; see `qa/QA.md` for precise limits.
 
 ## Next steps
 
-Review the updated storefront and admin on a phone after browser access is enabled. Use Admin → Services → Hide all short descriptions and Save changes to control description visibility. Continue with the project ID in this checkout’s hosting manifest.
+Continue development on `testing`, pull before editing on either computer, and promote verified changes to `production`. Publish production updates through the existing Sites project; branch pushes alone do not deploy. Keep runtime secrets and live D1/R2 backups outside Git. Enable browser access and finish the phone/tablet visual and physical-device checks listed in `qa/QA.md`.

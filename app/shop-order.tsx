@@ -43,6 +43,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   const copyAttempt = useRef(0);
   const product = products.find(item => item.id === productId);
   const plans = product?.plans?.filter(plan => plan.published) ?? [];
+  const selectedPlan = plans.find(plan => plan.id === planId);
   const open = screen !== null;
   const rows = useMemo(() => resolveOrder(cart, products), [cart, products]);
   const count = rows.reduce((total, item) => total + item.quantity, 0);
@@ -191,7 +192,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
               {product.availability === 'unavailable' && <p className="order-help">{t('Currently unavailable.', 'လက်ရှိ မရရှိနိုင်သေးပါ။')}</p>}
             </div>
             <div className="order-guidance">
-              <CheckoutNote askAboutPrice={priceOnEnquiry(plans.find(plan => plan.id === planId)?.price ?? product.price)}/>
+              <CheckoutNote askAboutPrice={priceOnEnquiry(selectedPlan ? selectedPlan.price : product.price)}/>
             </div>
           </div>
           <footer className="order-footer">
@@ -217,7 +218,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
             </li>)}</ul>
             <div className="order-guidance"><div className="order-total"><span>{t('Order total', 'စုစုပေါင်း')}</span><strong>{cartTotal === undefined ?
               t('Confirm on Telegram', 'Telegram တွင် စျေးနှုန်း အတည်ပြုပါ') : priceText(`${cartTotal.toLocaleString('en-US')} MMK`, lang)}</strong></div>
-              <CheckoutNote askAboutPrice={rows.some(item => priceOnEnquiry(item.plan?.price ?? item.product.price))}/>
+              <CheckoutNote askAboutPrice={rows.some(item => priceOnEnquiry(item.plan ? item.plan.price : item.product.price))}/>
             </div>
           </div>
           <footer className="order-footer">

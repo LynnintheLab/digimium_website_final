@@ -149,7 +149,7 @@ export function LogoEditor({ product, disabled, markLabels, onChange, onBusyChan
     <details ref={existingPanel} className="admin-logo-reuse">
       <summary>Use a saved logo path</summary>
       <div className="admin-logo-path-row"><label className="admin-field" htmlFor="product-existing-logo-path">Logo path
-        <input id="product-existing-logo-path" type="text" value={existingPath} maxLength={120} placeholder="/media/logos/…" autoComplete="off" spellCheck={false} onChange={event => { setExistingPath(event.target.value); setError(''); }} disabled={disabled || uploading} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); useExistingPath(); } }} />
+        <input id="product-existing-logo-path" type="text" value={existingPath} maxLength={120} placeholder="/media/logos/…" autoComplete="off" autoCapitalize="none" spellCheck={false} onChange={event => { setExistingPath(event.target.value); setError(''); }} disabled={disabled || uploading} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); useExistingPath(); } }} />
       </label><button type="button" className="admin-button admin-button-secondary" disabled={disabled || uploading || !existingPath.trim()} onClick={useExistingPath}>Use path</button></div>
     </details>
     {error && <p className="admin-logo-issue" role="alert">{error}</p>}

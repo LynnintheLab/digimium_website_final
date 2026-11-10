@@ -1,29 +1,32 @@
-# Verification — 2026-11-10
+# Verification — 2026-11-11
 
-## Passed
-- TypeScript: `node node_modules/typescript/bin/tsc --noEmit`.
-- Production build through the Sites helper, including `/`, `/admin`, and both catalog API routes.
-- Local D1 migration applied successfully; saved catalog survived dev-server restart.
-- `node tests/catalog.integration.mjs`: authentication and allowlist checks, forged identity-header rejection, origin checks, JSON/content validation, duplicate IDs, invalid phone, persistent save, storefront price update, hidden-product filtering, stale revision rejection, atomic concurrent saves. Original local content restored after checks.
-- HTTP 200: storefront, authenticated admin page, public catalog API, all configured logo assets.
-- Anonymous admin page redirects to sign-in; anonymous admin API returns 401.
+## Current release checks
 
-## Limits
-Browser automation is disabled in Work settings for this update. The refreshed gradient and admin layout have not been visually inspected, and browser-based editor controls have not been replayed end-to-end. Earlier storefront interactions were checked before this update; this release's persistent data flows were tested through HTTP. No real customer enquiries or payments were sent.
+- `npm run typecheck`: passed.
+- `npm test`: all six cart/order and bilingual-copy tests passed. They cover repeated checkout, hidden/unavailable offers, current prices, enquiry totals, multipart Telegram messages, and translated plan details.
+- `TEST_BASE_URL=http://127.0.0.1:5189 npm run test:integration`: both suites passed. Catalog checks cover admin authorization, CSRF/origin validation, input validation, saved prices, description visibility in both languages, revision conflicts, and atomic concurrent writes. Logo checks cover uploaded bytes, saved/reopened paths, public plan filtering, and invalid file/path rejection. Original local catalog content was restored.
+- Production compilation passed with all six routes: storefront, admin, both catalog APIs, logo upload API, and uploaded-logo retrieval.
+- Local HTML contains `width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content`.
+- Previous-account recovery audit: the current checkout contains the older blue, catalog-store, and website-current features/assets. The former blue version differs only by newer mobile refinements. No rollback was needed.
+- Hosted release before this final mobile refinement returned 54 public products and 50 public plans. Its delivered CSS hashes matched the local production build exactly. Anonymous admin API returned 401 and admin page redirected to sign-in.
+- GitHub preparation scanned the tracked tree and prior Git history: no detected secrets, nested repositories, files over 50 MB, or hardcoded user-machine paths. The supplied empty repository was made private to follow the owner's sync instructions.
 
-## Design review
-The automatic design check returned design-system sizing advisories against the prior token list. The inherited responsive sizing was retained; admin controls use their documented compact form scale. Review helpers stopped before final handoff, so the parent completed source and integration checks. Visual sign-off remains with the user's preview.
+## Mobile improvements covered by source review
 
-## Publication status
-The user confirmed switching accounts and authorized publication of a separate copy. This checkout carries its newly registered Site identity and owner-specific runtime admin access. The previous site is not modified.
+- Sticky phone navigation with cart and language controls; compact search and wrapped filters.
+- Single-column product cards on narrow phones, retaining readable product/plan text.
+- Safe-area spacing; 44px touch controls on phones and tablets; 16px inputs.
+- Scrollable product/cart content with reachable action footers; short landscape support.
+- Unpriced plans show the additional red enquiry sentence even if a parent product has a quoted price.
+- Mobile admin uses list/editor navigation, retained drafts, a bottom Save/Revert bar, wrapping service names and feedback, and a scrollable sidebar on short screens.
+- Full WOFF2 font encodings retain Myanmar shaping and reduce aggregate font bytes by 60.6%.
 
-## Cursor update
-Blue canvas light and violet card light use separate layers. Card overflow clips the inner light, and opaque card surfaces block the outside light. Pointer events are passive; position updates are frame-batched. Decorative layers are excluded from pointer input and accessibility, and disabled for touch/reduced-motion preferences. Source review found no blocking admin authorization or persistence issue. Browser-based visual motion review remains unavailable.
+## Verification limits
 
-## Logo uploads and imported plans
+Browser control remains disabled in the connected account's Work settings. The final responsive layout has not been visually inspected or exercised with synthesized touch, physical iOS/Android devices, or a Windows runtime. Source and HTTP checks do not establish visual or gesture correctness. No payment or customer Telegram message was sent.
 
-The current account build passed TypeScript and production compilation. Local checks uploaded, retrieved and compared an image byte for byte, saved the path to a product, retrieved it again and verified that the storefront rendered the image. Invalid image formats and missing logo references were rejected. Checked 54 services, 104 admin plan entries, 50 published plans and all 42 distinct built-in image paths. The local catalog was restored after mutation checks. Browser inspection is disabled in Work settings.
+Earlier browser checks, before the final mobile refinement, verified adding ChatGPT and Canva, cart persistence after reload, Myanmar translation, and opening a Telegram draft with both selections without sending it.
 
-## Bilingual cart and Telegram checkout
+## Remaining visual review
 
-Verified in the in-app browser: adding ChatGPT returned to browsing, choosing Canva produced a Telegram draft containing both plans, and both cart entries survived a reload. Switching to Myanmar translated plan terms, totals and the draft. A 155,000 MMK checkout opened the verified order contact without sending a message. Automated cases cover unavailable and hidden entries, price changes, enquiry totals, repeated checkout, multilingual labels and multipart orders.
+When browser access is enabled, check 320px and 390px portrait, short phone landscape, a tablet, and desktop in English and Myanmar. Review search/filter use, the plan picker, cart quantities/removal, long plan names, keyboard opening, safe areas, and admin list/editor/Save behavior. Use a physical iPhone and Android phone for final keyboard and touch confirmation.

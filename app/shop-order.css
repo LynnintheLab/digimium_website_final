@@ -1,9 +1,10 @@
 .shop-order {
+  --sheet-height: min(84dvh, 780px);
   width: min(560px, calc(100% - 32px));
-  max-height: min(84dvh, 780px);
+  max-height: var(--sheet-height);
   margin: auto;
   padding: 0;
-  overflow: auto;
+  overflow: hidden;
   color: var(--ink);
   background: #e9eff9;
   border: 1px solid #bac8de;
@@ -11,7 +12,9 @@
   box-shadow: 0 18px 80px -40px #101c35a6;
 }
 .shop-order::backdrop { background: rgb(13 24 47 / .50); }
-.order-surface { overflow-wrap: anywhere; }
+.order-surface { display: flex; flex-direction: column; max-height: calc(var(--sheet-height) - 2px); overflow-wrap: anywhere; }
+.order-heading, .order-footer { flex: none; }
+.order-scroll, .order-handoff, .order-empty { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .order-heading, .order-content, .order-footer, .order-empty { padding: 21px 26px; }
 .order-heading {
   display: flex; justify-content: space-between; align-items: center; gap: 14px;
@@ -84,6 +87,11 @@
 .order-toast button { background: transparent; border: 0; color: #e3ecff; text-decoration: underline; text-underline-offset: 3px; font: inherit; padding: 6px; }
 .shop-order[lang="my"], .shop-order[lang="my"] button, .shop-order[lang="my"] .order-action { font-family: Walone, Manrope, sans-serif; line-height: 1.95; }
 .shop-order[lang="my"] h2 { letter-spacing: 0; line-height: 1.65; }
+@media (pointer: coarse) {
+  .order-icon, .order-quantity .order-icon { width: 44px; height: 44px; }
+  .order-action, .order-toast button { min-height: 48px; }
+  .order-transcript textarea { font-size: 16px; }
+}
 @media (max-width: 620px), (orientation: landscape) and (max-height: 500px) and (max-width: 960px) {
   .shop-order {
     --sheet-height: calc(100dvh - max(8px, env(safe-area-inset-top)));

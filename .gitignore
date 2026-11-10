@@ -47,3 +47,48 @@ yarn-error.log*
 # Local review captures
 /.impeccable/review/
 !.env.example
+
+# --- Mac/Windows sync setup ---
+# Secrets (examples stay tracked)
+.env
+.env.*
+!.env.example
+!.env.*.example
+.dev.vars
+.dev.vars.*
+*.pem
+*.key
+*.p12
+secrets/
+.secrets/
+credentials.json
+service-account*.json
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+Icon?
+._*
+# IDE / agent local files
+.vscode/
+.idea/
+*.swp
+*~
+.claude/settings.local.json
+# Node
+node_modules/
+dist/
+build/
+.next/
+.vinext/
+.nuxt/
+.output/
+.wrangler/
+.vercel/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+# Logs
+*.log

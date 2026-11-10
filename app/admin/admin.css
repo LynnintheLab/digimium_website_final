@@ -20,7 +20,28 @@
 
 .admin-list-back { display: none; }
 
+/* Keep long bilingual catalog values and feedback within the editor. */
+.admin-shell { font-family: Manrope, Walone, Arial, sans-serif; }
+.admin-sidebar { overflow-y: auto; }
+.admin-feedback > div,
+.admin-feedback > p { min-width: 0; overflow-wrap: anywhere; }
+
+@media (pointer: coarse) {
+  .admin-shell :is(.admin-button, .admin-text-button, .admin-plan-publish, .admin-logo-reuse summary, .admin-site-link, .admin-signout),
+  .admin-field :is(input, select) {
+    min-height: 44px;
+  }
+  .admin-shell :is(.admin-icon-button, .admin-add) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 @media (max-width: 950px) {
+  .admin-sidebar {
+    padding-top: max(28px, env(safe-area-inset-top));
+    padding-bottom: max(23px, env(safe-area-inset-bottom));
+  }
   .admin-main {
     padding-bottom: calc(100px + env(safe-area-inset-bottom));
   }
@@ -113,6 +134,12 @@
   .admin-list-empty button {
     min-height: 44px;
   }
+  .admin-feedback-error button,
+  .admin-feedback-error a,
+  .admin-site-link,
+  .admin-signout {
+    min-height: 44px;
+  }
   .admin-feedback-success > button {
     min-width: 44px;
     min-height: 44px;
@@ -130,6 +157,9 @@
 @media (max-width: 620px) {
   .admin-sidebar {
     padding: 12px 16px 0;
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
     gap: 10px;
   }
   .admin-brand { gap: 7px; }
@@ -150,6 +180,8 @@
   }
   .admin-main {
     padding: 22px 14px calc(100px + env(safe-area-inset-bottom));
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
   }
   .admin-page-header {
     margin-bottom: 20px;
@@ -158,7 +190,8 @@
   .admin-page-header > div > p { display: none; }
   .admin-header-actions {
     left: 0;
-    padding-inline: 14px;
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
   }
   .admin-button {
     font-size: 13px !important;
@@ -187,6 +220,14 @@
   .admin-service-row {
     min-height: 64px;
   }
+  .admin-service-copy strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .admin-service-copy > span { font-size: 12px; }
+  .admin-row-trailing { flex-shrink: 0; }
   .admin-form-section,
   .admin-editor-heading,
   .admin-settings-panel .admin-form-section,

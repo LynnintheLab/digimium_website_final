@@ -1,5 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+};
 export const metadata: Metadata = {
   title: "digimium. — Your digital life, elevated",
   description: "Explore premium AI tools, creative apps, music, and entertainment with Digimium. Find your service and contact us for current plans and prices.",
