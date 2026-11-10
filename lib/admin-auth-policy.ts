@@ -2,7 +2,7 @@ import type { ChatGPTUser } from "../app/chatgpt-auth";
 
 export type AdminCheck =
   | { ok: true; user: ChatGPTUser }
-  | { ok: false; status: 401 | 403; message: string };
+  | { ok: false; status: 401 | 403 | 503; message: string };
 
 export function authorizeAdmin(user: ChatGPTUser | null, adminEmails: string | undefined): AdminCheck {
   if (!user) return { ok: false, status: 401, message: "Sign in to manage the catalog." };
@@ -17,9 +17,9 @@ export function authorizeAdmin(user: ChatGPTUser | null, adminEmails: string | u
   return { ok: true, user };
 }
 
-export function isSameOriginMutation(request: Request): boolean {
+export function isSameOriginMutation(request: Request, expectedOrigin: string = new URL(request.url).origin): boolean {
   const origin = request.headers.get("origin");
-  if (!origin || origin !== new URL(request.url).origin) return false;
+  if (!origin || origin !== expectedOrigin) return false;
   const fetchSite = request.headers.get("sec-fetch-site");
   return !fetchSite || fetchSite === "same-origin" || fetchSite === "none";
 }

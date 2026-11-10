@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { logoExists, putLogo, readLogo } from "@digimium/storage";
 import { LOGO_FILE_PATTERN, MAX_LOGO_BYTES, MAX_LOGO_DIMENSION, logoObjectKey } from "./logo-path";
 
 type ImageType = { mime: "image/png" | "image/jpeg" | "image/webp"; extension: "png" | "jpg" | "webp" };
@@ -7,15 +7,6 @@ export class LogoInputError extends Error {
   constructor(message: string, public readonly status: 400 | 413 | 415 = 400) {
     super(message);
   }
-}
-
-export class LogoStorageUnavailableError extends Error {
-  constructor() { super("Logo storage is temporarily unavailable. Please try again shortly."); }
-}
-
-function bucket(): R2Bucket {
-  if (!env.BUCKET) throw new LogoStorageUnavailableError();
-  return env.BUCKET;
 }
 
 function textAt(bytes: Uint8Array, offset: number, length: number): string {
@@ -133,26 +124,25 @@ export async function storeLogo(bytes: Uint8Array<ArrayBuffer>, declaredMime: st
   const image = identifyLogo(bytes);
   if (image.mime !== declaredMime) throw new LogoInputError("The file contents do not match its image type. Choose another image.", 415);
   const file = `${crypto.randomUUID()}.${image.extension}`;
-  await bucket().put(`logos/${file}`, bytes, { httpMetadata: { contentType: image.mime, cacheControl: "public, max-age=31536000, immutable" } });
+  await putLogo(`logos/${file}`, bytes, image.mime);
   return `/media/logos/${file}`;
 }
 
 export async function validateLogoReferences(products: { logoPath?: string }[]) {
   const paths = [...new Set(products.map(product => product.logoPath).filter((path): path is string => Boolean(path)))];
   if (!paths.length) return;
-  const storage = bucket();
   // Bound concurrent reads while checking every referenced file before saving.
   for (let index = 0; index < paths.length; index += 8) {
     await Promise.all(paths.slice(index, index + 8).map(async path => {
       const key = logoObjectKey(path);
-      if (!key || !await storage.head(key)) throw new LogoInputError("A selected logo could not be found. Upload it again before saving.");
+      if (!key || !await logoExists(key)) throw new LogoInputError("A selected logo could not be found. Upload it again before saving.");
     }));
   }
 }
 
 export async function getLogo(file: string) {
   if (!LOGO_FILE_PATTERN.test(file)) return null;
-  return bucket().get(`logos/${file}`);
+  return readLogo(`logos/${file}`);
 }
 
 export function logoContentType(file: string): ImageType["mime"] {

@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import vinext from "vinext";
 import { defineConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json";
@@ -44,6 +45,12 @@ export default defineConfig(async ({ command }) => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    resolve: {
+      alias: {
+        "@digimium/auth": fileURLToPath(new URL("./runtime/auth.sites.ts", import.meta.url)),
+        "@digimium/storage": fileURLToPath(new URL("./runtime/storage.sites.ts", import.meta.url)),
+      },
+    },
     server: {
       ...(managedLinux
         ? { host: "0.0.0.0", allowedHosts: ["terminal.local"] }

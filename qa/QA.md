@@ -30,3 +30,7 @@ Earlier browser checks, before the final mobile refinement, verified adding Chat
 ## Remaining visual review
 
 When browser access is enabled, check 320px and 390px portrait, short phone landscape, a tablet, and desktop in English and Myanmar. Review search/filter use, the plan picker, cart quantities/removal, long plan names, keyboard opening, safe areas, and admin list/editor/Save behavior. Use a physical iPhone and Android phone for final keyboard and touch confirmation.
+
+## Hostinger release — 2026-11-11
+
+A clean copy of the files destined for GitHub passed `npm ci --include=dev` and the Node 24 production build. The staged files passed the secret scan. The standalone production server was tested against an isolated MariaDB service. The schema import, built CSS and public assets, admin authentication, refused cross-origin writes, first-save/update races, published plan and description visibility, and logo retrieval passed. After restarting the actual server process, the edit, logo path, and exact uploaded bytes were still present. Sign-out revoked the server-side session. A separate local reverse-proxy simulation verified the secure cookie and the HTTPS admin redirect. The original Sites build and its catalog and logo integration tests also passed. hPanel deployment, live DNS/SSL and final physical-device verification remain owner-environment checks.

@@ -2,11 +2,12 @@
 
 Digimium is a bilingual digital subscription catalog for browsing products, choosing a plan, and ordering through Telegram. The storefront uses a soft blue/lavender gradient, navy sections, colored brand marks, Manrope for English, and Wa Lone for Myanmar.
 
-- Website: [Digimium](https://digimium-minimal.aungnyeinchantun23.chatgpt.site)
-- Administration: [Manage catalog](https://digimium-minimal.aungnyeinchantun23.chatgpt.site/admin)
+- Host on Hostinger: [hPanel and GitHub deployment steps](docs/HOSTINGER.md)
+- Earlier Sites deployment: [Digimium](https://digimium-minimal.aungnyeinchantun23.chatgpt.site)
+- Earlier Sites administration: [Manage catalog](https://digimium-minimal.aungnyeinchantun23.chatgpt.site/admin)
 - Source: [LynnintheLab/digimium_website_final](https://github.com/LynnintheLab/digimium_website_final)
 
-Website visitor access is controlled separately in Sites. A GitHub repository or branch does not change the website's audience.
+The Hostinger build serves the customer storefront and protects `/admin` with the store owner’s email and password. The earlier Sites deployment uses ChatGPT sign-in.
 
 ## What is included
 
@@ -19,7 +20,7 @@ Website visitor access is controlled separately in Sites. A GitHub repository or
 | Admin | Create and edit products, plans, descriptions, categories, availability, featured state, publication, and contact settings. |
 | Short descriptions | One switch hides all short descriptions from public cards, product dialogs, and public catalog data while preserving the saved text. |
 | Logos | Upload a logo, save its durable path, reuse it on another product, or use a built-in service mark. |
-| Storage | D1 holds the saved catalog; R2 holds uploaded logos. Revision checks prevent overwriting another editor's changes. |
+| Storage | Hostinger MySQL stores catalog edits and uploaded logos. The Sites target uses D1 and R2. Revision checks prevent overwriting another editor's changes. |
 | Mobile | Sticky header, larger touch controls, single-column cards on narrow phones, scrolling order sheets, and separate admin list/editor views with reachable save controls. |
 | Motion | Subtle blue cursor light outside cards and separate violet light clipped inside cards, respecting pointer and reduced-motion preferences. |
 
@@ -39,23 +40,13 @@ git pull --ff-only
 npm run install:ci
 ```
 
-Create a git-ignored `.dev.vars` containing the local preview identity:
-
-```dotenv
-ADMIN_EMAILS=seedy@sites.test
-```
-
-Build and initialize the local database **once on a new clone**:
+For the default Next.js app, initialize a local MySQL database with [the Hostinger schema](hostinger/schema.sql), then set the database and admin environment variables as described in [Development setup](docs/DEVELOPMENT.md). Start the app:
 
 ```sh
-npm run build
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --config dist/server/wrangler.json --local --persist-to .wrangler/state --file drizzle/0000_supreme_salo.sql
-npm run dev -- --host 127.0.0.1 --port 5185
+npm run dev -- --hostname 127.0.0.1 --port 3000
 ```
 
-Open `http://127.0.0.1:5185` and `http://127.0.0.1:5185/admin`. Local sign-in uses the development identity above. Production uses ChatGPT sign-in and a separate runtime allowlist. Do not replay the initial migration against an existing database.
-
-See [Development setup](docs/DEVELOPMENT.md) for Windows PowerShell commands, troubleshooting, and tests.
+Open `http://127.0.0.1:3000` for the storefront and `http://127.0.0.1:3000/admin` to manage it. For the older Sites target, follow the separate D1/R2 instructions in the development guide.
 
 ## Branches and release workflow
 
@@ -64,7 +55,7 @@ See [Development setup](docs/DEVELOPMENT.md) for Windows PowerShell commands, tr
 | `production` | Default branch with stable, reviewed source intended for the live release. |
 | `testing` | Working branch for changes and verification before promotion. |
 
-Both branches start from the same completed website revision. Future work belongs on `testing`; merge validated changes into `production`. Git pushes synchronize source only. Sites publishing is a separate operation, and `testing` is not automatically connected to a separate staging URL or database.
+Develop on `testing` and merge verified changes into `production`. When connecting GitHub in Hostinger, select `production` as the live branch. Automatic redeployment depends on the Hostinger app setting. Sites uses a separate publication workflow.
 
 See [Deployment and recovery](docs/DEPLOYMENT.md) for the release sequence and runtime backups.
 
@@ -76,7 +67,7 @@ npm run typecheck
 npm run build
 ```
 
-`npm run test:integration` needs a running, initialized local preview and an explicit `TEST_BASE_URL`. These tests modify local catalog data and restore the catalog afterward. Use the commands in [Development setup](docs/DEVELOPMENT.md); never target production.
+Use `npm run test:hostinger` for the MySQL-backed target and `npm run test:integration` for a running local Sites preview. Both run against disposable local data. See [Development setup](docs/DEVELOPMENT.md) for prerequisites.
 
 Automated checks cover ordering rules, localization, admin authorization, persistence, concurrent saves, description visibility, logo storage, and published-plan filtering. They do not establish that a layout has been visually checked on a physical phone. Current verification status and remaining work belong in [NOTES.md](NOTES.md).
 
@@ -85,7 +76,7 @@ Automated checks cover ordering rules, localization, admin authorization, persis
 - [Admin guide](docs/ADMIN.md): products, plans, logo paths, descriptions, and contacts.
 - [Architecture](docs/ARCHITECTURE.md): routes, data model, storage, and order flow.
 - [Development setup](docs/DEVELOPMENT.md): Mac/Windows setup and checks.
-- [Deployment and recovery](docs/DEPLOYMENT.md): branches, Sites publishing, and backups.
+- [Deployment and recovery](docs/DEPLOYMENT.md): branch promotion, hosting targets, and backups.
 - [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md): scope and visual direction.
 - [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md): matching contributor and sync instructions.
 - [Asset provenance](public/assets/PROVENANCE.md) and [service mark sources](public/assets/marks/SOURCES.md): assets and font origins. Existing service marks retain their original colors in the current UI.

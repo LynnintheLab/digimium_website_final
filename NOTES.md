@@ -2,16 +2,16 @@
 
 ## Current status
 
-The complete Digimium storefront and admin source is maintained in the private GitHub repository `LynnintheLab/digimium_website_final`. `production` holds the release baseline; `testing` is the working branch. Both start from this completed mobile release. GitHub pushes do not automatically publish the hosted site.
+Digimium’s default deployment target is a Hostinger Business or Cloud Node.js Web App. `production` is the stable GitHub branch and `testing` is the working branch. The hPanel deployment steps, environment names, and database setup are in [the Hostinger guide](docs/HOSTINGER.md). Hostinger account setup and live deployment are pending.
 
-The site includes 54 products, 104 stored plans with 50 selected public plans, English/Myanmar browsing, blue/lavender surfaces, distinct clipped cursor lights, a persistent cart, Telegram ordering, and authenticated administration. D1 stores catalog edits; R2 stores uploaded logos. The hosting identity in `.openai/hosting.json` identifies the existing Digimium site. The most recently connected Sites account cannot access this project. The source and assets from previous accounts are retained.
+The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
 
-Compared the previous account checkouts and verified that their colors/features are present. Improved phone/tablet touch targets, safe-area/keyboard spacing, cart action visibility, and the admin list/editor experience. Corrected the unpriced-plan enquiry note. Added cross-platform Git settings, reusable test commands, detailed setup/admin/architecture/deployment documentation, and matching agent instructions.
+Added the Node 24/Next.js standalone build, Hostinger database schema and storage adapter, and an independent admin login. The build includes CSS, fonts and logos. Updated the owner and developer guides for both targets.
 
-TypeScript, six unit tests, both local integration suites, and production compilation passed. The source/history secret scan passed. A fresh clone of the private GitHub repository resolved both branches to the same source revision and passed the unit tests. The prior mobile release is live at the URL in the README. Publishing these latest refinements to that same URL is pending access to the owning Sites account. Final visual mobile testing remains unavailable because local browser control is disabled in the connected account; see `qa/QA.md` for precise limits.
+Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
 
-Continue development on `testing`, pull before editing on either computer, and promote verified changes to `production`. Publish production updates through the existing Sites project; branch pushes alone do not deploy. Keep runtime secrets and live D1/R2 backups outside Git. Enable browser access and finish the phone/tablet visual and physical-device checks listed in `qa/QA.md`.
+Connect the private GitHub repository to Hostinger, select `production`, import `hostinger/schema.sql`, and enter the owner’s private values in hPanel. Confirm HTTPS, storefront browsing, Telegram drafts, and admin persistence on the actual domain. If the older site contains later admin edits or uploaded logos, migrate that data from an authorized backup. Keep development on `testing` and maintain MySQL backups separately from Git.

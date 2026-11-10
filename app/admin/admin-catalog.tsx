@@ -55,7 +55,7 @@ function validateCatalog(catalog: Catalog): ValidationIssue | null {
   return null;
 }
 
-export default function AdminCatalog({ identity, signOutHref }: { identity: Identity; signOutHref: string }) {
+export default function AdminCatalog({ identity, signOutHref, postSignOut }: { identity: Identity; signOutHref: string; postSignOut: boolean }) {
   const [saved, setSaved] = useState<Catalog | null>(null);
   const [draft, setDraft] = useState<Catalog | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -221,7 +221,9 @@ export default function AdminCatalog({ identity, signOutHref }: { identity: Iden
       <div className="admin-sidebar-bottom">
         <a className="admin-site-link" href="/" target="_blank" rel="noopener noreferrer">View website<ArrowUpRight size={17} /></a>
         <div className="admin-identity"><span className="admin-avatar">{(identity.name || identity.email).slice(0, 1).toUpperCase()}</span><div><strong>{identity.name}</strong><span title={identity.email}>{identity.email}</span></div></div>
-        <a className="admin-signout" href={signOutHref} target="_top" onClick={event => { if ((dirty || uploadingLogo) && !window.confirm('Sign out and discard your unsaved changes?')) event.preventDefault(); }}><LogOut size={15} />Sign out</a>
+        {postSignOut ? <form action={signOutHref} method="post" onSubmit={event => { if ((dirty || uploadingLogo) && !window.confirm('Sign out and discard your unsaved changes?')) event.preventDefault(); }}>
+          <button type="submit" className="admin-signout"><LogOut size={15} />Sign out</button>
+        </form> : <a className="admin-signout" href={signOutHref} target="_top" onClick={event => { if ((dirty || uploadingLogo) && !window.confirm('Sign out and discard your unsaved changes?')) event.preventDefault(); }}><LogOut size={15} />Sign out</a>}
       </div>
     </aside>
 

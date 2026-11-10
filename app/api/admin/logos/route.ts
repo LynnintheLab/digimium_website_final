@@ -1,5 +1,4 @@
-import { checkAdmin } from "../../../../lib/admin-auth";
-import { isSameOriginMutation } from "../../../../lib/admin-auth-policy";
+import { checkAdmin, isAllowedMutation } from "../../../../lib/admin-auth";
 import { LogoInputError, readLogoBody, storeLogo } from "../../../../lib/logo-storage";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +8,7 @@ const errorResponse = (error: string, status: number) => Response.json({ error }
 export async function POST(request: Request) {
   const admin = await checkAdmin();
   if (!admin.ok) return errorResponse(admin.message, admin.status);
-  if (!isSameOriginMutation(request)) return errorResponse("Logo uploads must come from this website.", 403);
+  if (!isAllowedMutation(request)) return errorResponse("Logo uploads must come from this website.", 403);
   const mime = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   if (!mime || !["image/png", "image/jpeg", "image/webp"].includes(mime)) return errorResponse("Choose a PNG, JPEG, or WebP image.", 415);
   try {

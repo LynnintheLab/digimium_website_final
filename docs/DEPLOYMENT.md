@@ -1,5 +1,9 @@
 # Deployment and recovery
 
+## Hostinger
+
+Follow the [step-by-step Hostinger guide](HOSTINGER.md) for the managed Node.js web app, database schema, environment variables, GitHub branch and launch checks. The default build and start scripts target Hostinger’s Next.js runtime.
+
 ## Branches
 
 The GitHub repository is `LynnintheLab/digimium_website_final`.
@@ -7,7 +11,7 @@ The GitHub repository is `LynnintheLab/digimium_website_final`.
 - `testing` is the working branch for implementation and verification.
 - `production` is the default branch and stable source selected for release.
 
-Both begin at the same completed website revision. They do not create separate websites/databases. Publishing `testing` to the existing Site would still change the live Site. Use local preview for unfinished work, or explicitly provision a separate staging Site and storage.
+Connect the Hostinger live app to `production`. If you enable automatic deployment in hPanel, pushing to that branch can release a build. For hosted staging, create another app with its own database, secrets, origin and the `testing` branch.
 
 ## Daily workflow
 
@@ -35,13 +39,13 @@ git push origin production
 
 If branches diverge, inspect and resolve through a normal merge or pull request. Never force-push or discard another machine's work. Branch protection and automatic deployment are not implied by the names.
 
-## Sites publication
+## Existing Sites publication
 
-The live website is managed by Sites. Preserve the identity and storage bindings in `.openai/hosting.json`. Configure production `ADMIN_EMAILS` through Sites runtime settings; real values are not in this repository.
+The earlier Digimium URL is managed by Sites. Preserve the identity and storage bindings in `.openai/hosting.json`. Configure production `ADMIN_EMAILS` through Sites runtime settings; real values are not in this repository.
 
 1. Open the existing Site through the Sites workflow and synchronize its source before editing or reconciling changes.
 2. Bring in validated release source, preserving that Site's identity and audience.
-3. Run required checks and build. Output includes `dist/server/index.js`, client assets, and hosting/migration metadata.
+3. Run required checks and `npm run build:sites`. Output includes `dist/server/index.js`, client assets, and hosting/migration metadata.
 4. Use the Sites source workflow to commit/push the exact source and package its archive. Keep credentials in the tool session, never source or shell history.
 5. Save/deploy that exact revision. Use owner-private publication while the Site remains owner-private.
 6. Follow deployment to success/failure, verify the deployed URL, and record the outcome.
@@ -54,15 +58,17 @@ Sites applies included migrations during deployment. Review schema changes; do n
 
 | Included in Git | Stored separately |
 | --- | --- |
-| Source and tests | Current saved D1 catalog |
-| Original/imported seed catalog | R2 uploaded logos |
+| Source and tests | Current saved catalog in MySQL or D1 |
+| Original/imported seed catalog | Uploaded logos in MySQL or R2 |
 | Built-in images and fonts | Runtime secrets and credentials |
 | Schema and migrations | Browser cart/language preference |
 | Documentation and history | Local state and generated build output |
 
 ## Runtime backups
 
-Use a supported D1 export/snapshot mechanism where available. An authorized admin can also open `/api/admin/catalog` while signed in and save its complete JSON as a dated backup. Store backups privately outside source. `/api/catalog` is not complete: it omits hidden products/plans and may omit descriptions.
+**Hostinger.** Back up the MySQL database through Hostinger’s database backup tools or phpMyAdmin. Include `digimium_catalog` and `digimium_logos` with their rows and binary logo data. Keep the backup in private storage. After a restore, check that a saved product edit and its uploaded logo both appear. Session records contain security-sensitive data. For a new installation, initialize fresh sessions using the schema instead of copying old sessions.
+
+**Sites.** Use a supported D1 export/snapshot mechanism where available. An authorized admin can also open `/api/admin/catalog` while signed in and save its complete JSON as a dated backup. Store backups privately outside source. `/api/catalog` is not complete: it omits hidden products/plans and may omit descriptions.
 
 Back up R2 `logos/` objects with the catalog. Preserve keys and bytes so saved `/media/logos/...` paths work. Record date, Site identity, catalog revision, and storage environment. JSON alone leaves uploaded-image references without their files.
 
@@ -75,7 +81,7 @@ There is no admin backup/restore button in this release. Restore through support
 - Logo issue: restore matching R2 objects or upload replacements and save the new paths.
 - Account change: local source remains available, but previous hosted Site/storage access does not transfer automatically. Use authorized tools for the connected account and preserve local copies before reconciling.
 
-A source rollback does not roll back D1 or R2. Back up storage before destructive migrations or bulk replacement.
+A source rollback leaves each host’s database and uploads at their current state. Back up storage before destructive migrations or bulk replacement.
 
 ## Release verification
 

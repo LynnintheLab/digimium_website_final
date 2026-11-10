@@ -1,7 +1,11 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: 'standalone',
+  outputFileTracingRoot: process.cwd(),
+  poweredByHeader: false,
+  serverExternalPackages: ['mysql2'],
+  experimental: { cpus: 2 },
 };
 
 export default nextConfig;

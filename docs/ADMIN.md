@@ -1,6 +1,8 @@
 # Catalog administration
 
-Open `/admin` and sign in with an account listed in the hosted `ADMIN_EMAILS` runtime setting. Website viewing access and catalog editing access are separate. Being able to view a private website does not automatically make someone an admin.
+On Hostinger, open `/admin` and sign in with the admin email and password configured for the application in hPanel. Customers can browse the storefront without signing in. [Hostinger setup](HOSTINGER.md)
+
+On the earlier Sites deployment, use ChatGPT sign-in with an account listed in the hosted `ADMIN_EMAILS` setting.
 
 ## Edit a service
 
@@ -43,7 +45,7 @@ The original text remains stored and editable in admin. Turn the setting off and
 2. Select PNG, JPEG, or still WebP, up to 2 MiB and 4096 × 4096 pixels.
 3. After upload succeeds, choose **Save changes** to attach it to the service.
 
-The upload creates an R2 object and a path such as `/media/logos/<generated-id>.png`. **Copy path** copies this relative URL. **Use a saved logo path** reuses an existing upload from the same site's storage. Arbitrary external image URLs and SVG uploads are not supported.
+The upload stores the image in Hostinger MySQL or Sites R2 and creates a path such as `/media/logos/<generated-id>.png`. **Copy path** copies this relative URL. **Use a saved logo path** reuses an existing upload from the same site's storage. Arbitrary external image URLs and SVG uploads are not supported.
 
 The built-in icon is used when no upload is selected. Removing a logo detaches it after saving; it does not delete the stored file, preserving other products using that path. Uploaded files need backups separate from Git.
 
@@ -55,6 +57,6 @@ The website prepares and copies an order; it does not send the customer's messag
 
 ## Data and recovery
 
-Admin saves write a complete, versioned snapshot to D1. Seed JSON initializes an empty database only; changing seed files does not replace an existing saved catalog.
+Admin saves write a complete, versioned snapshot to MySQL on Hostinger or D1 on Sites. Seed JSON initializes an empty database only; changing seed files does not replace an existing saved catalog.
 
 There is no automatic Git commit for admin edits and no built-in backup/export button. Use the authenticated catalog endpoint and supported storage tools described in [Deployment and recovery](DEPLOYMENT.md). Public catalog data is not a full backup because hidden products/plans and optionally descriptions are omitted.

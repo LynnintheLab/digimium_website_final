@@ -1,5 +1,4 @@
-import { checkAdmin } from "../../../../lib/admin-auth";
-import { isSameOriginMutation } from "../../../../lib/admin-auth-policy";
+import { checkAdmin, isAllowedMutation } from "../../../../lib/admin-auth";
 import { CatalogConflictError, getCatalog, saveCatalog } from "../../../../lib/catalog-store";
 import { MAX_CATALOG_BYTES, saveCatalogSchema } from "../../../../lib/catalog-validation";
 import { LogoInputError, validateLogoReferences } from "../../../../lib/logo-storage";
@@ -25,7 +24,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   const admin = await checkAdmin();
   if (!admin.ok) return errorResponse(admin.message, admin.status);
-  if (!isSameOriginMutation(request)) return errorResponse("Catalog updates must come from this website.", 403);
+  if (!isAllowedMutation(request)) return errorResponse("Catalog updates must come from this website.", 403);
   if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
     return errorResponse("Send catalog changes as JSON.", 415);
   }

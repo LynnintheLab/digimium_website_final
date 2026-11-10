@@ -254,3 +254,6 @@
   .admin-mobile-back { min-height: 44px; }
   .admin-workspace-footer a { min-height: 44px; }
 }
+
+.admin-shell button.admin-signout { border: 0; background: transparent; font-size: 11px; }
+@media(max-width:620px) { .admin-shell button.admin-signout { font-size: 0; } }
