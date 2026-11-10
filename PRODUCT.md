@@ -5,7 +5,7 @@ web
 ## Product purpose
 A bilingual website introducing Digimium's premium digital subscription collection to Myanmar-speaking students, creators, and professionals. Existing brand materials establish AI, creative, music, entertainment, and everyday software categories.
 ## Brand commitments
-User requests a clean, minimalist modern website with black, white, and brand blue as an accent. Wa Lone for Myanmar. Original supplied logos preserved. English uses the supplied geometric Gunken face.
+User requests a clean, minimalist modern website with black, white, and brand blue as an accent. Wa Lone for Myanmar. Original supplied logos preserved. English uses self-hosted Manrope for simple, modern headings, body copy, and controls; the user requested replacing the supplied branding font.
 ## Capabilities and constraints
 Browse and search the supplied catalog. Contact details are from supplied brand tokens. Current prices, availability, checkout and activation times are unconfirmed. Do not fabricate them. User confirmed contact-led ordering now, with online checkout planned for a future upgrade.
 ## Evidence

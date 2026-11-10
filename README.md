@@ -1,6 +1,6 @@
 # Digimium website
 
-Minimal bilingual service catalog using black, white, and Digimium Persian Blue. Built with React and Vinext. Myanmar text uses supplied Wa Lone; display headings use supplied Gunken, with a quiet sans-serif body.
+Minimal bilingual service catalog using black, white, and Digimium Persian Blue. Built with React and Vinext. Myanmar text uses supplied Wa Lone; English headings, body copy, and controls use self-hosted Manrope (400, 500, 600, 700), with semibold headings.
 
 ## Development
 

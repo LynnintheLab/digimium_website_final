@@ -11,30 +11,30 @@ colors:
   white: "#fff"
 typography:
   display:
-    fontFamily: "Gunken, Arial, sans-serif"
+    fontFamily: "Manrope, Arial, sans-serif"
     fontSize: "clamp(48px, 5.2vw, 76px)"
-    fontWeight: 500
+    fontWeight: 600
     lineHeight: 1.09
     letterSpacing: "-0.04em"
   headline:
-    fontFamily: "Gunken, Arial, sans-serif"
+    fontFamily: "Manrope, Arial, sans-serif"
     fontSize: "36px"
-    fontWeight: 500
+    fontWeight: 600
     lineHeight: 1.25
     letterSpacing: "-0.025em"
   title:
-    fontFamily: "Gunken, Arial, sans-serif"
+    fontFamily: "Manrope, Arial, sans-serif"
     fontSize: "23px"
-    fontWeight: 500
+    fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "-0.02em"
   body:
-    fontFamily: "Arial, Helvetica, sans-serif"
+    fontFamily: "Manrope, Arial, sans-serif"
     fontSize: "15px"
     fontWeight: 400
     lineHeight: 1.6
   label:
-    fontFamily: "Arial, Helvetica, sans-serif"
+    fontFamily: "Manrope, Arial, sans-serif"
     fontSize: "12px"
     fontWeight: 400
     lineHeight: 1.6
@@ -92,11 +92,11 @@ components:
 
 **Creative North Star: "A calm, bilingual digital collection"**
 
-A calm, bilingual digital collection. White space, near-black display surfaces, the supplied Digimium portal mark, and restrained Persian Blue accents create a clear, modern identity. Geometric headings carry the brand while quiet body typography supports browsing and enquiry.
+A calm, bilingual digital collection. White space, near-black display surfaces, the supplied Digimium portal mark, and restrained Persian Blue accents create a clear, modern identity. Simple modern sans-serif typography unifies English headings and reading text while supporting browsing and enquiry.
 
 **Key Characteristics:**
 - White and near-black foundations with blue accents.
-- Supplied Gunken headings, quiet English body copy, and spacious Myanmar text.
+- Simple Manrope headings and English body copy, with spacious Myanmar text.
 - Flat surfaces, fine dividers, and gently rounded controls.
 
 ## Colors
@@ -111,11 +111,11 @@ Persian Blue (`blue`) identifies principal actions, headline emphasis, small ste
 
 ## Typography
 
-Gunken is the supplied display face, loaded from `public/assets/fonts/gunken.otf`; use it for headings and the prominent brand introduction. English body copy and controls use Arial/Helvetica. Wa Lone is registered as `Walone` from the regular and bold font files in `public/assets/fonts/` and applied through `lang="my"`.
+Manrope is the self-hosted English typeface for headings, body copy, and controls, with weights 400, 500, 600, and 700 in `public/assets/fonts/`. Headings use weight 600; keep negative tracking no tighter than -0.04em. Wa Lone is registered as `Walone` from the regular and bold font files in `public/assets/fonts/` and applied through `lang="my"`.
 
 Frontmatter describes the desktop hero, section heading, product title, body, and label roles. Supporting paragraphs commonly use 14px with 1.8–1.9 line-height. Product descriptions are limited to 34ch. Myanmar uses 2.1 line-height, increased to 2.3 in the dark brand section. The hero Myanmar line is 19px on wide screens and 17px below 1150px.
 
-At 1150px the hero title becomes 60px; at 800px it is 47px; at 620px it uses `clamp(43px, 11.7vw, 65px)` with 1.12 line-height. Above 1500px it is 78px. Product titles become 21px at 800px and 20px at 620px; mobile product copy is 12px. Buttons use 14px text, falling to 13px at 800px.
+At 1150px the hero title becomes 60px; at 800px it is 47px; at 620px it uses `clamp(43px, 11.7vw, 65px)` with 1.12 line-height. The wide desktop hero is capped at 76px. Product titles become 21px at 800px and 20px at 620px; mobile product copy is 12px. Buttons use 14px text, falling to 13px at 800px.
 
 ## Layout
 
