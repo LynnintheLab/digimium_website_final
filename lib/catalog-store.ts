@@ -1,7 +1,8 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { catalogSnapshots } from "../db/schema";
-import { defaultCatalog, type Catalog } from "./catalog";
+import type { Catalog } from "./catalog";
+import { initialCatalog } from "./initial-catalog";
 import { catalogPayloadSchema, saveCatalogSchema, type SaveCatalogInput } from "./catalog-validation";
 
 export class CatalogUnavailableError extends Error {
@@ -33,7 +34,7 @@ export async function getCatalog(): Promise<Catalog> {
     const [row] = await getDb().select().from(catalogSnapshots).where(eq(catalogSnapshots.id, "main")).limit(1);
     // A successful empty query is the only situation that uses the seed.
     // Reads never create a record, and storage failures must stay visible.
-    if (!row) return structuredClone(defaultCatalog);
+    if (!row) return initialCatalog();
     return decodeSnapshot(row);
   } catch (error) {
     throw new CatalogUnavailableError(error);
@@ -42,7 +43,11 @@ export async function getCatalog(): Promise<Catalog> {
 
 export async function getPublicCatalog(): Promise<Catalog> {
   const catalog = await getCatalog();
-  return { ...catalog, products: catalog.products.filter((product) => product.published) };
+  return { ...catalog, products: catalog.products.filter((product) => product.published).map((product) => ({
+    ...product,
+    ...(catalog.settings.hideShortDescriptions ? { description: "", mm: undefined } : {}),
+    ...(product.plans ? { plans: product.plans.filter((plan) => plan.published) } : {}),
+  })) };
 }
 
 export async function saveCatalog(input: SaveCatalogInput): Promise<Catalog> {

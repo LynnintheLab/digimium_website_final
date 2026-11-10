@@ -1,0 +1,1447 @@
+{
+  "sourceLabel": "Digimium Telegram bot full price list (November 2026 export)",
+  "products": [
+    {
+      "id": "chatgpt",
+      "name": "ChatGPT",
+      "category": 1,
+      "mark": "chatgpt",
+      "description": "Explore ChatGPT plans for writing, ideas, and everyday work.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-chatgpt-plan-1",
+          "name": "Go 1 month (Own Mail)",
+          "price": "55,000 MMK",
+          "duration": "1 month",
+          "published": false
+        },
+        {
+          "id": "import-chatgpt-plan-2",
+          "name": "Plus 1 month (Own Mail)",
+          "price": "130,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-chatgpt-plan-3",
+          "name": "Pro 5x 1 month (Own Mail)",
+          "price": "650,000 MMK",
+          "duration": "1 month",
+          "published": false
+        },
+        {
+          "id": "import-chatgpt-plan-4",
+          "name": "Pro 20x 1 month (Own Mail)",
+          "price": "1,300,000 MMK",
+          "duration": "1 month",
+          "published": false
+        },
+        {
+          "id": "import-chatgpt-plan-5",
+          "name": "Business Pro 1 month (Own Mail)",
+          "price": "150,000 MMK",
+          "duration": "1 month",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini",
+      "category": 1,
+      "mark": "gemini",
+      "description": "Explore Google AI plans for your everyday projects.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-gemini-plan-1",
+          "name": "Google AI Pro (Gemini Pro) 3 month + 1 month Free (Own Mail)",
+          "price": "",
+          "duration": "3 months + 1 month free",
+          "published": true
+        },
+        {
+          "id": "import-gemini-plan-2",
+          "name": "Google AI Pro (Gemini Pro) 6 month + 2 month Free (Own Mail)",
+          "price": "",
+          "duration": "6 months + 2 months free",
+          "published": false
+        },
+        {
+          "id": "import-gemini-plan-3",
+          "name": "Google AI Pro (Gemini Pro) 12 month + 3 month Free (Own Mail)",
+          "price": "",
+          "duration": "12 months + 3 months free",
+          "published": false
+        },
+        {
+          "id": "import-gemini-plan-4",
+          "name": "Google AI Ultra 5x Plan 1 month (Own Mail)",
+          "price": "650,000 MMK",
+          "duration": "1 month",
+          "published": false
+        },
+        {
+          "id": "import-gemini-plan-5",
+          "name": "Google AI Ultra 20x Plan 1 month (Own Mail)",
+          "price": "1,300,000 MMK",
+          "duration": "1 month",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "claude",
+      "name": "Claude",
+      "category": 1,
+      "mark": "claude",
+      "description": "Explore Claude plans for writing, analysis, and working through ideas.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-claude-plan-1",
+          "name": "Pro 1 month (Own Mail)",
+          "price": "130,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-claude-plan-2",
+          "name": "Max 5x Plan 1 month (Own Mail)",
+          "price": "650,000 MMK",
+          "duration": "1 month",
+          "published": false
+        },
+        {
+          "id": "import-claude-plan-3",
+          "name": "Max 20x Plan 1 month (Own Mail)",
+          "price": "1,300,000 MMK",
+          "duration": "1 month",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "grok",
+      "name": "Grok",
+      "category": 1,
+      "mark": "grok",
+      "description": "Explore Grok plans and ask about available options.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-grok-plan-1",
+          "name": "SuperGrok Lite 1 month (Own Mail)",
+          "price": "65,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-grok-plan-2",
+          "name": "SuperGrok 1 month (Own Mail)",
+          "price": "195,000 MMK",
+          "duration": "1 month",
+          "published": false
+        },
+        {
+          "id": "import-grok-plan-3",
+          "name": "SuperGrok Plus 1 month (Own Mail)",
+          "price": "650,000 MMK",
+          "duration": "1 month",
+          "published": false
+        },
+        {
+          "id": "import-grok-plan-4",
+          "name": "SuperGrok Heavy 1 month (Own Mail)",
+          "price": "1,950,000 MMK",
+          "duration": "1 month",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "perplexity",
+      "name": "Perplexity",
+      "category": 1,
+      "mark": "perplexity",
+      "description": "Explore Perplexity plans for questions and research.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-perplexity-plan-1",
+          "name": "Pro 1 month (Own Mail)",
+          "price": "130,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-perplexity-plan-2",
+          "name": "Max 1 month (Own Mail)",
+          "price": "1,300,000 MMK",
+          "duration": "1 month",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "suno",
+      "name": "Suno",
+      "category": 2,
+      "mark": "suno",
+      "description": "Explore Suno plans for music creation.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-suno-plan-1",
+          "name": "Pro 1 month",
+          "price": "65,000 MMK",
+          "duration": "1 month",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "category": 1,
+      "mark": "cursor",
+      "description": "Explore Cursor plans for AI-assisted coding.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-cursor-plan-1",
+          "name": "Pro 1 month (Own Mail)",
+          "price": "130,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-cursor-plan-2",
+          "name": "Pro + 1 month (Own Mail)",
+          "price": "390,000 MMK",
+          "duration": "1 month",
+          "published": false
+        },
+        {
+          "id": "import-cursor-plan-3",
+          "name": "Ultra 1 month (Own Mail)",
+          "price": "1,300,000 MMK",
+          "duration": "1 month",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "import-quillbot",
+      "name": "Quillbot",
+      "category": 1,
+      "mark": "",
+      "description": "Explore Quillbot options for writing and editing.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-quillbot-plan-1",
+          "name": "Premium 3 month 1 device",
+          "price": "40,000 MMK",
+          "duration": "3 months",
+          "published": false
+        },
+        {
+          "id": "import-quillbot-plan-2",
+          "name": "Premium 3 month 1 device",
+          "price": "60,000 MMK",
+          "duration": "3 months",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "import-manus",
+      "name": "Manus",
+      "category": 1,
+      "mark": "manus",
+      "description": "Explore Manus plans and ask about available options.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-manus-plan-1",
+          "name": "Standard 1 month (Own Mail)",
+          "price": "130,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-manus-plan-2",
+          "name": "Other plans — price on enquiry",
+          "price": "",
+          "duration": "",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "import-gamma",
+      "name": "Gamma",
+      "category": 1,
+      "mark": "",
+      "description": "Explore Gamma plans for presentations and documents.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-gamma-plan-1",
+          "name": "Plus",
+          "price": "78,000 MMK",
+          "duration": "",
+          "published": true
+        },
+        {
+          "id": "import-gamma-plan-2",
+          "name": "Pro",
+          "price": "165,000 MMK",
+          "duration": "",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "import-kling-ai",
+      "name": "Kling AI",
+      "category": 1,
+      "mark": "kling",
+      "description": "Explore Kling AI plans for creative projects.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-kling-ai-plan-1",
+          "name": "Standard",
+          "price": "65,000 MMK",
+          "duration": "",
+          "published": true
+        },
+        {
+          "id": "import-kling-ai-plan-2",
+          "name": "Pro",
+          "price": "180,000 MMK",
+          "duration": "",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "notion",
+      "name": "Notion",
+      "category": 4,
+      "mark": "notion",
+      "description": "Explore Notion options for notes, plans, and projects.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-notion-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "freepik",
+      "name": "Freepik",
+      "category": 2,
+      "mark": "freepik",
+      "description": "Explore Freepik plans for visual resources and creative work.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-freepik-plan-1",
+          "name": "Premium",
+          "price": "115,000 MMK",
+          "duration": "",
+          "published": true
+        },
+        {
+          "id": "import-freepik-plan-2",
+          "name": "Premium+",
+          "price": "260,000 MMK",
+          "duration": "",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "import-github-copilot",
+      "name": "GitHub Copilot",
+      "category": 1,
+      "mark": "githubcopilot",
+      "description": "Ask about GitHub Copilot plans for your coding workflow.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-github-copilot-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-higgsfield",
+      "name": "Higgsfield",
+      "category": 1,
+      "mark": "",
+      "description": "Explore Higgsfield plans for creative projects.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-higgsfield-plan-1",
+          "name": "Starter",
+          "price": "99,000 MMK",
+          "duration": "",
+          "published": true
+        },
+        {
+          "id": "import-higgsfield-plan-2",
+          "name": "Pro",
+          "price": "325,000 MMK",
+          "duration": "",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "import-runway",
+      "name": "Runway",
+      "category": 1,
+      "mark": "runway",
+      "description": "Explore Runway plans for video and creative work.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-runway-plan-1",
+          "name": "Standard",
+          "price": "99,000 MMK",
+          "duration": "",
+          "published": true
+        },
+        {
+          "id": "import-runway-plan-2",
+          "name": "Pro",
+          "price": "195,000 MMK",
+          "duration": "",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "import-heygen",
+      "name": "HeyGen",
+      "category": 1,
+      "mark": "",
+      "description": "Explore HeyGen plans for video projects.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-heygen-plan-1",
+          "name": "Creator",
+          "price": "195,000 MMK",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-midjourney",
+      "name": "Midjourney",
+      "category": 1,
+      "mark": "midjourney",
+      "description": "Explore Midjourney plans for image creation.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-midjourney-plan-1",
+          "name": "Basic",
+          "price": "65,000 MMK",
+          "duration": "",
+          "published": true
+        },
+        {
+          "id": "import-midjourney-plan-2",
+          "name": "Standard",
+          "price": "195,000 MMK",
+          "duration": "",
+          "published": false
+        },
+        {
+          "id": "import-midjourney-plan-3",
+          "name": "Other plans — price on enquiry",
+          "price": "",
+          "duration": "",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "import-api-services-chatgpt-gemini-claude",
+      "name": "API services (ChatGPT, Gemini, Claude)",
+      "category": 1,
+      "mark": "",
+      "description": "Ask about available AI API services and rates.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-api-services-chatgpt-gemini-claude-plan-1",
+          "name": "1 USD Rate",
+          "price": "6,500 MMK",
+          "duration": "",
+          "published": true
+        },
+        {
+          "id": "import-api-services-chatgpt-gemini-claude-plan-2",
+          "name": "Over 100 USD Rate",
+          "price": "6,000 MMK",
+          "duration": "",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "spotify",
+      "name": "Spotify",
+      "category": 3,
+      "mark": "spotify",
+      "description": "Explore Spotify plans for music and audio.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-spotify-plan-1",
+          "name": "Individual 1m (Own Mail)",
+          "price": "16,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-spotify-plan-2",
+          "name": "Individual 2m (Own Mail)",
+          "price": "32,000 MMK",
+          "duration": "2 months",
+          "published": false
+        },
+        {
+          "id": "import-spotify-plan-3",
+          "name": "Family (1 slot) 1 month (Own Mail)",
+          "price": "9,000 MMK",
+          "duration": "1 month",
+          "published": false
+        },
+        {
+          "id": "import-spotify-plan-4",
+          "name": "Individual 3m (Own Mail)",
+          "price": "48,000 MMK",
+          "duration": "3 months",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "netflix",
+      "name": "Netflix",
+      "category": 3,
+      "mark": "netflix",
+      "description": "Explore Netflix options for your preferred device.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-netflix-plan-1",
+          "name": "1 month (Phone/Laptop) - Myanmar Region",
+          "price": "18,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-netflix-plan-2",
+          "name": "1 month (TV) - Myanmar Region",
+          "price": "19,997 MMK",
+          "duration": "1 month",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "youtube-premium",
+      "name": "YouTube Premium",
+      "category": 3,
+      "mark": "youtube",
+      "description": "Explore YouTube Premium plans for viewing and listening.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-youtube-premium-plan-1",
+          "name": "Individual 1 month (Own Mail)",
+          "price": "25,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-youtube-premium-plan-2",
+          "name": "Individual 2 month (Own Mail)",
+          "price": "50,000 MMK",
+          "duration": "2 months",
+          "published": false
+        },
+        {
+          "id": "import-youtube-premium-plan-3",
+          "name": "Individual 3 month (Own Mail)",
+          "price": "75,000 MMK",
+          "duration": "3 months",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "apple-music",
+      "name": "Apple Music",
+      "category": 3,
+      "mark": "applemusic",
+      "description": "Ask about Apple Music plans for your music library.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-apple-music-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-hbo-max",
+      "name": "HBO Max",
+      "category": 3,
+      "mark": "hbomax",
+      "description": "Ask about available HBO Max plans.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-hbo-max-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-prime-video",
+      "name": "Prime Video",
+      "category": 3,
+      "mark": "primevideo",
+      "description": "Explore Prime Video options for your next watch.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-prime-video-plan-1",
+          "name": "1 month",
+          "price": "12,000 MMK",
+          "duration": "1 month",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-disney",
+      "name": "Disney+",
+      "category": 3,
+      "mark": "disneyplus",
+      "description": "Ask about available Disney+ plans.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-disney-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-iqiyi",
+      "name": "iQIYI",
+      "category": 3,
+      "mark": "",
+      "description": "Ask about available iQIYI plans.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-iqiyi-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "capcut",
+      "name": "CapCut",
+      "category": 2,
+      "mark": "capcut",
+      "description": "Explore CapCut Pro plans for video editing.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-capcut-plan-1",
+          "name": "1 month (Provided account)",
+          "price": "20,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-capcut-plan-2",
+          "name": "1 month Official Own Mail",
+          "price": "30,000 MMK",
+          "duration": "1 month",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "canva",
+      "name": "Canva",
+      "category": 2,
+      "mark": "canva",
+      "description": "Explore Canva plans for design and presentations.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-canva-plan-1",
+          "name": "1 month (Own Mail)",
+          "price": "25,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-canva-plan-2",
+          "name": "3 month (Own Mail)",
+          "price": "50,000 MMK",
+          "duration": "3 months",
+          "published": false
+        },
+        {
+          "id": "import-canva-plan-3",
+          "name": "6 month (Own Mail)",
+          "price": "100,000 MMK",
+          "duration": "6 months",
+          "published": false
+        },
+        {
+          "id": "import-canva-plan-4",
+          "name": "12 month (Own Mail)",
+          "price": "125,000 MMK",
+          "duration": "12 months",
+          "published": false
+        },
+        {
+          "id": "import-canva-plan-5",
+          "name": "Edu Pro 12 month (Own Mail)",
+          "price": "22,000 MMK",
+          "duration": "12 months",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "adobe-creative-cloud",
+      "name": "Adobe Creative Cloud",
+      "category": 2,
+      "mark": "adobe",
+      "description": "Explore Creative Cloud options for design and media work.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-adobe-creative-cloud-plan-1",
+          "name": "1 month 1 device",
+          "price": "55,000 MMK",
+          "duration": "1 month",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-figma",
+      "name": "Figma",
+      "category": 2,
+      "mark": "figma",
+      "description": "Ask about Figma options for your design workflow.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-figma-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-picsart",
+      "name": "Picsart",
+      "category": 2,
+      "mark": "picsart",
+      "description": "Ask about Picsart options for photo editing and design.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-picsart-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-google-drive",
+      "name": "Google Drive",
+      "category": 4,
+      "mark": "googledrive",
+      "description": "Ask about available Google storage plans.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-google-drive-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "zoom",
+      "name": "Zoom",
+      "category": 4,
+      "mark": "zoom",
+      "description": "Explore Zoom plans for meetings and collaboration.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-zoom-plan-1",
+          "name": "Pro 1 month",
+          "price": "25,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-zoom-plan-2",
+          "name": "Pro 2 month",
+          "price": "50,000 MMK",
+          "duration": "2 months",
+          "published": false
+        },
+        {
+          "id": "import-zoom-plan-3",
+          "name": "Pro 3 month",
+          "price": "75,000 MMK",
+          "duration": "3 months",
+          "published": false
+        },
+        {
+          "id": "import-zoom-plan-4",
+          "name": "Pro 6 month",
+          "price": "140,000 MMK",
+          "duration": "6 months",
+          "published": false
+        },
+        {
+          "id": "import-zoom-plan-5",
+          "name": "Pro 12 month",
+          "price": "270,000 MMK",
+          "duration": "12 months",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "import-telegram-premium",
+      "name": "Telegram Premium",
+      "category": 4,
+      "mark": "telegram",
+      "description": "Explore Telegram Premium subscription durations.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-telegram-premium-plan-1",
+          "name": "1 month",
+          "price": "",
+          "duration": "1 month",
+          "published": false
+        },
+        {
+          "id": "import-telegram-premium-plan-2",
+          "name": "3 month",
+          "price": "65,000 MMK",
+          "duration": "3 months",
+          "published": true
+        },
+        {
+          "id": "import-telegram-premium-plan-3",
+          "name": "6 month",
+          "price": "119,000 MMK",
+          "duration": "6 months",
+          "published": false
+        },
+        {
+          "id": "import-telegram-premium-plan-4",
+          "name": "12 month",
+          "price": "179,000 MMK",
+          "duration": "12 months",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "microsoft-365",
+      "name": "Microsoft 365",
+      "category": 4,
+      "mark": "microsoft365",
+      "description": "Explore Microsoft 365 plans for everyday work.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-microsoft-365-plan-1",
+          "name": "Personal 12 month",
+          "price": "74,997 MMK",
+          "duration": "12 months",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-windows-key",
+      "name": "Windows Key",
+      "category": 4,
+      "mark": "windows",
+      "description": "Ask about available Windows license options.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-windows-key-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-icloud",
+      "name": "iCloud+",
+      "category": 4,
+      "mark": "icloud",
+      "description": "Ask about available iCloud+ storage plans.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-icloud-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "duolingo",
+      "name": "Duolingo",
+      "category": 4,
+      "mark": "duolingo",
+      "description": "Explore Duolingo Super and Max plans for language learning.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-duolingo-plan-1",
+          "name": "Super 1 month",
+          "price": "9,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-duolingo-plan-2",
+          "name": "Super 3 month",
+          "price": "23,000 MMK",
+          "duration": "3 months",
+          "published": false
+        },
+        {
+          "id": "import-duolingo-plan-3",
+          "name": "Super 6 month",
+          "price": "45,000 MMK",
+          "duration": "6 months",
+          "published": false
+        },
+        {
+          "id": "import-duolingo-plan-4",
+          "name": "Super 12 month",
+          "price": "85,000 MMK",
+          "duration": "12 months",
+          "published": false
+        },
+        {
+          "id": "import-duolingo-plan-5",
+          "name": "Max 1 month",
+          "price": "15,000 MMK",
+          "duration": "1 month",
+          "published": false
+        },
+        {
+          "id": "import-duolingo-plan-6",
+          "name": "Max 3 month",
+          "price": "40,000 MMK",
+          "duration": "3 months",
+          "published": false
+        },
+        {
+          "id": "import-duolingo-plan-7",
+          "name": "Max 6 month",
+          "price": "75,000 MMK",
+          "duration": "6 months",
+          "published": false
+        },
+        {
+          "id": "import-duolingo-plan-8",
+          "name": "Max 12 month",
+          "price": "145,000 MMK",
+          "duration": "12 months",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "import-grammarly",
+      "name": "Grammarly",
+      "category": 4,
+      "mark": "grammarly",
+      "description": "Explore Grammarly plans for your writing workflow.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-grammarly-plan-1",
+          "name": "Premium 1 month",
+          "price": "30,000 MMK",
+          "duration": "1 month",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-linkedin-premium",
+      "name": "LinkedIn Premium",
+      "category": 4,
+      "mark": "linkedin",
+      "description": "Ask about available LinkedIn Premium plans.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-linkedin-premium-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-coursera-plus",
+      "name": "Coursera Plus",
+      "category": 4,
+      "mark": "coursera",
+      "description": "Ask about available Coursera Plus plans.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-coursera-plus-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-scribd",
+      "name": "Scribd",
+      "category": 4,
+      "mark": "",
+      "description": "Ask about available Scribd plans.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-scribd-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-turnitin",
+      "name": "Turnitin",
+      "category": 4,
+      "mark": "",
+      "description": "Ask about available Turnitin options.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-turnitin-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-udemy",
+      "name": "Udemy",
+      "category": 4,
+      "mark": "udemy",
+      "description": "Ask about available Udemy learning options.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-udemy-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-expressvpn",
+      "name": "ExpressVPN",
+      "category": 4,
+      "mark": "expressvpn",
+      "description": "Explore ExpressVPN options for phones and laptops.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-expressvpn-plan-1",
+          "name": "1 month 1 device (Phone)",
+          "price": "8,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-expressvpn-plan-2",
+          "name": "1 month 1 device (Laptop)",
+          "price": "9,000 MMK",
+          "duration": "1 month",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "import-vpn-key-hiddify-happ-v2ray",
+      "name": "VPN Key (Hiddify, Happ, V2Ray)",
+      "category": 4,
+      "mark": "",
+      "description": "Explore VPN key options by device allowance and data amount.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-vpn-key-hiddify-happ-v2ray-plan-1",
+          "name": "1 month 1 device 100 GB",
+          "price": "9,000 MMK",
+          "duration": "1 month",
+          "published": true
+        },
+        {
+          "id": "import-vpn-key-hiddify-happ-v2ray-plan-2",
+          "name": "1 month 2 device 200 GB",
+          "price": "18,000 MMK",
+          "duration": "1 month",
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "import-discord-nitro",
+      "name": "Discord Nitro",
+      "category": 3,
+      "mark": "discord",
+      "description": "Ask about available Discord Nitro plans.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-discord-nitro-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-steam-wallet",
+      "name": "Steam Wallet",
+      "category": 3,
+      "mark": "steam",
+      "description": "Ask about available Steam Wallet options.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-steam-wallet-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-playstation-plus",
+      "name": "PlayStation Plus",
+      "category": 3,
+      "mark": "playstation",
+      "description": "Ask about available PlayStation Plus plans.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-playstation-plus-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "import-game-top-up",
+      "name": "Game Top-up",
+      "category": 3,
+      "mark": "",
+      "description": "Ask about supported games and available top-up options.",
+      "price": "",
+      "duration": "",
+      "availability": "on-request",
+      "featured": false,
+      "published": true,
+      "plans": [
+        {
+          "id": "import-game-top-up-plan-1",
+          "name": "Plan details on enquiry",
+          "price": "",
+          "duration": "",
+          "published": true
+        }
+      ]
+    }
+  ]
+}

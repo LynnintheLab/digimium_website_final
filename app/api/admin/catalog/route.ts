@@ -2,6 +2,7 @@ import { checkAdmin } from "../../../../lib/admin-auth";
 import { isSameOriginMutation } from "../../../../lib/admin-auth-policy";
 import { CatalogConflictError, getCatalog, saveCatalog } from "../../../../lib/catalog-store";
 import { MAX_CATALOG_BYTES, saveCatalogSchema } from "../../../../lib/catalog-validation";
+import { LogoInputError, validateLogoReferences } from "../../../../lib/logo-storage";
 
 export const dynamic = "force-dynamic";
 const privateHeaders = { "Cache-Control": "private, no-store", Vary: "Cookie" };
@@ -62,9 +63,11 @@ export async function PUT(request: Request) {
     return Response.json({ error: "Some catalog details need attention.", issues: parsed.error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })) }, { status: 400, headers: privateHeaders });
   }
   try {
+    await validateLogoReferences(parsed.data.products);
     return Response.json(await saveCatalog(parsed.data), { headers: privateHeaders });
   } catch (error) {
     if (error instanceof CatalogConflictError) return errorResponse(error.message, 409);
+    if (error instanceof LogoInputError) return errorResponse(error.message, error.status);
     console.error("Catalog save failed", error);
     return errorResponse("The catalog could not be saved. Please try again shortly.", 503);
   }

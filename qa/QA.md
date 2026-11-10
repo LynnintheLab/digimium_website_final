@@ -15,4 +15,15 @@ Browser automation is disabled in Work settings for this update. The refreshed g
 The automatic design check returned design-system sizing advisories against the prior token list. The inherited responsive sizing was retained; admin controls use their documented compact form scale. Review helpers stopped before final handoff, so the parent completed source and integration checks. Visual sign-off remains with the user's preview.
 
 ## Publication status
-Deployment is pending: Sites returns project_not_found for the established site ID when requesting source access. Build and source are retained locally; reconnect the owning account/workspace and resume publishing to the same site.
+The user confirmed switching accounts and authorized publication of a separate copy. This checkout carries its newly registered Site identity and owner-specific runtime admin access. The previous site is not modified.
+
+## Cursor update
+Blue canvas light and violet card light use separate layers. Card overflow clips the inner light, and opaque card surfaces block the outside light. Pointer events are passive; position updates are frame-batched. Decorative layers are excluded from pointer input and accessibility, and disabled for touch/reduced-motion preferences. Source review found no blocking admin authorization or persistence issue. Browser-based visual motion review remains unavailable.
+
+## Logo uploads and imported plans
+
+The current account build passed TypeScript and production compilation. Local checks uploaded, retrieved and compared an image byte for byte, saved the path to a product, retrieved it again and verified that the storefront rendered the image. Invalid image formats and missing logo references were rejected. Checked 54 services, 104 admin plan entries, 50 published plans and all 42 distinct built-in image paths. The local catalog was restored after mutation checks. Browser inspection is disabled in Work settings.
+
+## Bilingual cart and Telegram checkout
+
+Verified in the in-app browser: adding ChatGPT returned to browsing, choosing Canva produced a Telegram draft containing both plans, and both cart entries survived a reload. Switching to Myanmar translated plan terms, totals and the draft. A 155,000 MMK checkout opened the verified order contact without sending a message. Automated cases cover unavailable and hidden entries, price changes, enquiry totals, repeated checkout, multilingual labels and multipart orders.

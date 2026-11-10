@@ -156,3 +156,6 @@ Interactive elements use a 3px blue focus outline with 5px offset. Honor `prefer
 
 ### Admin workspace
 `/admin` is an Operate surface: persistent navigation, filterable service list, and detail editor. Use pale blue panels, labelled native fields, clear selected state, and an explicit Save changes action. Empty, loading, validation, authentication, save, and conflict states must remain visible. Unsaved changes warn before leaving; all changes publish together only after a successful server save.
+
+## Cursor lighting
+The storefront has one low-opacity blue cursor light on the canvas (13% at the center) and a separate violet light inside the hovered product card (17% at the center). Opaque card backgrounds keep the two colors separate; card overflow clips the inner light at the rounded boundary. Light layers never intercept interaction and remain below copy and logos. Pointer updates are batched once per animation frame, with no continuous loop. Opacity fades in 220–260ms. Disable the decorative lights for touch, reduced motion, lost window focus, and keyboard navigation. Admin keeps its functional layout without cursor effects.

@@ -24,6 +24,7 @@ assert.equal((await put(payload(current),{'content-type':'text/plain'})).status,
 const bad=structuredClone(current);bad.products[0].name='<script>alert(1)</script>';assert.equal((await put(payload(bad))).status,400);
 const duplicate=structuredClone(current);duplicate.products.push(duplicate.products[0]);assert.equal((await put(payload(duplicate))).status,400);
 const badPhone=structuredClone(current);badPhone.settings.viber='javascript:alert(1)';assert.equal((await put(payload(badPhone))).status,400);
+const badVisibility=structuredClone(current);badVisibility.settings.hideShortDescriptions='true';assert.equal((await put(payload(badVisibility))).status,400);
 try{
  const edited=structuredClone(current);edited.products[0].name='Local QA service';edited.products[0].price='25,000 MMK';edited.products[0].duration='1 month';edited.products[0].availability='available';edited.products[1].published=false;
  const saved=await put(payload(edited));assert.equal(saved.status,200,JSON.stringify(saved.value));current=saved.value;assert.equal(current.revision,original.revision+1);
@@ -31,8 +32,24 @@ try{
  const storefront=await get('/api/catalog');assert.equal(storefront.value.products.some(p=>p.id===edited.products[1].id),false);assert.equal(storefront.value.products[0].name,'Local QA service');
  const html=await (await fetch(base)).text();assert.ok(html.includes('Local QA service'));assert.ok(html.includes('25,000 MMK'));assert.ok(html.includes('1 month'));
  assert.equal((await put(payload(original))).status,409,'Stale updates are rejected');
+ const english='A distinctive catalog test description.';const myanmar='မြန်မာ ဖော်ပြချက် စမ်းသပ်ရန်';
+ const toggle=structuredClone(current);toggle.products[0].description=english;toggle.products[0].mm=myanmar;toggle.settings.hideShortDescriptions=true;
+ const hidden=await put(payload(toggle));assert.equal(hidden.status,200);
+ const adminSnapshot=(await get('/api/admin/catalog',auth)).value;
+ assert.equal(adminSnapshot.settings.hideShortDescriptions,true);
+ assert.equal(adminSnapshot.products[0].description,english);assert.equal(adminSnapshot.products[0].mm,myanmar);
+ const hiddenCatalog=(await get('/api/catalog')).value;
+ assert.ok(hiddenCatalog.products.every(product=>!product.description&&!product.mm));
+ for(const language of ['en','my']){
+   const page=await fetch(base,{headers:{cookie:'digimium-language='+language}});
+   assert.equal(page.status,200);
+   const pageHtml=await page.text();
+   assert.ok(!pageHtml.includes(english)&&!pageHtml.includes(myanmar),'Hidden copy must not be served with the storefront');
+ }
+ const showed=await put({...payload(hidden.value),settings:{...hidden.value.settings,hideShortDescriptions:false}});assert.equal(showed.status,200);current=showed.value;
+ const visibleCatalog=(await get('/api/catalog')).value;assert.equal(visibleCatalog.products[0].description,english);assert.equal(visibleCatalog.products[0].mm,myanmar);
  const concurrent=await Promise.all([put(payload(current)),put(payload(current))]);assert.deepEqual(concurrent.map(r=>r.status).sort(),[200,409]);current=concurrent.find(r=>r.status===200).value;
- console.log('PASS: admin authorization, CSRF, input validation, persistent save, storefront visibility, pricing, stale revision, atomic concurrent writes.');
+ console.log('PASS: admin authorization, CSRF, input validation, persistent save, product and description visibility, restored English/Myanmar copy, pricing, stale revision, atomic concurrent writes.');
 }finally{
  const latest=await get('/api/admin/catalog',auth);
  const restored=await put({expectedRevision:latest.value.revision,products:original.products,settings:original.settings});assert.equal(restored.status,200,'Restore local catalog');

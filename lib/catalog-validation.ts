@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { markKeys } from "./catalog";
+import { normalizeTelegramUsername, validTelegramUsername } from "./telegram-contact";
+import { LOGO_PATH_PATTERN } from "./logo-path";
 
 export const MAX_PRODUCTS = 100;
 export const MAX_CATALOG_BYTES = 768 * 1024;
@@ -11,11 +13,31 @@ const plainText = (max: number, min = 0) =>
     message: "Use plain text without HTML or links.",
   });
 
+const safeId = z.string().min(1).max(64).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and single hyphens.");
+
+export const productPlanSchema = z.object({
+  id: safeId,
+  name: plainText(180, 1),
+  price: plainText(80),
+  duration: plainText(80),
+  published: z.boolean(),
+}).strict();
+
+const plansSchema = z.array(productPlanSchema).max(30).superRefine((plans, context) => {
+  const ids = new Set<string>();
+  for (const [index, plan] of plans.entries()) {
+    if (ids.has(plan.id)) context.addIssue({ code: z.ZodIssueCode.custom, path: [index, "id"], message: "Each plan must have a unique ID within its product." });
+    ids.add(plan.id);
+  }
+});
+
 export const productSchema = z.object({
-  id: z.string().min(1).max(64).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and single hyphens."),
+  id: safeId,
   name: plainText(100, 1),
   category: z.number().int().min(1).max(4),
   mark: z.union([z.enum(markKeys), z.literal("")]),
+  logoPath: z.union([z.string().regex(LOGO_PATH_PATTERN, "Choose an uploaded product logo."), z.literal("")]).optional(),
+  plans: plansSchema.optional(),
   description: plainText(500, 1),
   mm: plainText(500).optional(),
   price: plainText(80),
@@ -26,9 +48,11 @@ export const productSchema = z.object({
 }).strict();
 
 export const catalogSettingsSchema = z.object({
+  hideShortDescriptions: z.boolean().optional(),
   email: z.string().trim().max(254).email(),
   viber: z.string().trim().regex(/^\+?[0-9]{7,15}$/, "Enter a phone number with 7–15 digits and an optional leading +."),
   viberLabel: plainText(80, 1),
+  telegram: z.string().trim().max(33).refine(validTelegramUsername, "Enter the Telegram username for order messages.").transform(normalizeTelegramUsername).optional(),
 }).strict();
 
 const productsSchema = z.array(productSchema).max(MAX_PRODUCTS).superRefine((products, context) => {
