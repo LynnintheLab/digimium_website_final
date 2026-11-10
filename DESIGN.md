@@ -5,9 +5,9 @@ colors:
   blue: "#1f45b8"
   blue-hover: "#163695"
   ink: "#101113"
-  muted: "#66686e"
-  line: "#e3e4e8"
-  soft: "#f5f5f6"
+  muted: "#515e73"
+  line: "#c5d1e5"
+  soft: "#dfe8f6"
   white: "#fff"
 typography:
   display:
@@ -92,10 +92,10 @@ components:
 
 **Creative North Star: "A calm, bilingual digital collection"**
 
-A calm, bilingual digital collection. White space, near-black display surfaces, the supplied Digimium portal mark, and restrained Persian Blue accents create a clear, modern identity. Simple modern sans-serif typography unifies English headings and reading text while supporting browsing and enquiry.
+A calm, bilingual digital collection. Generous spacing, softly tinted blue gradients, deep blue display surfaces, the supplied Digimium portal mark, and restrained Persian Blue accents create a clear, modern identity. Simple modern sans-serif typography unifies English headings and reading text while supporting browsing and enquiry.
 
 **Key Characteristics:**
-- White and near-black foundations with blue accents.
+- Blue/lavender canvas and navy panels with Persian Blue actions.
 - Simple Manrope headings and English body copy, with spacious Myanmar text.
 - Flat surfaces, fine dividers, and gently rounded controls.
 
@@ -105,9 +105,9 @@ A calm, bilingual digital collection. White space, near-black display surfaces, 
 Persian Blue (`blue`) identifies principal actions, headline emphasis, small step numbers, selection, and keyboard focus. The darker `blue-hover` is the primary button hover state.
 
 ### Neutral
-`white` is the page canvas; `ink` carries headings, selected filters, and dark brand panels. `muted` supports descriptions; `line` separates navigation, search, and accordion rows; `soft` groups catalog cards and contact content.
+The page canvas uses a restrained blue gradient (#e7edf8 → #dae5f6 → #ecedf8); `ink` carries headings, selected filters, and dark brand panels. `muted` supports descriptions; `line` separates navigation, search, and accordion rows; `soft` groups catalog cards and contact content.
 
-**The Accent Rule.** Keep the page predominantly white and near-black; use brand blue for emphasis and action.
+**The Accent Rule.** Keep backgrounds softly tinted; use deeper blues for contrast and primary actions.
 
 ## Typography
 
@@ -119,24 +119,24 @@ At 1150px the hero title becomes 60px; at 800px it is 47px; at 620px it uses `cl
 
 ## Layout
 
-The shared container is `min(1280px, calc(100% - 112px))`, centered. Gutters become 32px per side at 1150px and 20px per side at 620px. The header is 108px tall, then 84px at 800px and 78px at 620px; mobile navigation opens as a full-width white panel below it.
+The shared container is `min(1280px, calc(100% - 112px))`, centered. Gutters become 32px per side at 1150px and 20px per side at 620px. The header is 108px tall, then 84px at 800px and 78px at 620px; mobile navigation opens as a full-width tinted blue panel below it.
 
 The hero uses a 1.12:1 split with a 65px gap. Catalog cards use three equal columns with a 16px gap, reducing to two columns with an 11px gap at 620px. Hero, brand story, steps, FAQ, and contact layouts become single-column at 620px. Search takes full width on mobile. Major sections use roughly 75–92px desktop spacing, reducing to roughly 45–55px on mobile. Use the source stylesheet for section-specific measurements rather than treating these values as a universal scale.
 
 ## Elevation & Depth
 
-The system is flat: no box shadows. Contrast between white, soft gray, and near-black establishes hierarchy. Fine borders divide content; product cards reveal a blue border on hover. The low-opacity supplied portal mark is the sole large graphic layer within the dark collection panel.
+The storefront is flat. Admin surfaces use a small soft shadow to distinguish editing panels. Contrast between pale blue, soft lavender, and navy establishes hierarchy. Fine borders divide content; product cards reveal a blue border on hover. The low-opacity supplied portal mark is the sole large graphic layer within the dark collection panel.
 
 ## Shapes
 
-Main surfaces use the `surface` radius; mobile product cards use `surface-mobile`. Buttons, category filters, and segmented options use smaller radii. Navigation, FAQ rows, and search use straight fine dividers. Preserve supplied mark proportions; service marks are monochrome, with the Adobe mark retaining its source shape through a grayscale-only treatment.
+Main surfaces use the `surface` radius; mobile product cards use `surface-mobile`. Buttons, category filters, and segmented options use smaller radii. Navigation, FAQ rows, and search use straight fine dividers. Preserve supplied mark proportions; service marks retain original colors, with accurate black marks retained where appropriate.
 
 ## Components
 
 - **Primary and secondary actions:** inline flex, 49px minimum height, 22px icon gap. Secondary actions have a fine neutral border. Hover lifts either button by 2px over 0.2s. On mobile, minimum height is 48px and padding is 13px 18px.
 - **Catalog filters:** wrapping text controls with 36px minimum height. Active is near-black with white text; inactive hover uses the soft surface. Expose selected state with `aria-pressed`.
 - **Search:** understated bottom border, transparent input, blue caret; allow it to expand to full width on mobile.
-- **Product cards:** entire card is an enquiry button; left-aligned mark, display title, muted category and description, and an arrow action. Hover changes the surface to white and border to blue.
+- **Product cards:** entire card is an enquiry button; left-aligned mark, display title, muted category and description, and an arrow action. Hover changes the surface to a slightly deeper blue tint and border to blue.
 - **Collection selector:** near-black stage with a darker gray segmented track; active tab is white. Content enters with a 9px vertical shift and opacity change over 0.45s using `cubic-bezier(.16,1,.3,1)`.
 - **FAQ:** native details/summary rows separated by fine borders; the chevron turns when open.
 
@@ -145,11 +145,14 @@ Interactive elements use a 3px blue focus outline with 5px offset. Honor `prefer
 ## Do's and Don'ts
 
 ### Do:
-- Do preserve supplied logo proportions and use the existing monochrome treatments.
+- Do preserve supplied logo proportions and original brand colors.
 - Do use Wa Lone for Myanmar text and retain generous line-height.
 - Do keep product actions clear and contact-led until checkout is implemented.
 
 ### Don't:
-- Don't turn blue into the dominant page background.
+- Don't return to a plain white page canvas; keep gradients subtle enough for readable content.
 - Don't substitute invented product marks or decorative dashboard imagery.
 - Don't present unconfirmed prices, availability, or checkout controls.
+
+### Admin workspace
+`/admin` is an Operate surface: persistent navigation, filterable service list, and detail editor. Use pale blue panels, labelled native fields, clear selected state, and an explicit Save changes action. Empty, loading, validation, authentication, save, and conflict states must remain visible. Unsaved changes warn before leaving; all changes publish together only after a successful server save.

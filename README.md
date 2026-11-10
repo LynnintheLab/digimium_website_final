@@ -1,6 +1,6 @@
 # Digimium website
 
-Minimal bilingual service catalog using black, white, and Digimium Persian Blue. Built with React and Vinext. Myanmar text uses supplied Wa Lone; English headings, body copy, and controls use self-hosted Manrope (400, 500, 600, 700), with semibold headings.
+Minimal bilingual service catalog using a soft blue gradient canvas, deep blue panels, and Digimium Persian Blue. Built with React and Vinext. Myanmar text uses supplied Wa Lone; English headings, body copy, and controls use self-hosted Manrope (400, 500, 600, 700), with semibold headings.
 
 ## Development
 
@@ -18,7 +18,7 @@ npm run build
 
 ## Content and behavior
 
-- `app/page.tsx`: 22 services, category filters, search, collection tabs, FAQ, and contact enquiry flow.
+- `app/page.tsx`: server-rendered catalog loader. `app/storefront.tsx`: category filters, search, collection tabs, FAQ, and contact enquiry flow. `app/admin`: catalog administration.
 - `app/globals.css`: layout, type, palette, responsive behavior, reduced motion, and focus states.
 - `public/assets`: local brand assets and fonts; origins recorded in `PROVENANCE.md`.
 - `PRODUCT.md` and `DESIGN.md`: product scope and design system.
@@ -32,3 +32,18 @@ Move the product list to a maintained catalog with stable IDs, verified plan opt
 ## Hosting
 
 Site identity lives in `.openai/hosting.json`. Sites publication uses a build archive from the exact pushed source revision. Credentials must never be saved in source. Local tool and dependency state is ignored.
+
+
+## Catalog administration
+
+Open `/admin` and sign in with the site owner's account. Only emails in the server-side `ADMIN_EMAILS` environment setting may edit. The production value is configured through Sites; local development uses the starter's local sign-in with `ADMIN_EMAILS=seedy@sites.test` in git-ignored `.dev.vars`.
+
+The editor manages service descriptions (English/Myanmar), categories, prices, durations, icons, availability, featured visibility, publishing, email and Viber contacts. Save changes publishes the full catalog atomically to D1. Hidden services remain editable but are excluded from the public API and storefront. Conflicting saves require loading the latest catalog.
+
+Initial services come from `data/catalog.json` only when the database has no saved catalog. Once saved, D1 is authoritative. API and database failures are reported instead of replacing user content with default data.
+
+Generate migrations with `npm run db:generate`; build before applying local SQL. See `drizzle/0000_supreme_salo.sql`. Sites applies production migrations during deployment. Do not replay an applied migration.
+
+Run the local integration checks with `node tests/catalog.integration.mjs` while dev preview is running on port 5185. The checks deliberately edit only a localhost database and restore its original catalog content. Never use them against production.
+
+Third-party logo origins are in `public/assets/marks/SOURCES.md`. Meitu uses a neutral fallback where no verified mark was sourced. VPN uses a generic shield.

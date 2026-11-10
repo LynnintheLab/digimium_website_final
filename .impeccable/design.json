@@ -157,6 +157,13 @@
     "focus": {
       "value": "3px solid var(--blue)",
       "offset": "5px"
+    },
+    "surfaceUpdate": {
+      "canvas": "linear-gradient(145deg,#e7edf8 0%,#dae5f6 46%,#ecedf8 100%)",
+      "logoTreatment": "original brand colors",
+      "adminMode": "Operate",
+      "adminCanvas": "#edf2fa",
+      "adminPanel": "#edf3fc"
     }
   },
   "components": [

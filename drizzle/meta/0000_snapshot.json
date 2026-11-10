@@ -1,0 +1,69 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "1b3de73c-9291-47aa-939b-045d9e734764",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "catalog_snapshots": {
+      "name": "catalog_snapshots",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payload": {
+          "name": "payload",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "catalog_singleton": {
+          "name": "catalog_singleton",
+          "value": "\"catalog_snapshots\".\"id\" = 'main'"
+        },
+        "catalog_positive_revision": {
+          "name": "catalog_positive_revision",
+          "value": "\"catalog_snapshots\".\"revision\" > 0"
+        },
+        "catalog_valid_json": {
+          "name": "catalog_valid_json",
+          "value": "json_valid(\"catalog_snapshots\".\"payload\")"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

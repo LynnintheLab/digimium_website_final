@@ -46,3 +46,4 @@ yarn-error.log*
 
 # Local review captures
 /.impeccable/review/
+!.env.example
