@@ -36,7 +36,9 @@ The build produces a self-contained server in `.next/standalone/`, with `server.
 
 ## 3. Set the private application values
 
-Open the web app dashboard's **Environment variables** section. Enter each name and value separately. Use a password manager to generate distinct database and admin passwords. Keep these values in hPanel.
+For a new deployment, download the [Hostinger environment template](../hostinger/.env.example), save a private copy with the extension `.env`, and fill in the eight values below. In **Review build settings → Environment variables → Edit**, choose **Import .env**, review the values, then select **Finish**. Hostinger keeps existing values for matching keys, so correct any earlier entries manually. [Hostinger’s import instructions](https://www.hostinger.com/support/how-to-add-environment-variables-during-node-js-application-deployment/)
+
+For an existing deployment, you can enter the same values directly in the web app dashboard’s **Environment variables** section. Use separate passwords for the database and the admin login. Keep completed files outside the repository.
 
 | Name | What to enter |
 | --- | --- |
