@@ -2,11 +2,13 @@
 
 ## Current status
 
-Digimium’s default deployment target is a Hostinger Business or Cloud Node.js Web App. `production` is the stable GitHub branch and `testing` is the working branch. The hPanel deployment steps, environment names, and database setup are in [the Hostinger guide](docs/HOSTINGER.md). Hostinger account setup and live deployment are pending.
+Digimium is deployed at `https://buywith-digimium.store` on Hostinger. The public catalog responds successfully. Admin sign-in is waiting on an hPanel configuration correction. `production` is the stable GitHub branch and `testing` is the working branch. The hPanel deployment steps, environment names, and database setup are in [the Hostinger guide](docs/HOSTINGER.md).
 
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Checked the production catalog and signed-out admin API. The catalog read from MySQL succeeded. The signed-out admin API returned HTTP 503, which the Hostinger auth adapter returns before checking credentials when the runtime admin settings are incomplete or invalid.
 
 Added an importable Hostinger-only environment template at `hostinger/.env.example` and documented the hPanel import flow. Completed environment files belong outside the repository.
 
@@ -16,4 +18,4 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-Connect the private GitHub repository to Hostinger, select `production`, import `hostinger/schema.sql`, and enter the owner’s private values in hPanel. Confirm HTTPS, storefront browsing, Telegram drafts, and admin persistence on the actual domain. If the older site contains later admin edits or uploaded logos, migrate that data from an authorized backup. Keep development on `testing` and maintain MySQL backups separately from Git.
+Update the admin password in hPanel to a private value between 16 and 256 characters, confirm the admin email and HTTPS origin, and apply the settings. Verify that a signed-out request to `/api/admin/catalog` returns 401 and that the owner can sign in. Then confirm Telegram drafts and admin persistence on the live domain. If the older site contains later admin edits or uploaded logos, migrate that data from an authorized backup. Keep development on `testing` and maintain MySQL backups separately from Git.
