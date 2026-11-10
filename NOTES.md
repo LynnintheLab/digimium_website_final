@@ -4,13 +4,13 @@
 
 The complete Digimium storefront and admin source is maintained in the private GitHub repository `LynnintheLab/digimium_website_final`. `production` holds the release baseline; `testing` is the working branch. Both start from this completed mobile release. GitHub pushes do not automatically publish the hosted site.
 
-The site includes 54 products, 104 stored plans with 50 selected public plans, English/Myanmar browsing, blue/lavender surfaces, distinct clipped cursor lights, a persistent cart, Telegram ordering, and authenticated administration. D1 stores catalog edits; R2 stores uploaded logos. The hosting identity in `.openai/hosting.json` belongs to the currently connected account. The source and assets from previous accounts are retained.
+The site includes 54 products, 104 stored plans with 50 selected public plans, English/Myanmar browsing, blue/lavender surfaces, distinct clipped cursor lights, a persistent cart, Telegram ordering, and authenticated administration. D1 stores catalog edits; R2 stores uploaded logos. The hosting identity in `.openai/hosting.json` identifies the existing Digimium site. The most recently connected Sites account cannot access this project. The source and assets from previous accounts are retained.
 
 ## Last thing done
 
 Compared the previous account checkouts and verified that their colors/features are present. Improved phone/tablet touch targets, safe-area/keyboard spacing, cart action visibility, and the admin list/editor experience. Corrected the unpriced-plan enquiry note. Added cross-platform Git settings, reusable test commands, detailed setup/admin/architecture/deployment documentation, and matching agent instructions.
 
-TypeScript, six unit tests, both local integration suites, and production compilation passed. The source/history secret scan passed. Final visual mobile testing remains unavailable because local browser control is disabled in the connected account; see `qa/QA.md` for precise limits.
+TypeScript, six unit tests, both local integration suites, and production compilation passed. The source/history secret scan passed. A fresh clone of the private GitHub repository resolved both branches to the same source revision and passed the unit tests. The prior mobile release is live at the URL in the README. Publishing these latest refinements to that same URL is pending access to the owning Sites account. Final visual mobile testing remains unavailable because local browser control is disabled in the connected account; see `qa/QA.md` for precise limits.
 
 ## Next steps
 
