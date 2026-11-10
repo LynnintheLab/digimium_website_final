@@ -1,0 +1,237 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-10T11:35:48.100661+00:00",
+  "title": "Design System: Digimium",
+  "extensions": {
+    "colorMeta": {
+      "blue": {
+        "role": "primary",
+        "displayName": "Persian Blue",
+        "tonalRamp": [
+          "oklch(15% .025 265)",
+          "oklch(26% .06 265)",
+          "oklch(38% .12 265)",
+          "oklch(50% .19 265)",
+          "oklch(62% .17 265)",
+          "oklch(74% .12 265)",
+          "oklch(86% .06 265)",
+          "oklch(95% .02 265)"
+        ]
+      },
+      "blue-hover": {
+        "role": "primary",
+        "displayName": "Deep Persian Blue",
+        "tonalRamp": [
+          "oklch(15% .025 265)",
+          "oklch(26% .06 265)",
+          "oklch(38% .12 265)",
+          "oklch(50% .19 265)",
+          "oklch(62% .17 265)",
+          "oklch(74% .12 265)",
+          "oklch(86% .06 265)",
+          "oklch(95% .02 265)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Near Black",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(50% 0 0)",
+          "oklch(62% 0 0)",
+          "oklch(74% 0 0)",
+          "oklch(86% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Reading Gray",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(50% 0 0)",
+          "oklch(62% 0 0)",
+          "oklch(74% 0 0)",
+          "oklch(86% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Divider Gray",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(50% 0 0)",
+          "oklch(62% 0 0)",
+          "oklch(74% 0 0)",
+          "oklch(86% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "soft": {
+        "role": "neutral",
+        "displayName": "Soft Surface",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(50% 0 0)",
+          "oklch(62% 0 0)",
+          "oklch(74% 0 0)",
+          "oklch(86% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "white": {
+        "role": "neutral",
+        "displayName": "White Canvas",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(50% 0 0)",
+          "oklch(62% 0 0)",
+          "oklch(74% 0 0)",
+          "oklch(86% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      }
+    },
+    "tonalRampNote": "Illustrative synthesized ramps for preview only; frontmatter colors are the implemented primitives.",
+    "typographyMeta": {
+      "display": {
+        "displayName": "Gunken display",
+        "purpose": "Hero headline."
+      },
+      "body": {
+        "displayName": "Quiet sans",
+        "purpose": "English reading text and controls."
+      },
+      "myanmar": {
+        "displayName": "Wa Lone",
+        "purpose": "Myanmar text through the lang attribute."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "interaction",
+        "value": "0.2s ease",
+        "purpose": "Color, background, border, and button transforms."
+      },
+      {
+        "name": "collection-entry",
+        "value": "0.45s cubic-bezier(.16,1,.3,1)",
+        "purpose": "Opacity .6 to 1 and translateY(9px) to 0."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "none",
+        "purpose": "Disable animation and transition; use automatic scrolling."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide-min",
+        "value": "1500px"
+      },
+      {
+        "name": "compact-max",
+        "value": "1150px"
+      },
+      {
+        "name": "tablet-max",
+        "value": "800px"
+      },
+      {
+        "name": "mobile-max",
+        "value": "620px"
+      }
+    ],
+    "focus": {
+      "value": "3px solid var(--blue)",
+      "offset": "5px"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Contact-led catalog action.",
+      "html": "<button class=\"ds-button ds-primary\">Explore services<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M7 17 17 7M7 7h10v10\"/></svg></button>",
+      "css": ".ds-button{display:inline-flex;align-items:center;justify-content:center;gap:22px;min-height:49px;padding:14px 21px;border:1px solid transparent;border-radius:6px;font:14px/1.6 Arial,Helvetica,sans-serif;text-decoration:none;cursor:pointer;transition:background .2s,transform .2s}.ds-button:hover{transform:translateY(-2px)}.ds-button:focus-visible{outline:3px solid var(--blue,#1f45b8);outline-offset:5px;}@media(max-width:800px){.ds-button{font-size:13px}}@media(max-width:620px){.ds-button{min-height:48px;padding:13px 18px}}@media(prefers-reduced-motion:reduce){.ds-button{transition:none}}.ds-primary{background:var(--blue,#1f45b8);color:var(--white,#fff)}.ds-primary:hover{background:#163695}"
+    },
+    {
+      "name": "Secondary action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Contact-led catalog action.",
+      "html": "<button class=\"ds-button ds-secondary\">Talk to us on Viber<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M7 17 17 7M7 7h10v10\"/></svg></button>",
+      "css": ".ds-button{display:inline-flex;align-items:center;justify-content:center;gap:22px;min-height:49px;padding:14px 21px;border:1px solid transparent;border-radius:6px;font:14px/1.6 Arial,Helvetica,sans-serif;text-decoration:none;cursor:pointer;transition:background .2s,transform .2s}.ds-button:hover{transform:translateY(-2px)}.ds-button:focus-visible{outline:3px solid var(--blue,#1f45b8);outline-offset:5px;}@media(max-width:800px){.ds-button{font-size:13px}}@media(max-width:620px){.ds-button{min-height:48px;padding:13px 18px}}@media(prefers-reduced-motion:reduce){.ds-button{transition:none}}.ds-secondary{background:var(--white,#fff);color:var(--ink,#101113);border-color:var(--line,#e3e4e8)}.ds-secondary:hover{background:var(--soft,#f5f5f6)}"
+    },
+    {
+      "name": "Search",
+      "kind": "input",
+      "refersTo": "search",
+      "description": "Bottom-rule service search.",
+      "html": "<label class=\"ds-search\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.35-4.35\"/></svg><input type=\"search\" placeholder=\"Find a service\" aria-label=\"Search services\"/></label>",
+      "css": ".ds-search{display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--line,#e3e4e8);padding:8px 0;width:175px;color:var(--muted,#66686e)}.ds-search input{font:14px/1.6 Arial,Helvetica,sans-serif;border:0;background:transparent;width:100%;min-width:0;color:var(--ink,#101113);caret-color:var(--blue,#1f45b8)}.ds-search input::placeholder{color:var(--muted,#66686e)}.ds-search input:focus-visible{outline:3px solid var(--blue,#1f45b8);outline-offset:5px;}@media(max-width:1150px){.ds-search{width:220px}}@media(max-width:620px){.ds-search{width:100%;padding:10px 0}}"
+    },
+    {
+      "name": "Navigation",
+      "kind": "nav",
+      "description": "Quiet horizontal section links.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Main navigation\"><a href=\"#services\">Explore services</a><a href=\"#how-it-works\">How it works</a><a href=\"#about\">About us</a></nav>",
+      "css": ".ds-nav{display:flex;gap:34px;font:14px/1.6 Arial,Helvetica,sans-serif}.ds-nav a{color:var(--ink,#101113);text-decoration:none;transition:color .2s}.ds-nav a:hover{color:var(--blue,#1f45b8)}.ds-nav a:focus-visible{outline:3px solid var(--blue,#1f45b8);outline-offset:5px;}@media(max-width:1150px){.ds-nav{gap:22px}}@media(max-width:800px){.ds-nav{gap:16px;font-size:12px}}@media(prefers-reduced-motion:reduce){.ds-nav a{transition:none}}"
+    },
+    {
+      "name": "Category filter",
+      "kind": "chip",
+      "refersTo": "filter-active",
+      "description": "Active and inactive category buttons.",
+      "html": "<div class=\"ds-filters\" role=\"group\" aria-label=\"Filter services\"><button aria-pressed=\"true\">All services</button><button aria-pressed=\"false\">AI &amp; productivity</button></div>",
+      "css": ".ds-filters{display:flex;gap:5px;flex-wrap:wrap}.ds-filters button{font:12px/1.6 Arial,Helvetica,sans-serif;min-height:36px;border:0;background:none;color:var(--ink,#101113);border-radius:5px;padding:9px 11px;cursor:pointer}.ds-filters button[aria-pressed=true]{background:var(--ink,#101113);color:var(--white,#fff)}.ds-filters button:not([aria-pressed=true]):hover{background:var(--soft,#f5f5f6)}.ds-filters button:focus-visible{outline:3px solid var(--blue,#1f45b8);outline-offset:5px;}@media(max-width:620px){.ds-filters button{font-size:11px;padding:8px 10px}}"
+    },
+    {
+      "name": "Product card",
+      "kind": "card",
+      "refersTo": "product-card",
+      "description": "Full-card enquiry action with a quiet product hierarchy.",
+      "html": "<button class=\"ds-product\"><div class=\"ds-product-top\"><span>C</span><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M7 17 17 7M7 7h10v10\"/></svg></div><h3>Claude</h3><span class=\"ds-category\">AI &amp; productivity</span><p>An AI assistant for writing, thinking, and working through ideas.</p><span class=\"ds-action\">Ask about plans <svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M7 17 17 7M7 7h10v10\"/></svg></span></button>",
+      "css": ".ds-product{display:flex;flex-direction:column;align-items:flex-start;text-align:left;max-width:400px;padding:25px;background:var(--soft,#f5f5f6);color:var(--ink,#101113);border:1px solid transparent;border-radius:var(--radius,14px);font:14px/1.6 Arial,Helvetica,sans-serif;cursor:pointer;transition:background .2s,border-color .2s}.ds-product:hover{background:var(--white,#fff);border-color:var(--blue,#1f45b8)}.ds-product:focus-visible{outline:3px solid var(--blue,#1f45b8);outline-offset:5px;}.ds-product-top{display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:27px}.ds-product-top span{font-size:32px;font-weight:700;line-height:35px}.ds-product h3{margin:0;font:500 23px/1.3 Gunken,Arial,sans-serif;letter-spacing:-.02em}.ds-category{margin:8px 0 0;font-size:12px;color:var(--muted,#66686e)}.ds-product p{margin:12px 0 0;max-width:34ch;color:var(--muted,#66686e);line-height:1.8}.ds-action{display:flex;align-items:center;gap:10px;font-size:12px;padding-top:24px;margin-top:auto}@media(max-width:620px){.ds-product{padding:18px 15px;border-radius:12px}.ds-product h3{font-size:20px}.ds-category{font-size:10px}.ds-product p{font-size:12px}.ds-action{font-size:11px;gap:7px;padding-top:20px}}@media(prefers-reduced-motion:reduce){.ds-product{transition:none}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "A calm, bilingual digital collection",
+    "overview": "A calm, bilingual digital collection. White space, near-black display surfaces, the supplied Digimium portal mark, and restrained Persian Blue accents create a clear, modern identity. Geometric headings carry the brand while quiet body typography supports browsing and enquiry.",
+    "keyCharacteristics": [
+      "White and near-black foundations with blue accents.",
+      "Supplied Gunken headings, quiet English body copy, and spacious Myanmar text.",
+      "Flat surfaces, fine dividers, and gently rounded controls."
+    ],
+    "rules": [
+      {
+        "name": "The Accent Rule",
+        "body": "Keep the page predominantly white and near-black; use brand blue for emphasis and action.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do preserve supplied logo proportions and use the existing monochrome treatments.",
+      "Do use Wa Lone for Myanmar text and retain generous line-height.",
+      "Do keep product actions clear and contact-led until checkout is implemented."
+    ],
+    "donts": [
+      "Don't turn blue into the dominant page background.",
+      "Don't substitute invented product marks or decorative dashboard imagery.",
+      "Don't present unconfirmed prices, availability, or checkout controls."
+    ]
+  }
+}
