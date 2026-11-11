@@ -57,19 +57,23 @@ export function totalMmk(lines: OrderLine[]): number | undefined {
   return result;
 }
 
+function telegramTextQuery(text: string) {
+  // Some Telegram clients display form-encoded spaces as literal plus signs.
+  return new URLSearchParams({ text }).toString().replaceAll('+', '%20');
+}
+
 // Keep whole order lines together. Leave room for the part number in each message.
 export function orderMessages(header: string, rows: string[], finalLine: string, partLabel: (index: number, total: number) => string) {
   const batches: string[][] = [[]];
   let used = header.length + 2;
   // Myanmar glyphs use several percent-encoded bytes in a DM link.
-  const linkLength = (value: string) => new URLSearchParams({text: value}).toString().length;
-  let encoded = linkLength(header);
+  let encoded = telegramTextQuery(header).length;
   for (const row of [...rows, finalLine].filter(Boolean)) {
-    const rowSize = linkLength(row) + 3;
+    const rowSize = telegramTextQuery(row).length + 3;
     if (batches[batches.length - 1].length && (used + row.length + 1 > 3200 || encoded + rowSize > 7000)) {
       batches.push([]);
       used = header.length + 2;
-      encoded = linkLength(header);
+      encoded = telegramTextQuery(header).length;
     }
     batches[batches.length - 1].push(row);
     used += row.length + 1;
@@ -84,7 +88,6 @@ export function orderMessages(header: string, rows: string[], finalLine: string,
 export function telegramDraft(username: string, message: string) {
   const clean = username.trim().replace(/^@/, '');
   if (!/^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(clean)) return undefined;
-  const url = new URL(`https://t.me/${clean}`);
-  if (message) url.searchParams.set('text', message);
-  return url.href;
+  const chat = `https://t.me/${clean}`;
+  return message ? `${chat}?${telegramTextQuery(message)}` : chat;
 }

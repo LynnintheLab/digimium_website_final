@@ -2,11 +2,13 @@
 
 ## Current status
 
-The live Hostinger shop at `https://buywith-digimium.store` tracks `production` and uses password-based admin sign-in. On `testing`, admin sign-in uses one-time email codes through Resend. Staging setup, private environment variables and database import steps are in [the Hostinger guide](docs/HOSTINGER.md).
+The live Hostinger shop at `https://buywith-digimium.store` tracks `production` and uses password-based admin sign-in. On `testing`, admin sign-in uses one-time email codes through Resend and Telegram checkout links preserve spaces when the chat opens. Staging setup, private environment variables and database import steps are in [the Hostinger guide](docs/HOSTINGER.md).
 
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Updated Telegram checkout links to encode spaces as `%20`. Product dialogs, the cart and links for reopening an order use the same encoding. Long orders now account for the extra URL length when splitting into messages. All eight unit tests passed. A 390px browser check on the packaged Hostinger app confirmed that both Canva checkout links decode to the exact three lines on the clipboard. Native Telegram rendering still needs a device check.
 
 Added a two-step email sign-in to the Hostinger testing build. Verified browsers receive a persistent session. The featured collection divider now spans the full panel width, with the existing product-row padding preserved. Browser layout checks measured both divider ends at 320, 390, 620, 768, 1024 and 1440 pixels.
 
@@ -21,5 +23,7 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+Open a Canva checkout from the testing build on a device running Telegram and check the draft’s spacing before release.
 
 Connect a separate Hostinger staging app to `testing`, import the branch’s schema into the staging database, and configure its private Resend sender, API key, admin secret, owner inbox and HTTPS origin. Verify delivery to the real inbox, reopening the same browser, signing in from a second profile, and sign-out. The live shop continues to use the password-based setup in the production branch guide.

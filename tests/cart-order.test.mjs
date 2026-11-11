@@ -32,6 +32,27 @@ test('a cart with an unpriced service never presents a partial amount as its tot
   assert.equal(totalMmk(resolveOrder(cart,[product,enquiry])),undefined);
 });
 
+test('Telegram draft opens with ordinary spaces, line breaks and literal plus signs', () => {
+  const message = [
+    'Hi Digimium, I’d like to order:',
+    '1 × Canva — 1 month (Own Mail) · 25,000 MMK',
+    '1 × Disney+ — မိသားစု & Friends #1 (50%)',
+    'Total: 50,000 MMK',
+  ].join('\n');
+  const url = new URL(telegramDraft('@ExampleStore', message));
+  const encoded = url.search.slice('?text='.length);
+  assert.ok(encoded.includes('%20') && encoded.includes('%0A') && encoded.includes('%2B'));
+  assert.ok(!encoded.includes('+'));
+  assert.equal(decodeURIComponent(encoded), message);
+});
+
+test('splitting long orders accounts for the full URL length of spaces', () => {
+  const rows = Array.from({ length: 80 }, (_, i) => `${i + 1} × ${'A + က '.repeat(18)}`);
+  const parts = orderMessages('Order', rows, 'Total', (n, total) => `${n}/${total}`);
+  assert.deepEqual(parts.flatMap(part => part.split('\n').slice(1)), [...rows, 'Total']);
+  for (const part of parts) assert.ok(telegramDraft('@ExampleStore', part).length < 8000);
+});
+
 test('long Telegram order preserves every row and opens only the supplied direct DM', () => {
   const rows = Array.from({length:104}, (_, index) => `${index + 1} × ဈေးခြင်း — ${'ကြိုက်နှစ်သက်ရာ'.repeat(9)}`);
   const parts = orderMessages('Order',rows,'Confirm total',(n,total)=>`${n}/${total}`);
@@ -44,6 +65,7 @@ test('long Telegram order preserves every row and opens only the supplied direct
     assert.equal(href.origin,'https://t.me');
     assert.equal(href.pathname,'/ExampleStore');
     assert.equal(href.searchParams.get('text'),part);
+    assert.equal(decodeURIComponent(href.search.slice('?text='.length)), part);
   }
   assert.equal(telegramDraft('https://elsewhere.invalid','message'),undefined);
 });
