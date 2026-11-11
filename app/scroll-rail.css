@@ -1,3 +1,11 @@
+html:has(.storefront-shell) {
+  scrollbar-width: none;
+}
+
+html:has(.storefront-shell)::-webkit-scrollbar {
+  display: none;
+}
+
 .scroll-rail {
   --rail-inset: max(3px, env(safe-area-inset-right));
   position: fixed;

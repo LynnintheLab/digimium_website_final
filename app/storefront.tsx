@@ -128,12 +128,12 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
 
   return <div className="storefront-shell" lang={lang}>
     <CursorLight />
-    <a className="skip" href="#services">{t('Skip to services', 'ထုတ်ကုန်စာရင်းသို့ သွားရန်')}</a>
+    <a className="skip" href="#services">{t('Skip to services', 'Product စာရင်းသို့ သွားရန်')}</a>
     <ScrollRail lang={lang} />
     <header ref={header} className="header wrap">
       <a className="brand" href="#" aria-label={t('Digimium home', 'Digimium ပင်မစာမျက်နှာ')}><img src="/assets/logo.png" alt="digimium." /></a>
       <nav id="shop-nav" className={menu ? 'nav open' : 'nav'} aria-label={t('Main navigation', 'ပင်မမီနူး')}>
-        <a href="#services" onClick={() => setMenu(false)}>{t('Explore services', 'ထုတ်ကုန်များ')}</a>
+        <a href="#services" onClick={() => setMenu(false)}>{t('Explore services', 'Product များ')}</a>
         <a href="#how-it-works" onClick={() => setMenu(false)}>{t('How to order', 'ဘယ်လိုဝယ်ယူရမလဲ')}</a>
         <a href="#contact" onClick={() => setMenu(false)}>{t('Contact', 'ဆက်သွယ်ရန်')}</a>
       </nav>
@@ -168,7 +168,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
         <div className="section-heading"><h2 id="services-title">{t('Find your next upgrade', 'သင့်အတွက် ဝန်ဆောင်မှုများ')}{lang === 'en' && <span className="blue">.</span>}</h2></div>
         <div className="catalog-tools">
           <div className="filters" role="group" aria-label={t('Filter services', 'အမျိုးအစား ရွေးရန်')}>{categories.map((name, i) => <button key={name} aria-pressed={category === i} onClick={() => { setCategory(i); setAll(i === 0); }}>{i === 0 && <LayoutGrid size={14} />} {categoryName(i, lang)}</button>)}</div>
-          <label className="search"><Search size={19} /><input type="search" enterKeyHint="search" autoComplete="off" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} placeholder={t('Find a product or plan', 'ထုတ်ကုန် သို့မဟုတ် အစီအစဉ် ရှာရန်')} aria-label={t('Search products and plans', 'ထုတ်ကုန်နှင့် အစီအစဉ်များ ရှာရန်')} />{query && <button className="clear-search" type="button" aria-label={t('Clear search', 'ရှာဖွေမှု ရှင်းရန်')} onClick={() => setQuery('')}><X size={18}/></button>}</label>
+          <label className="search"><Search size={19} /><input type="search" enterKeyHint="search" autoComplete="off" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} placeholder={t('Find a product or plan', 'Product (သို့) Plan ရှာမယ်')} aria-label={t('Search products and plans', 'Product (သို့) Plan ရှာမယ်')} />{query && <button className="clear-search" type="button" aria-label={t('Clear search', 'ရှာဖွေမှု ရှင်းရန်')} onClick={() => setQuery('')}><X size={18}/></button>}</label>
         </div>
         <div className="catalog-grid">{visible.map(product => <button className="product" type="button" key={product.id} onClick={() => shop.current?.openProduct(product)} aria-label={product.name + ' · ' + t('View plans', 'Plan များ ကြည့်ရန်')}>
           <div className="product-top"><Mark product={product} /><ArrowUpRight size={20} /></div>
@@ -179,9 +179,9 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
           {product.availability === 'unavailable' && <span className="availability availability-unavailable">{t('Currently unavailable', 'လောလောဆယ် မရနိုင်ပါ')}</span>}
           <span className="product-action">{t('View plans', 'Plan များ ကြည့်ရန်')} <ArrowRight size={15} /></span>
         </button>)}</div>
-        {!matches.length && <div className="empty"><Search size={30} /><h3>{t('No matching services', 'ကိုက်ညီသော ထုတ်ကုန် မတွေ့ပါ')}</h3><button className="button secondary" onClick={() => { setQuery(''); setCategory(0); setAll(true); }}>{t('Show all services', 'ထုတ်ကုန်အားလုံး ကြည့်ရန်')}</button></div>}
+        {!matches.length && <div className="empty"><Search size={30} /><h3>{t('No matching services', 'ကိုက်ညီသော Product မတွေ့ပါ')}</h3><button className="button secondary" onClick={() => { setQuery(''); setCategory(0); setAll(true); }}>{t('Show all services', 'Product အားလုံး ကြည့်ရန်')}</button></div>}
         <div className="catalog-footer"><p aria-live="polite" lang="en">{visible.length} of {matches.length} services</p>
-          {category === 0 && !query && matches.length > featured.length && <button className="text-link" onClick={() => setAll(!all)}>{all ? t('Show featured services', 'ရွေးချယ်ထားသော ထုတ်ကုန်များ ကြည့်ရန်') : t(`Browse all ${products.length} services`, `ထုတ်ကုန် ${products.length} ခုလုံး ကြည့်ရန်`)}<ChevronDown size={17} className={all ? 'rotate' : ''} /></button>}
+          {category === 0 && !query && matches.length > featured.length && <button className="text-link" onClick={() => setAll(!all)}>{all ? t('Show featured services', 'ရွေးချယ်ထားသော Product များ ကြည့်ရန်') : t(`Browse all ${products.length} services`, `Product ${products.length} ခုလုံး ကြည့်ရန်`)}<ChevronDown size={17} className={all ? 'rotate' : ''} /></button>}
         </div>
       </section>
       <section id="about" className="about">

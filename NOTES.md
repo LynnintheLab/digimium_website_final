@@ -4,9 +4,13 @@
 
 The live Hostinger shop at `https://buywith-digimium.store` tracks `production` and uses password-based admin sign-in. The `testing` branch includes the revised Myanmar storefront, a sticky blurred menu, aligned Telegram and Viber contact links, Resend admin sign-in and Telegram checkout with ordinary spaces. Staging setup, private environment variables and database import steps are in [the Hostinger guide](docs/HOSTINGER.md).
 
+On testing, the catalog shows two product cards per row up to 700px and three above. Checkout empties the browser cart immediately and keeps the full order available on the Telegram handoff screen.
+
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Rechecked the imported catalog and logo against the three earlier checkouts. Updated the Myanmar search prompt to “Product (သို့) Plan ရှာမယ်” and replaced the previous product term across storefront labels. Hid the native page scrollbar while retaining normal scrolling and the custom ruler. Verified the packaged storefront with WebKit at 320, 390, 768 and 1280px. A two-tab Chromium check verified cart clearing, clipboard contents, a fresh subsequent order and the empty cart after reload. Hostinger and Sites builds, type checking and all eight unit tests passed.
 
 The owner imported all six staging tables. The private testing environment file now uses the assigned test origin, the staging database, and Resend’s built-in sender. The configured receiving inbox must match the Resend account email.
 

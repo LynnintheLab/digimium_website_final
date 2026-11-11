@@ -15,13 +15,13 @@ On `testing`, the Hostinger build protects `/admin` with a one-time code sent to
 | --- | --- |
 | Storefront | Category browsing, search, featured collections, FAQ, English/Myanmar language preference, and contact links. |
 | Product plans | Only published plans appear to customers. Unpriced products remain available for enquiries. |
-| Cart | Add a selected plan and continue browsing, change quantities, remove items, and retain the cart in the same browser. |
+| Cart | Selected plans stay in the browser cart until checkout. Opening the Telegram order clears the cart and keeps the draft available to copy or reopen. |
 | Telegram checkout | Combine the cart and selected plan, copy the order, and open the store's Telegram DM with a draft. The customer sends the message. |
 | Admin | Create and edit products, plans, descriptions, categories, availability, featured state, publication, and contact settings. |
 | Short descriptions | One switch hides all short descriptions from public cards, product dialogs, and public catalog data while preserving the saved text. |
 | Logos | Upload a logo, save its durable path, reuse it on another product, or use a built-in service mark. |
 | Storage | Hostinger MySQL stores catalog edits and uploaded logos. The Sites target uses D1 and R2. Revision checks prevent overwriting another editor's changes. |
-| Mobile | Sticky header, larger touch controls, single-column cards on narrow phones, scrolling order sheets, and separate admin list/editor views with reachable save controls. |
+| Mobile | Sticky header, larger touch controls, two product cards per row on phones, scrolling order sheets, and separate admin list/editor views with reachable save controls. |
 | Motion | Subtle blue cursor light outside cards and separate violet light clipped inside cards, respecting pointer and reduced-motion preferences. |
 
 The starting catalog contains **54 products and 104 plan records**, with **50 plans selected for public display**. Admin edits can alter these counts. Keep the current plan visibility unless the owner explicitly changes it. Source and pricing decisions are documented in [data/IMPORT-SOURCES.md](data/IMPORT-SOURCES.md).

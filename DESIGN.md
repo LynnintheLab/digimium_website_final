@@ -116,13 +116,13 @@ Manrope is the self-hosted English typeface for headings, body copy, and control
 
 Frontmatter describes the desktop hero, section heading, product title, body, and label roles. Supporting paragraphs commonly use 14px with 1.8–1.9 line-height. Product descriptions are limited to 34ch. Myanmar uses 2.1 line-height, increased to 2.3 in the dark brand section. The hero Myanmar line is 19px on wide screens and 17px below 1150px.
 
-The wide desktop hero is capped at 76px. At 700px and below it uses `clamp(36px, 10.7vw, 60px)`; Myanmar uses a smaller responsive scale with generous line height. Below 480px, product titles are 20px and descriptions/plan labels are 14px. Search inputs and admin form fields use 16px to avoid automatic phone zoom.
+The wide desktop hero is capped at 76px. At 700px and below it uses `clamp(36px, 10.7vw, 60px)`; Myanmar uses a smaller responsive scale with generous line height. At 620px and below, card titles scale from 17px to 20px, descriptions and plan labels use 13px, and prices use 14px. Search inputs and admin form fields use 16px to avoid automatic phone zoom.
 
 ## Layout
 
 The shared desktop container is `min(1280px, calc(100% - 112px))`, centered. Gutters become 32px per side at 1150px. At 700px and below, use at least 16px gutters plus device safe areas. The full-width top menu stays pinned on scroll. Its translucent canvas background uses 18px backdrop blur. It is 88px tall on desktop, 80px up to 800px wide, and 76px plus the top safe area up to 700px wide. Section links leave 12px below the header. On phones, the menu opens underneath the language and cart controls.
 
-The hero uses a 1.12:1 split with a 65px gap. Catalog cards use three equal columns on desktop, two at 700px and below, and one at 480px and below. Narrow-phone cards put the mark beside the title and content to preserve reading width. The hero becomes one column at 700px; brand story, steps, FAQ, and contact become one column at 620px. Search takes full width on mobile. Major sections use roughly 75–92px desktop spacing, reducing to roughly 45–55px on mobile. Use the source stylesheet for section-specific measurements rather than treating these values as a universal scale.
+The hero uses a 1.12:1 split with a 65px gap. Catalog cards use three equal columns above 700px and two columns on phones. Narrow cards stack the logo above the service name, show the complete price, and offer two-line previews of descriptions and plan names. Opening the card reveals the full details. The hero becomes one column at 700px; brand story, steps, FAQ, and contact become one column at 620px. Search takes full width on mobile. Major sections use roughly 75–92px desktop spacing, reducing to roughly 45–55px on mobile. Use the source stylesheet for section-specific measurements rather than treating these values as a universal scale.
 
 ## Elevation & Depth
 

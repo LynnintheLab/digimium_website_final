@@ -3,7 +3,7 @@
 ## Current release checks
 
 - `npm run typecheck`: passed.
-- `npm test`: all six cart/order and bilingual-copy tests passed. They cover repeated checkout, hidden/unavailable offers, current prices, enquiry totals, multipart Telegram messages, and translated plan details.
+- `npm test`: all eight cart/order and bilingual-copy tests passed. They cover order composition, hidden/unavailable offers, current prices, enquiry totals, multipart Telegram messages, and translated plan details.
 - `TEST_BASE_URL=http://127.0.0.1:5189 npm run test:integration`: both suites passed. Catalog checks cover admin authorization, CSRF/origin validation, input validation, saved prices, description visibility in both languages, revision conflicts, and atomic concurrent writes. Logo checks cover uploaded bytes, saved/reopened paths, public plan filtering, and invalid file/path rejection. Original local catalog content was restored.
 - Production compilation passed with all six routes: storefront, admin, both catalog APIs, logo upload API, and uploaded-logo retrieval.
 - Local HTML contains `width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content`.
@@ -14,7 +14,7 @@
 ## Mobile improvements covered by source review
 
 - Sticky phone navigation with cart and language controls; compact search and wrapped filters.
-- Single-column product cards on narrow phones, retaining readable product/plan text.
+- Two-column product cards on narrow phones, with prices on the card and full plan details available in the picker.
 - Safe-area spacing; 44px touch controls on phones and tablets; 16px inputs.
 - Scrollable product/cart content with reachable action footers; short landscape support.
 - Unpriced plans show the additional red enquiry sentence even if a parent product has a quoted price.
@@ -23,7 +23,7 @@
 
 ## Verification limits
 
-Browser control remains disabled in the connected account's Work settings. The final responsive layout has not been visually inspected or exercised with synthesized touch, physical iOS/Android devices, or a Windows runtime. Source and HTTP checks do not establish visual or gesture correctness. No payment or customer Telegram message was sent.
+The packaged storefront was checked with mobile-sized WebKit and Chromium, including the two-column layout, scroll ruler, cart reset, and complete Telegram handoff. Physical iOS and Android devices and the Windows runtime remain unverified. No payment or customer Telegram message was sent.
 
 Earlier browser checks, before the final mobile refinement, verified adding ChatGPT and Canva, cart persistence after reload, Myanmar translation, and opening a Telegram draft with both selections without sending it.
 

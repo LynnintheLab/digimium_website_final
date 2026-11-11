@@ -8,7 +8,7 @@ const product = {id:'service', name:'Service', price:'', duration:'', availabili
 const enquiry = {...product, id:'enquiry', plans:[]};
 const qty = quantity => ({productId:product.id, planId:monthly.id, quantity});
 
-test('checkout includes selected plan once, repeated attempts retain all cart items', () => {
+test('checkout includes a selected plan once and Add to Cart increments its quantity', () => {
   const existing = [{productId:'service',planId:'annual',quantity:1}];
   const first = withSelection(existing, qty(1), false);
   assert.deepEqual(withSelection(first, qty(1), false), first);

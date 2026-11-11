@@ -78,14 +78,14 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     }
     read();
     const synchronize = (event: StorageEvent) => { if (event.key === CART_KEY || event.key === null) read(); };
+    const resume = (event: PageTransitionEvent) => { if (event.persisted) read(); };
     window.addEventListener('storage', synchronize);
-    return () => window.removeEventListener('storage', synchronize);
+    window.addEventListener('pageshow', resume);
+    return () => {
+      window.removeEventListener('storage', synchronize);
+      window.removeEventListener('pageshow', resume);
+    };
   }, [products]);
-  useEffect(() => {
-    if (!ready) return;
-    const next = JSON.stringify(cart);
-    try { if (localStorage.getItem(CART_KEY) !== next) localStorage.setItem(CART_KEY, next); } catch {}
-  }, [ready, cart]);
   useEffect(() => { onCountChange(count); }, [count, onCountChange]);
   useEffect(() => {
     if (!lastAdded) return;
@@ -120,9 +120,16 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     openCart() { begin('cart'); },
   }));
 
+  function saveCart(next: CartItem[]) {
+    // Save in the click handler before the browser switches to Telegram.
+    setCart(next);
+    try { localStorage.setItem(CART_KEY, JSON.stringify(next)); }
+    catch { /* The in-memory cart still works when storage is unavailable. */ }
+  }
+
   function add() {
     if (!selected || !product) return;
-    setCart(current => withSelection(current, selected, true));
+    saveCart(withSelection(cart, selected, true));
     setScreen(null);
     setLastAdded(product.name);
   }
@@ -140,14 +147,14 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   }
   function checkout() {
     if (!checkoutRows.length) return;
-    if (screen === 'product' && selected) setCart(current => withSelection(current, selected, false));
     setHandoff(orderText);
+    saveCart([]);
     setCopyStatus('idle');
     void copy(orderText.join('\n\n'));
     setScreen('handoff');
   }
   function changeQuantity(item: CartItem, difference: number) {
-    setCart(current => current.map(entry => sameItem(item, entry) ?
+    saveCart(cart.map(entry => sameItem(item, entry) ?
       {...entry, quantity: Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, entry.quantity + difference))} : entry));
   }
   const checkoutAllowed = ready && Boolean(checkoutUrl) && checkoutRows.length > 0 && (screen !== 'product' || Boolean(selected));
@@ -214,7 +221,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
                 </div>
               </div>
               <button type="button" className="order-icon" aria-label={t(`Remove ${item.product.name}`, `${item.product.name} ကို ဖယ်ရှားရန်`)}
-                onClick={() => setCart(current => current.filter(entry => !sameItem(entry, item)))}><Trash2 size={16}/></button>
+                onClick={() => saveCart(cart.filter(entry => !sameItem(entry, item)))}><Trash2 size={16}/></button>
             </li>)}</ul>
             <div className="order-guidance"><div className="order-total"><span>{t('Order total', 'စုစုပေါင်း')}</span><strong>{cartTotal === undefined ?
               t('Confirm on Telegram', 'Telegram တွင် စျေးနှုန်း အတည်ပြုပါ') : priceText(`${cartTotal.toLocaleString('en-US')} MMK`, lang)}</strong></div>
