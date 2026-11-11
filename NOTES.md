@@ -4,13 +4,15 @@
 
 The live Hostinger shop at `https://buywith-digimium.store` tracks `production` and uses password-based admin sign-in. The `testing` branch includes the revised Myanmar storefront, a sticky blurred menu, aligned Telegram and Viber contact links, Resend admin sign-in and Telegram checkout with ordinary spaces. Staging setup, private environment variables and database import steps are in [the Hostinger guide](docs/HOSTINGER.md).
 
-The testing storefront supplies a branded link preview for messaging apps. Its title, description and 1200 × 630 image are available to crawlers in the initial HTML.
+The testing storefront supplies a branded link preview for messaging apps. Its title, description and 1200 × 630 image are available to crawlers in the initial HTML. Browser tabs use the Digimium symbol with a white center and a Persian Blue outline.
 
 On testing, the catalog shows two product cards per row up to 700px and three above. Checkout empties the browser cart immediately and keeps the full order available on the Telegram handoff screen.
 
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Recreated the favicon from the supplied brand mark and registered both an SVG and a multisize ICO for storefront and admin tabs. Checked the opaque white center, blue edge and transparent corners at 16, 32 and 48 pixels on light and dark tab backgrounds.
 
 Added the storefront share card using the Digimium logo, blue gradient and “Digital. Premium. Make Simple.” tagline. Verified the packaged Hostinger response and image with Telegram, WhatsApp, Facebook, Slack and X crawler user agents. Type checking, eight unit tests and the Hostinger build passed.
 
@@ -39,6 +41,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+Review the favicon and share preview together before promoting the testing branch.
 
 Paste the staging homepage into a Telegram draft to review the card on a phone before promoting it to production.
 
