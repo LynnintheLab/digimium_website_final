@@ -1,0 +1,29 @@
+.contact-actions > .contact-link {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  min-height: 52px;
+  color: white;
+  background: var(--contact-fill);
+  text-align: start;
+}
+
+.contact-telegram {
+  --contact-fill: color-mix(in srgb, #229ed9 75%, black);
+}
+
+.contact-viber {
+  --contact-fill: color-mix(in srgb, #7360f2 94%, black);
+}
+
+.contact-link img {
+  display: block;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 35%);
+}
+
+.contact-actions > .contact-link:hover {
+  background: color-mix(in srgb, var(--contact-fill), black 10%);
+}

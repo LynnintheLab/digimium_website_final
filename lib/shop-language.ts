@@ -4,7 +4,7 @@ export type ShopLanguage = 'en' | 'my';
 
 const categoryLabels = [
   ['All services', 'ဝန်ဆောင်မှုအားလုံး'],
-  ['AI & productivity', 'AI နှင့် အလုပ်သုံးကိရိယာများ'],
+  ['AI & productivity', 'AI နှင့် Tools များ'],
   ['Design & creativity', 'ဒီဇိုင်းနှင့် ဖန်တီးမှု'],
   ['Music & entertainment', 'ဂီတနှင့် ဖျော်ဖြေရေး'],
   ['Everyday essentials', 'နေ့စဉ်သုံး ဝန်ဆောင်မှုများ'],

@@ -41,6 +41,7 @@ Artwork retrieved on November 10, 2026. Brand marks identify the corresponding s
 | `figma.svg` | Figma | [SVGL](https://raw.githubusercontent.com/pheralb/svgl/main/static/library/figma.svg) |
 | `googledrive.svg` | Google Drive | [SVGL](https://raw.githubusercontent.com/pheralb/svgl/main/static/library/drive.svg) |
 | `telegram.svg` | Telegram Premium | [SVGL](https://raw.githubusercontent.com/pheralb/svgl/main/static/library/telegram.svg) |
+| `viber.svg` | Chat on Viber | Original Chat on Viber icon from the [Rakuten Viber Brand Center](https://www.viber.com/en/brand-center/). |
 | `windows.svg` | Windows Key | [SVGL](https://raw.githubusercontent.com/pheralb/svgl/main/static/library/windows.svg) |
 | `linkedin.svg` | LinkedIn Premium | [SVGL](https://raw.githubusercontent.com/pheralb/svgl/main/static/library/linkedin.svg) |
 | `coursera.svg` | Coursera Plus | [SVGL](https://raw.githubusercontent.com/pheralb/svgl/main/static/library/coursera.svg) |

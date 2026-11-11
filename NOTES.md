@@ -2,11 +2,17 @@
 
 ## Current status
 
-The live Hostinger shop at `https://buywith-digimium.store` tracks `production` and uses password-based admin sign-in. On `testing`, admin sign-in uses one-time email codes through Resend and Telegram checkout links preserve spaces when the chat opens. Staging setup, private environment variables and database import steps are in [the Hostinger guide](docs/HOSTINGER.md).
+The live Hostinger shop at `https://buywith-digimium.store` tracks `production` and uses password-based admin sign-in. The `testing` branch includes the revised Myanmar storefront, a sticky blurred menu, aligned Telegram and Viber contact links, Resend admin sign-in and Telegram checkout with ordinary spaces. Staging setup, private environment variables and database import steps are in [the Hostinger guide](docs/HOSTINGER.md).
 
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Compared the three earlier saved site folders with this checkout. All four have identical imported catalog data and the same logo, with 54 initial products, 104 plans and 50 published plans. The GitHub checkout also has the Hostinger build and the later OTP and Telegram draft fixes.
+
+Applied the owner’s Myanmar hero, catalog, About, ordering and contact copy. The testing storefront uses Digimium’s Persian Blue, Egyptian Blue and Navy palette. The social buttons use the two services’ colors and logos. Verified the sticky menu, aligned contacts, product picker and cart checkout at 320, 390, 768, 1024 and 1440px in Chromium. Checked the revised guide and contact anchor in both languages on phones, tablets and desktop.
+
+Added a fixed 37-tick scroll-position indicator to the right gutter. Chromium checks covered wheel scrolling, clicking and dragging the desktop rail, keyboard navigation, mobile touch scrolling, and hiding the indicator when a menu or order dialog opens. Mobile uses a narrower, display-only ruler.
 
 Updated Telegram checkout links to encode spaces as `%20`. Product dialogs, the cart and links for reopening an order use the same encoding. Long orders now account for the extra URL length when splitting into messages. All eight unit tests passed. A 390px browser check on the packaged Hostinger app confirmed that both Canva checkout links decode to the exact three lines on the clipboard. Native Telegram rendering still needs a device check.
 

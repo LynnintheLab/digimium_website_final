@@ -1,0 +1,71 @@
+.scroll-rail {
+  --rail-inset: max(3px, env(safe-area-inset-right));
+  position: fixed;
+  top: calc(var(--shop-header-height) + 3vh);
+  right: var(--rail-inset);
+  bottom: max(5vh, env(safe-area-inset-bottom));
+  z-index: 6;
+  width: 28px;
+  pointer-events: none;
+}
+
+.scroll-rail[hidden],
+.storefront-shell:has(.shop-order[open], .nav.open) .scroll-rail {
+  display: none;
+}
+
+.scroll-rail-ticks {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.scroll-rail-ticks span {
+  width: 10px;
+  height: 2px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--brand-navy) 36%, transparent);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 35%);
+}
+
+.scroll-rail-ticks .nearby {
+  background: color-mix(in srgb, var(--blue) 65%, white);
+}
+
+.scroll-rail-ticks .current {
+  width: 14px;
+  height: 3px;
+  background: var(--blue);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 85%);
+}
+
+.scroll-rail input {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  opacity: 0;
+  writing-mode: vertical-lr;
+  direction: ltr;
+  pointer-events: auto;
+  cursor: ns-resize;
+}
+
+.scroll-rail:has(input:focus-visible) {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .scroll-rail { width: 8px; }
+  .scroll-rail-ticks span { width: 4px; }
+  .scroll-rail-ticks .current { width: 7px; }
+  .scroll-rail input { display: none; }
+}
+
+@media (max-height: 480px) {
+  .scroll-rail-ticks span:nth-child(even):not(.current) { visibility: hidden; }
+}

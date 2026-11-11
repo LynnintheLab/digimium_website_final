@@ -3,11 +3,12 @@ name: Digimium
 description: A calm, bilingual digital collection.
 colors:
   blue: "#1f45b8"
-  blue-hover: "#163695"
+  blue-hover: "#123499"
+  navy: "#051650"
   ink: "#101113"
-  muted: "#515e73"
-  line: "#c5d1e5"
-  soft: "#dfe8f6"
+  muted: "#4d587e"
+  line: "#d4d7e1"
+  soft: "#e2e7f6"
   white: "#fff"
 typography:
   display:
@@ -102,10 +103,10 @@ A calm, bilingual digital collection. Generous spacing, softly tinted blue gradi
 ## Colors
 
 ### Primary
-Persian Blue (`blue`) identifies principal actions, headline emphasis, small step numbers, selection, and keyboard focus. The darker `blue-hover` is the primary button hover state.
+Digimium’s brand guideline v2.0, pages 11–12, defines Persian Blue (#1F45B8), Egyptian Blue (#123499) and Navy (#051650). Persian Blue identifies actions, headline emphasis, selection and keyboard focus. Egyptian Blue is the primary hover color. The collection and about panels use the signature left-to-right Persian Blue to Navy gradient. The Telegram and Viber contact links use the respective service colors.
 
 ### Neutral
-The page canvas uses a restrained blue gradient (#e7edf8 → #dae5f6 → #ecedf8); `ink` carries headings, selected filters, and dark brand panels. `muted` supports descriptions; `line` separates navigation, search, and accordion rows; `soft` groups catalog cards and contact content.
+Canvas, panel, border and text tints are mixed from the brand blues in `app/globals.css` and shared by the storefront, checkout and admin screens. The near-black `ink` color carries headings on pale backgrounds.
 
 **The Accent Rule.** Keep backgrounds softly tinted; use deeper blues for contrast and primary actions.
 
@@ -119,7 +120,7 @@ The wide desktop hero is capped at 76px. At 700px and below it uses `clamp(36px,
 
 ## Layout
 
-The shared desktop container is `min(1280px, calc(100% - 112px))`, centered. Gutters become 32px per side at 1150px. At 700px and below, use at least 16px gutters plus device safe areas. The phone header is sticky with a 76px minimum height and always-accessible language, cart, and menu controls. Mobile navigation opens below it.
+The shared desktop container is `min(1280px, calc(100% - 112px))`, centered. Gutters become 32px per side at 1150px. At 700px and below, use at least 16px gutters plus device safe areas. The full-width top menu stays pinned on scroll. Its translucent canvas background uses 18px backdrop blur. It is 88px tall on desktop, 80px up to 800px wide, and 76px plus the top safe area up to 700px wide. Section links leave 12px below the header. On phones, the menu opens underneath the language and cart controls.
 
 The hero uses a 1.12:1 split with a 65px gap. Catalog cards use three equal columns on desktop, two at 700px and below, and one at 480px and below. Narrow-phone cards put the mark beside the title and content to preserve reading width. The hero becomes one column at 700px; brand story, steps, FAQ, and contact become one column at 620px. Search takes full width on mobile. Major sections use roughly 75–92px desktop spacing, reducing to roughly 45–55px on mobile. Use the source stylesheet for section-specific measurements rather than treating these values as a universal scale.
 

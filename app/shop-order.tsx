@@ -153,9 +153,9 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   const checkoutAllowed = ready && Boolean(checkoutUrl) && checkoutRows.length > 0 && (screen !== 'product' || Boolean(selected));
   const checkoutControl = checkoutAllowed
     ? <a className="order-action order-primary" href={checkoutUrl} target="_blank" rel="noopener noreferrer" onClick={checkout}>
-        {t('Checkout on Telegram', 'Telegram တွင် မှာယူရန်')}<ArrowUpRight size={17}/>
+        {t('Checkout on Telegram', 'Check Out')}<ArrowUpRight size={17}/>
       </a>
-    : <button type="button" className="order-action order-primary" disabled>{t('Checkout on Telegram', 'Telegram တွင် မှာယူရန်')}</button>;
+    : <button type="button" className="order-action order-primary" disabled>{t('Checkout on Telegram', 'Check Out')}</button>;
   return <>
     <div className="order-notifications" aria-live="polite">{lastAdded && <div className="order-toast">
       <Check size={17}/><span>{t(`${lastAdded} added to cart`, `${lastAdded} ကို ဈေးခြင်းထဲ ထည့်ပြီးပါပြီ`)}</span>
@@ -197,7 +197,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
           </div>
           <footer className="order-footer">
             <div className="order-actions"><button type="button" disabled={!ready || !selected} className="order-action order-secondary" onClick={add}>
-              <ShoppingBag size={16}/>{t('Add to cart', 'ဈေးခြင်းထဲ ထည့်ရန်')}</button>{checkoutControl}</div>
+              <ShoppingBag size={16}/>{t('Add to cart', 'Add to Cart')}</button>{checkoutControl}</div>
           </footer>
         </>}
         {screen === 'cart' && (rows.length ? <>

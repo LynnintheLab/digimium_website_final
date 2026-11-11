@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, ArrowUpRight, AudioLines, ChevronDown, Clapperboard, Globe2, LayoutGrid, Mail, Menu, PenTool, Search, Send, ShoppingBag, Sparkles, X } from "lucide-react";
+import { ArrowRight, ArrowUpRight, AudioLines, ChevronDown, Clapperboard, Globe2, LayoutGrid, Mail, Menu, PenTool, Search, ShoppingBag, Sparkles, X } from "lucide-react";
 import { categories, type Catalog, type Product, type ProductPlan } from "../lib/catalog";
 import { categoryName, durationText, planName, priceText, productDescription } from "../lib/shop-language";
 import { productLogoSrc } from "../lib/product-logo";
 import { resolveTelegramContact } from "../lib/telegram-contact";
 import { ShopOrder, type ShopOrderHandle } from "./shop-order";
 import { CursorLight } from "./cursor-light";
+import { ScrollRail } from "./scroll-rail";
 import "./storefront-order.css";
+import "./contact-links.css";
+import "./order-guide.css";
 
 type Language = 'en' | 'my';
 const stages = [
@@ -100,9 +103,22 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
   }
 
   const steps = [
-    [t('Find your service.', 'ထုတ်ကုန် ရှာပါ။'), t('Browse the catalog and open a product to see its plans.', 'စာရင်းထဲက နှစ်သက်ရာ ထုတ်ကုန်ကို နှိပ်ပြီး အစီအစဉ်တွေကို ကြည့်ပါ။')],
-    [t('Choose your plan.', 'အစီအစဉ် ရွေးပါ။'), t('Add it to your cart to keep browsing, or choose Checkout to order.', 'ဆက်လက်ရွေးချယ်ဖို့ ဈေးခြင်းထဲ ထည့်ပါ။ မှာယူဖို့ အသင့်ဖြစ်ရင် မှာယူရန်ကို နှိပ်ပါ။')],
-    [t('Send your order.', 'အမှာစာ ပို့ပါ။'), t('Checkout opens your full order in our Telegram chat. Tap Send and we’ll confirm availability and payment details.', 'မှာယူရန်ကို နှိပ်တဲ့အခါ အမှာစာအပြည့်အစုံနဲ့အတူ Telegram ချတ် ပွင့်လာပါမယ်။ ပို့ရန်ကို နှိပ်ပါ။ ရရှိနိုင်မှုနဲ့ ငွေပေးချေမှုအသေးစိတ်ကို ပြန်လည်အတည်ပြုပေးပါမယ်။')],
+    {
+      title: t('Find your service.', 'လိုချင်တာကိုရှာပါ'),
+      detail: <p>{t('Browse the catalog and open a product to see its plans.', 'website ထဲမှ ကိုယ်နှစ်သက်ရာ Product ကိုရှာပါ')}</p>,
+    },
+    {
+      title: t('Choose your plan.', 'Plan ရွေးချယ်ပါ'),
+      detail: lang === 'my' ? <>
+        <p>ဝယ်ယူလိုသော Product ကိုနှိပ်ပြီး စိတ်ကြိုက် Plan ကိုရွေးချယ်ပါ။</p>
+        <p>ပြီးလျှင် “Add to Cart” လုပ်ပြီး နောက်ထပ် လိုချင်တာကိုရှာပါ (သို့မဟုတ်) “Check Out” နှိပ်ပြီး Order တင်ပါ။</p>
+        <p className="step-enquiry">ကိုယ်ဝယ်ယူလိုသော Plan (သို့မဟုတ်) Product အကြောင်း အသေးစိတ်မေးမြန်းချင်တာပဲဖြစ်ဖြစ် သိချင်တာပဲဖြစ်ဖြစ် “<a href="#contact">ဆက်သွယ်ရန်</a>” ကိုနှိပ်ပြီး Telegram မှတစ်ဆင့် စိတ်ကြိုက်မေးမြန်းလို့ရပါတယ်ခင်ဗျ။</p>
+      </> : <p>Add it to your cart to keep browsing, or choose Checkout to order.</p>,
+    },
+    {
+      title: t('Send your order.', 'Order တင်မယ်'),
+      detail: <p>{t('Checkout opens your full order in our Telegram chat. Tap Send and we’ll confirm availability and payment details.', 'Check Out ကိုနှိပ်တဲ့အခါမှာ Order အပြည့်အစုံ နဲ့ Telegram Chat ပွင့်လာပါမယ်။ Send ကိုနှိပ်ပြီး Order ပို့ပါ။ ကြာချိန်၊ အာမခံ နှင့် Payment အသေးစိတ်ကိုပါ တစ်ခါတည်း မေးမြန်းလို့ရပါတယ်ခင်ဗျ။')}</p>,
+    },
   ];
   const faqs = [
     [t('Can I order several services together?', 'ဝန်ဆောင်မှု အများအပြားကို တစ်ခါတည်း မှာလို့ရပါသလား။'), t('Yes. Choose a plan, add it to your cart and keep browsing. Checkout includes every item in your cart.', 'ရပါတယ်။ အစီအစဉ်ကို ရွေးပြီး ဈေးခြင်းထဲ ထည့်ပါ။ မှာယူတဲ့အခါ ဈေးခြင်းထဲက ပစ္စည်းအားလုံး အမှာစာထဲမှာ ပါဝင်ပါမယ်။')],
@@ -113,11 +129,12 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
   return <div className="storefront-shell" lang={lang}>
     <CursorLight />
     <a className="skip" href="#services">{t('Skip to services', 'ထုတ်ကုန်စာရင်းသို့ သွားရန်')}</a>
+    <ScrollRail lang={lang} />
     <header ref={header} className="header wrap">
       <a className="brand" href="#" aria-label={t('Digimium home', 'Digimium ပင်မစာမျက်နှာ')}><img src="/assets/logo.png" alt="digimium." /></a>
       <nav id="shop-nav" className={menu ? 'nav open' : 'nav'} aria-label={t('Main navigation', 'ပင်မမီနူး')}>
         <a href="#services" onClick={() => setMenu(false)}>{t('Explore services', 'ထုတ်ကုန်များ')}</a>
-        <a href="#how-it-works" onClick={() => setMenu(false)}>{t('How to order', 'မှာယူနည်း')}</a>
+        <a href="#how-it-works" onClick={() => setMenu(false)}>{t('How to order', 'ဘယ်လိုဝယ်ယူရမလဲ')}</a>
         <a href="#contact" onClick={() => setMenu(false)}>{t('Contact', 'ဆက်သွယ်ရန်')}</a>
       </nav>
       <div className="shop-header-tools">
@@ -134,9 +151,9 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
     <main>
       <section className="hero wrap" aria-labelledby="hero-title">
         <div className="hero-copy">
-          <h1 id="hero-title">{t('Your digital life.', 'သင့်နေ့စဉ်ဘဝအတွက်')}<br /><span>{t('A little more', 'ပိုကောင်းတဲ့')}</span><br /><span className="blue">{t('premium.', 'ဒီဂျစ်တယ်အတွေ့အကြုံ။')}</span></h1>
-          <p className="hero-description">{t('Discover subscriptions for work, creativity, and entertainment. Choose a plan and order through Digimium on Telegram.', 'အလုပ်အတွက်၊ ဖန်တီးမှုအတွက်၊ အပန်းဖြေဖို့အတွက် သင့်တော်တဲ့ ဝန်ဆောင်မှုတွေကို ရွေးချယ်ပြီး Digimium ရဲ့ Telegram ကနေ မှာယူနိုင်ပါတယ်။')}</p>
-          <div className="hero-actions"><a className="button primary" href="#services">{t('Explore services', 'ထုတ်ကုန်များ ကြည့်ရန်')} <ArrowUpRight size={18} /></a><a className="text-link" href="#how-it-works">{t('How to order', 'မှာယူနည်း')} <ArrowRight size={17} /></a></div>
+          <h1 id="hero-title">{t('Your digital life.', 'သင့်နေစဥ်ဘဝ အတွက်')}<br /><span>{t('A little more', 'စိတ်လှုပ်ရှားစရာ')}</span><br /><span className="blue">{t('premium.', 'Digital ခံစားမှုများ')}</span></h1>
+          <p className="hero-description">{t('Discover subscriptions for work, creativity, and entertainment. Choose a plan and order through Digimium on Telegram.', 'အလုပ်အတွက်၊ ကျောင်းအတွက်၊ အပန်းဖြေဖို့အတွက် သင့်တော်တဲ့ ဝန်ဆောင်မှုတွေကို စိတ်ကြိုက်ရွေးချယ်ဝယ်ယူနိုင်ပါသည်။')}</p>
+          <div className="hero-actions"><a className="button primary" href="#services">{t('Explore services', 'ပစ္စည်းများ ကြည့်ရန်')} <ArrowUpRight size={18} /></a><a className="text-link" href="#how-it-works">{t('How to order', 'ဘယ်လိုဝယ်ယူရမလဲ')} <ArrowRight size={17} /></a></div>
         </div>
         <div className="showcase">
           <div className="showcase-top"><span>{t('Explore a collection', 'အမျိုးအစားအလိုက် ရွေးချယ်ပါ')}</span><img src="/assets/symbol-white.png" alt="" /></div>
@@ -146,35 +163,63 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
           <button className="collection-link" onClick={() => showCategory(stage.category)}>{categoryName(stage.category, lang)} <ArrowRight size={17} /></button>
         </div>
       </section>
-      <div className="purpose-strip wrap"><span>{t('One place. More possibilities.', 'တစ်နေရာတည်းမှာ စိတ်ကြိုက်ရွေးချယ်ပါ။')}</span><div><span><Sparkles size={16} />{t('Work smarter', 'အလုပ်အတွက်')}</span><span><PenTool size={16} />{t('Create freely', 'ဖန်တီးဖို့')}</span><span><Clapperboard size={16} />{t('Enjoy your downtime', 'အပန်းဖြေဖို့')}</span></div></div>
+      <div className="purpose-strip wrap"><span>{t('One place. More possibilities.', 'တစ်နေရာတည်းမှာ အားလုံးကို စိတ်ကြိုက်ရွေးချယ်လို့ရပါပြီ')}</span><div><span><Sparkles size={16} />{t('Work smarter', 'အလုပ်အတွက်')}</span><span><PenTool size={16} />{t('Create freely', 'ဖန်တီးဖို့')}</span><span><Clapperboard size={16} />{t('Enjoy your downtime', 'အပန်းဖြေဖို့')}</span></div></div>
       <section id="services" className="services wrap" aria-labelledby="services-title">
-        <div className="section-heading"><h2 id="services-title">{t('Find your next upgrade', 'သင့်အတွက် ထုတ်ကုန်များ')}<span className="blue">.</span></h2></div>
+        <div className="section-heading"><h2 id="services-title">{t('Find your next upgrade', 'သင့်အတွက် ဝန်ဆောင်မှုများ')}{lang === 'en' && <span className="blue">.</span>}</h2></div>
         <div className="catalog-tools">
           <div className="filters" role="group" aria-label={t('Filter services', 'အမျိုးအစား ရွေးရန်')}>{categories.map((name, i) => <button key={name} aria-pressed={category === i} onClick={() => { setCategory(i); setAll(i === 0); }}>{i === 0 && <LayoutGrid size={14} />} {categoryName(i, lang)}</button>)}</div>
           <label className="search"><Search size={19} /><input type="search" enterKeyHint="search" autoComplete="off" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} placeholder={t('Find a product or plan', 'ထုတ်ကုန် သို့မဟုတ် အစီအစဉ် ရှာရန်')} aria-label={t('Search products and plans', 'ထုတ်ကုန်နှင့် အစီအစဉ်များ ရှာရန်')} />{query && <button className="clear-search" type="button" aria-label={t('Clear search', 'ရှာဖွေမှု ရှင်းရန်')} onClick={() => setQuery('')}><X size={18}/></button>}</label>
         </div>
-        <div className="catalog-grid">{visible.map(product => <button className="product" type="button" key={product.id} onClick={() => shop.current?.openProduct(product)} aria-label={product.name + ' · ' + t('View plans', 'အစီအစဉ်များ ကြည့်ရန်')}>
+        <div className="catalog-grid">{visible.map(product => <button className="product" type="button" key={product.id} onClick={() => shop.current?.openProduct(product)} aria-label={product.name + ' · ' + t('View plans', 'Plan များ ကြည့်ရန်')}>
           <div className="product-top"><Mark product={product} /><ArrowUpRight size={20} /></div>
           <h3>{product.name}</h3><span className="product-category">{categoryName(product.category, lang)}</span>
           {!hideShortDescriptions && <p>{productDescription(product, lang)}</p>}
           {product.plans?.[0] && <PlanSummary plan={product.plans[0]} lang={lang} />}
           {product.price && <div className="product-price">{priceText(product.price, lang)}{product.duration && <span> / {durationText(product.duration, lang)}</span>}</div>}
           {product.availability === 'unavailable' && <span className="availability availability-unavailable">{t('Currently unavailable', 'လောလောဆယ် မရနိုင်ပါ')}</span>}
-          <span className="product-action">{t('View plans', 'အစီအစဉ်များ ကြည့်ရန်')} <ArrowRight size={15} /></span>
+          <span className="product-action">{t('View plans', 'Plan များ ကြည့်ရန်')} <ArrowRight size={15} /></span>
         </button>)}</div>
         {!matches.length && <div className="empty"><Search size={30} /><h3>{t('No matching services', 'ကိုက်ညီသော ထုတ်ကုန် မတွေ့ပါ')}</h3><button className="button secondary" onClick={() => { setQuery(''); setCategory(0); setAll(true); }}>{t('Show all services', 'ထုတ်ကုန်အားလုံး ကြည့်ရန်')}</button></div>}
-        <div className="catalog-footer"><p aria-live="polite">{t(`${visible.length} of ${matches.length} services`, `ထုတ်ကုန် ${matches.length} ခုအနက် ${visible.length} ခု ပြထားသည်`)}</p>
+        <div className="catalog-footer"><p aria-live="polite" lang="en">{visible.length} of {matches.length} services</p>
           {category === 0 && !query && matches.length > featured.length && <button className="text-link" onClick={() => setAll(!all)}>{all ? t('Show featured services', 'ရွေးချယ်ထားသော ထုတ်ကုန်များ ကြည့်ရန်') : t(`Browse all ${products.length} services`, `ထုတ်ကုန် ${products.length} ခုလုံး ကြည့်ရန်`)}<ChevronDown size={17} className={all ? 'rotate' : ''} /></button>}
         </div>
       </section>
-      <section id="about" className="about"><div className="wrap about-inner"><div className="about-heading"><img src="/assets/symbol-white.png" alt="" /><h2>{t('Digital.', 'ဒီဂျစ်တယ်။')}<br />{t('Premium.', 'ပရီမီယမ်။')}<br /><span>{t('Made simple.', 'ရိုးရိုးရှင်းရှင်း။')}</span></h2></div><div className="about-copy"><p className="about-intro">{t('More possibility. Less figuring it out.', 'သင်လိုအပ်တာကို လွယ်လွယ်ကူကူ ရွေးချယ်ပါ။')}</p><p>{t('Digimium brings digital tools and entertainment together. If you need help choosing a subscription, tell us how you plan to use it.', 'Digimium မှာ ဒီဂျစ်တယ်ကိရိယာတွေနဲ့ အပန်းဖြေစရာ ဝန်ဆောင်မှုတွေကို တစ်နေရာတည်းမှာ ရွေးချယ်နိုင်ပါတယ်။ ဘယ်အစီအစဉ်ကို ရွေးရမလဲ မသေချာရင် သင်ဘယ်လို သုံးချင်လဲဆိုတာ ပြောပြပါ။')}</p><a className="light-link" href="#contact">{t('Talk to Digimium', 'Digimium ကို ဆက်သွယ်ရန်')} <ArrowUpRight size={19} /></a></div></div></section>
-      <section id="how-it-works" className="how wrap"><div className="section-heading"><h2>{t('How to order', 'မှာယူနည်း')}</h2></div>
-        <ol className="steps">{steps.map(([title, detail], i) => <li key={i}><span className="step-number">0{i + 1}</span><h3>{title}</h3><p>{detail}</p></li>)}</ol>
+      <section id="about" className="about">
+        <div className="wrap about-inner">
+          <div className="about-heading">
+            <img src="/assets/symbol-white.png" alt="" />
+            <h2 lang="en">Digital.<br />Premium.<br /><span>Make Simple.</span></h2>
+          </div>
+          <div className="about-copy">
+            <p className="about-intro">{t('More possibility. Less figuring it out.', 'digimium. မှာ Digital Tools များ နဲ့ အပန်းဖြေစရာ ဝန်ဆောင်မှုအစုံကို တစ်နေရာတည်းမှာ စိတ်ကြိုက်ရွေးချယ်နိုင်ပါတယ်။')}</p>
+            <p>{t('Digimium brings digital tools and entertainment together. If you need help choosing a subscription, tell us how you plan to use it.', 'ဘယ်လိုဝယ်ယူရမလဲ၊ ဘယ် AI က ကိုယ်အတွက်သင့်တော်မလဲ မသိဘူဆိုရင်တော့ “digimium. ကို ဆက်သွယ်ရန်” ကိုနှိပ်ပြီး အသေးစိတ် မေးမြန်းတိုင်ပင်လို့ရပါတယ်ခင်ဗျ။')}</p>
+            <a className="light-link" href="#contact">{t('Talk to Digimium', 'digimium. ကို ဆက်သွယ်ရန်')} <ArrowUpRight size={19} /></a>
+          </div>
+        </div>
+      </section>
+      <section id="how-it-works" className="how wrap">
+        <div className="section-heading"><h2>{t('How to order', 'ဘယ်လိုဝယ်ယူရမလဲ')}</h2></div>
+        <ol className="steps">
+          {steps.map(({title, detail}, i) => <li key={i}>
+            <span className="step-number" aria-hidden="true">0{i + 1}</span>
+            <h3>{title}</h3>
+            <div className="step-detail">{detail}</div>
+          </li>)}
+        </ol>
       </section>
       <section className="faq wrap"><h2>{t('A few things to know.', 'မေးလေ့ရှိသော မေးခွန်းများ')}</h2><div>{faqs.map(([question, answer]) => <details key={question}><summary>{question}<ChevronDown size={18} /></summary><p>{answer}</p></details>)}</div></section>
-      <section id="contact" className="contact wrap"><div><h2>{t('Talk to Digimium', 'Digimium ကို ဆက်သွယ်ရန်')}<span className="blue">.</span></h2><p>{t('Ask about a subscription, availability, or an existing order.', 'ဝန်ဆောင်မှု၊ ရရှိနိုင်မှု သို့မဟုတ် မှာယူပြီးသား အမှာစာအကြောင်း မေးမြန်းနိုင်ပါတယ်။')}</p></div>
-        <div className="contact-actions">{telegram && <a className="button primary" href={'https://t.me/' + telegram} target="_blank" rel="noopener noreferrer"><Send size={16} />{t('Message us on Telegram', 'Telegram မှာ စာပို့ရန်')} <ArrowUpRight size={18} /></a>}
-          <a className="button secondary" href={`viber://chat?number=${encodeURIComponent(settings.viber)}`}>{t('Talk to us on Viber', 'Viber မှ ဆက်သွယ်ရန်')} <ArrowUpRight size={18} /></a>
+      <section id="contact" className="contact wrap"><div><h2>{t('Talk to Digimium', 'digimium. ကို ဆက်သွယ်ရန်')}{lang === 'en' && <span className="blue">.</span>}</h2><p>{t('Ask about a subscription, availability, or an existing order.', 'ဝန်ဆောင်မှု၊ ရရှိနိုင်မှု သို့မဟုတ် မှာယူပြီးသား အမှာစာအကြောင်း မေးမြန်းနိုင်ပါတယ်။')}</p></div>
+        <div className="contact-actions">
+          {telegram && <a className="button contact-link contact-telegram" href={'https://t.me/' + telegram} target="_blank" rel="noopener noreferrer">
+            <img src="/assets/marks/telegram.svg" width="26" height="26" alt="" />
+            <span>{t('Message us on Telegram', 'Telegram မှာ စာပို့ရန်')}</span>
+            <ArrowUpRight size={18} aria-hidden="true" />
+          </a>}
+          <a className="button contact-link contact-viber" href={`viber://chat?number=${encodeURIComponent(settings.viber)}`}>
+            <img src="/assets/marks/viber.svg" width="26" height="26" alt="" />
+            <span>{t('Talk to us on Viber', 'Viber မှ ဆက်သွယ်ရန်')}</span>
+            <ArrowUpRight size={18} aria-hidden="true" />
+          </a>
           <span className="contact-number">Viber · {settings.viberLabel}</span><a className="email" href={`mailto:${settings.email}`}><Mail size={15} />{settings.email}</a>
         </div></section>
     </main>

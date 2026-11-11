@@ -5,7 +5,7 @@
   gap: 10px;
 }
 .admin-logo-tools { gap: 15px; }
-.admin-logo-tools .admin-service-mark { width: 58px; height: 58px; background: #e1eaf8; }
+.admin-logo-tools .admin-service-mark { width: 58px; height: 58px; background: var(--soft); }
 .admin-logo-tools .admin-service-mark img { width: 39px; height: 39px; }
 .admin-service-initial { font-size: 19px; font-weight: 700; color: var(--admin-blue); }
 .admin-logo-hint, .admin-logo-notice, .admin-logo-issue { font-size: 11px; line-height: 1.8; }
@@ -18,7 +18,7 @@
 .admin-logo-path-row .admin-field input[readonly] { color: var(--admin-muted); }
 .admin-logo-reuse { margin-top: 16px; }
 .admin-logo-reuse summary { color: var(--admin-blue); font-size: 12px; font-weight: 600; cursor: pointer; width: fit-content; }
-.admin-logo-reuse summary:focus-visible { outline: 3px solid #527bd9; outline-offset: 3px; }
+.admin-logo-reuse summary:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
 @media(max-width:620px) {
   .admin-logo-path-row .admin-field { flex-basis: 100%; }
   .admin-logo-hint, .admin-logo-issue, .admin-logo-notice { font-size: 12px; }
