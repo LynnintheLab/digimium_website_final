@@ -38,7 +38,9 @@ The build produces a self-contained server in `.next/standalone/`, with `server.
 
 ## 3. Set the private application values
 
-In Resend, add the domain or subdomain you want to send from. Copy the DNS records Resend gives you into your DNS provider and wait until the domain shows **Verified**. Create a **Sending access** API key scoped to that domain and copy it into the staging app’s private settings. The sender can be an address such as `admin@auth.example.com` if `auth.example.com` is verified. The receiving admin inbox can be a Gmail address. [Resend domains](https://resend.com/docs/dashboard/domains/introduction) · [Resend API keys](https://resend.com/docs/dashboard/api-keys/introduction)
+For this single-admin test site, set `RESEND_FROM_EMAIL=onboarding@resend.dev` and set `ADMIN_EMAIL` to the inbox associated with the Resend account that owns the API key. Resend delivers codes from this built-in sender only to that inbox. This setup skips DNS verification. [Resend’s testing sender](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain)
+
+To deliver codes to a different admin inbox, verify a domain you own in Resend, publish its supplied DNS records, and use a sender address on that domain. [Resend domains](https://resend.com/docs/dashboard/domains/introduction)
 
 For a new deployment, download the [Hostinger environment template](../hostinger/.env.example), save a private copy with the extension `.env`, and fill in the values below. In **Review build settings → Environment variables → Edit**, choose **Import .env**, review the values, then select **Finish**. Hostinger keeps existing values for matching keys, so correct any earlier entries manually. [Hostinger’s import instructions](https://www.hostinger.com/support/how-to-add-environment-variables-during-node-js-application-deployment/)
 
@@ -54,8 +56,8 @@ For an existing deployment, you can enter the same values directly in the web ap
 | `APP_ORIGIN` | Exact HTTPS origin for this testing web app, such as `https://testing.example.com`, without a path |
 | `ADMIN_EMAIL` | Owner inbox that receives the login codes |
 | `ADMIN_AUTH_SECRET` | Private random secret of at least 32 characters. Generate one with the command below and keep it across redeploys. Rotating it revokes remembered sessions and pending codes. |
-| `RESEND_API_KEY` | Resend sending key for the verified domain |
-| `RESEND_FROM_EMAIL` | Sender address on the verified domain |
+| `RESEND_API_KEY` | Sending key from the Resend account used for this site |
+| `RESEND_FROM_EMAIL` | `onboarding@resend.dev` for owner-only testing, or an address on a verified sending domain |
 
 Generate the secret locally and paste the output into the private environment settings.
 

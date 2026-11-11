@@ -8,7 +8,7 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
-Prepared the owner's private testing environment file with a proposed staging database name, matching user, generated database password and Resend sender. The owner still needs to create that database user, verify the sending domain, and enter the assigned staging HTTPS origin and Resend key in the private file before deploying.
+The owner imported all six staging tables. The private testing environment file now uses the assigned test origin, the staging database, and Resend’s built-in sender. The configured receiving inbox must match the Resend account email.
 
 Compared the three earlier saved site folders with this checkout. All four have identical imported catalog data and the same logo, with 54 initial products, 104 plans and 50 published plans. The GitHub checkout also has the Hostinger build and the later OTP and Telegram draft fixes.
 
@@ -34,4 +34,4 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 Open a Canva checkout from the testing build on a device running Telegram and check the draft’s spacing before release.
 
-Connect a separate Hostinger staging app to `testing`, import the branch’s schema into the staging database, and configure its private Resend sender, API key, admin secret, owner inbox and HTTPS origin. Verify delivery to the real inbox, reopening the same browser, signing in from a second profile, and sign-out. The live shop continues to use the password-based setup in the production branch guide.
+Apply the private environment file to the staging app and redeploy `testing`. Verify delivery to the real inbox, reopening the same browser, signing in from a second profile, and sign-out. The live shop continues to use the password-based setup in the production branch guide.
