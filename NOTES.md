@@ -8,6 +8,8 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
+Prepared the owner's private testing environment file with a proposed staging database name, matching user, generated database password and Resend sender. The owner still needs to create that database user, verify the sending domain, and enter the assigned staging HTTPS origin and Resend key in the private file before deploying.
+
 Compared the three earlier saved site folders with this checkout. All four have identical imported catalog data and the same logo, with 54 initial products, 104 plans and 50 published plans. The GitHub checkout also has the Hostinger build and the later OTP and Telegram draft fixes.
 
 Applied the owner’s Myanmar hero, catalog, About, ordering and contact copy. The testing storefront uses Digimium’s Persian Blue, Egyptian Blue and Navy palette. The social buttons use the two services’ colors and logos. Verified the sticky menu, aligned contacts, product picker and cart checkout at 320, 390, 768, 1024 and 1440px in Chromium. Checked the revised guide and contact anchor in both languages on phones, tablets and desktop.
