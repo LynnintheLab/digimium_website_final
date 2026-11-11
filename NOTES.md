@@ -2,13 +2,17 @@
 
 ## Current status
 
-Digimium is deployed at `https://buywith-digimium.store` on Hostinger. The public catalog responds successfully. Admin sign-in is waiting on an hPanel configuration correction. `production` is the stable GitHub branch and `testing` is the working branch. The hPanel deployment steps, environment names, and database setup are in [the Hostinger guide](docs/HOSTINGER.md).
+The live Hostinger shop at `https://buywith-digimium.store` tracks `production` and uses password-based admin sign-in. On `testing`, admin sign-in uses one-time email codes through Resend. Staging setup, private environment variables and database import steps are in [the Hostinger guide](docs/HOSTINGER.md).
 
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
 
-Checked the production catalog and signed-out admin API. The catalog read from MySQL succeeded. The signed-out admin API returned HTTP 503, which the Hostinger auth adapter returns before checking credentials when the runtime admin settings are incomplete or invalid.
+Added a two-step email sign-in to the Hostinger testing build. Verified browsers receive a persistent session. The featured collection divider now spans the full panel width, with the existing product-row padding preserved. Browser layout checks measured both divider ends at 320, 390, 620, 768, 1024 and 1440 pixels.
+
+On Node 24, both deployment builds, type checking and six unit tests passed. The packaged Hostinger server passed the OTP and catalog integration suite against disposable MariaDB with simulated Resend delivery. A separate mobile-sized Chromium test submitted a code, closed and reopened the browser, verified the original profile stayed signed in, and confirmed a second profile and the signed-out first profile each needed a code. The login forms also fit a 320px viewport. Live inbox delivery still needs a configured staging sender.
+
+The previous production check found the public catalog readable and the signed-out admin API returning 503 due to its runtime admin configuration.
 
 Added an importable Hostinger-only environment template at `hostinger/.env.example` and documented the hPanel import flow. Completed environment files belong outside the repository.
 
@@ -18,4 +22,4 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-Update the admin password in hPanel to a private value between 16 and 256 characters, confirm the admin email and HTTPS origin, and apply the settings. Verify that a signed-out request to `/api/admin/catalog` returns 401 and that the owner can sign in. Then confirm Telegram drafts and admin persistence on the live domain. If the older site contains later admin edits or uploaded logos, migrate that data from an authorized backup. Keep development on `testing` and maintain MySQL backups separately from Git.
+Connect a separate Hostinger staging app to `testing`, import the branch’s schema into the staging database, and configure its private Resend sender, API key, admin secret, owner inbox and HTTPS origin. Verify delivery to the real inbox, reopening the same browser, signing in from a second profile, and sign-out. The live shop continues to use the password-based setup in the production branch guide.

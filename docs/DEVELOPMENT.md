@@ -26,7 +26,7 @@ The installer uses the committed npm lockfile, including platform-specific optio
 
 1. Create a dedicated development MySQL database and a user with access to it.
 2. Open that database in phpMyAdmin or your SQL client. Import [hostinger/schema.sql](../hostinger/schema.sql). The file creates the application tables and can be imported again safely.
-3. Copy `.env.example` to a git-ignored `.env.local`. Set `APP_ORIGIN=http://127.0.0.1:3000`, configure `ADMIN_EMAIL` and `ADMIN_PASSWORD`, and enter the development database connection values. Use a separate password for the database user. See [Hostinger setup](HOSTINGER.md) for all required settings.
+3. Copy `.env.example` to a git-ignored `.env.local`. Set `APP_ORIGIN=http://127.0.0.1:3000`, set `ADMIN_EMAIL`, `ADMIN_AUTH_SECRET`, `RESEND_API_KEY` and `RESEND_FROM_EMAIL`, and enter the development database connection values. See [Hostinger setup](HOSTINGER.md) for all required settings.
 4. Run `npm run dev -- --hostname 127.0.0.1 --port 3000`. Open `http://127.0.0.1:3000` for the store or `http://127.0.0.1:3000/admin` for admin login.
 
 For the production build, run `npm run build`. This prepares the standalone Node.js server and includes storefront assets. `npm start` runs that build. Set environment variables in the hosting runtime and serve production over HTTPS. MySQL holds editable data and logo bytes outside the deployment directory.
@@ -85,13 +85,13 @@ npm run typecheck
 npm run build
 ```
 
-For the Hostinger integration test, create a **new empty** test database on `127.0.0.1` with a name beginning `digimium_test_`. Give a dedicated test user access to it. Put disposable database/admin credentials and `APP_ORIGIN=http://127.0.0.1:6100` (or another unused port) in a git-ignored `.env.test.local`. Set `DB_HOST=127.0.0.1` explicitly. After `npm run build`, run:
+For the Hostinger integration test, create a **new empty** test database on `127.0.0.1` with a name beginning `digimium_test_`. Give a dedicated test user access to it. Put disposable database credentials and `APP_ORIGIN=http://127.0.0.1:6100` (or another unused port) in a git-ignored `.env.test.local`. Set `DB_HOST=127.0.0.1` explicitly. After `npm run build`, run:
 
 ```sh
 node --env-file=.env.test.local tests/hostinger.integration.mjs
 ```
 
-The test imports the schema, runs the packaged server, saves a product and a logo, restarts the server, and verifies both records and admin sign-out. It leaves the disposable database available for inspection. Create a fresh empty database for another run. If the test variables are already exported, `npm run test:hostinger` runs the same check.
+The test supplies its own owner settings, intercepts Resend delivery locally, imports the schema, runs the packaged server, saves a product and a logo, restarts the server, and verifies both records and admin sign-out. It leaves the disposable database available for inspection. Create a fresh empty database for another run. If the test variables are already exported, `npm run test:hostinger` runs the same check.
 
 For the Sites integration tests, leave the initialized Sites dev server running in another terminal and set its exact port. The tests' fallback ports differ, so use `TEST_BASE_URL` explicitly.
 

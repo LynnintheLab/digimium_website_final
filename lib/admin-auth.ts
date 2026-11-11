@@ -3,7 +3,7 @@ import * as auth from "@digimium/auth";
 import type { ChatGPTUser } from "../app/chatgpt-auth";
 import type { AdminCheck } from "./admin-auth-policy";
 
-export const { passwordLogin, signInPath, signOutPath, isAllowedMutation, createSession, endSession } = auth;
+export const { emailCodeLogin, signInPath, signOutPath, isAllowedMutation, createSession, endSession } = auth;
 export const checkAdmin: () => Promise<AdminCheck> = auth.checkAdmin;
 
 export async function requireAdminPage(): Promise<ChatGPTUser> {

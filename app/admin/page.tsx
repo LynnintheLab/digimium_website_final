@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { passwordLogin, requireAdminPage, signOutPath } from '@/lib/admin-auth';
+import { emailCodeLogin, requireAdminPage, signOutPath } from '@/lib/admin-auth';
 import AdminCatalog from './admin-catalog';
 import './admin.css';
 
@@ -11,5 +11,5 @@ export const metadata: Metadata = {
 
 export default async function AdminPage() {
   const user = await requireAdminPage();
-  return <AdminCatalog identity={{ name: user.displayName, email: user.email }} signOutHref={signOutPath} postSignOut={passwordLogin} />;
+  return <AdminCatalog identity={{ name: user.displayName, email: user.email }} signOutHref={signOutPath} postSignOut={emailCodeLogin} />;
 }

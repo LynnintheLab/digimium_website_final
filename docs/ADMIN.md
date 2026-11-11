@@ -1,6 +1,6 @@
 # Catalog administration
 
-On Hostinger, open `/admin` and sign in with the admin email and password configured for the application in hPanel. Customers can browse the storefront without signing in. [Hostinger setup](HOSTINGER.md)
+On the Hostinger testing site, open `/admin`, enter the owner email and type the six-digit code from your inbox in the same browser within 10 minutes. This browser profile stays signed in for up to 180 days. A new browser or device, clearing the site’s cookies, signing out, or an expired session requires another code. Use **Sign out** when finished on a shared device. Customers can browse the storefront without signing in. [Hostinger setup](HOSTINGER.md)
 
 On the earlier Sites deployment, use ChatGPT sign-in with an account listed in the hosted `ADMIN_EMAILS` setting.
 

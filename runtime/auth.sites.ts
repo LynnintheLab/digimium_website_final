@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { getChatGPTUser, chatGPTSignInPath, chatGPTSignOutPath } from "../app/chatgpt-auth";
 import { authorizeAdmin, isSameOriginMutation } from "../lib/admin-auth-policy";
 
-export const passwordLogin: boolean = false;
+export const emailCodeLogin: boolean = false;
 export const signInPath = chatGPTSignInPath("/admin");
 export const signOutPath = chatGPTSignOutPath("/");
 export const isAllowedMutation = isSameOriginMutation;

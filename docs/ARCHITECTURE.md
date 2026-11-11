@@ -65,7 +65,7 @@ Checkout opens a Telegram DM draft and attempts to copy the full order. Long mes
 
 ## Authorization
 
-On Hostinger, admin signs in with the configured email and password. The app uses server-verified sessions for both admin pages and protected APIs. Customer browsing requires no sign-in.
+On the Hostinger testing build, Resend delivers one-time codes only to the configured owner email. The server binds a code to the browser that requested it and consumes it once. A successful verification creates a server-side session and a persistent HttpOnly cookie for that browser profile, valid for up to 180 days. The app uses server-verified sessions for both admin pages and protected APIs. Customer browsing requires no sign-in.
 
 On Sites, hosted identity comes from the Sites platform. Admin access requires an email in server-side `ADMIN_EMAILS`; an empty allowlist grants nobody access. Mutations also require same-origin requests. Local dev strips client-supplied identity headers and permits its mock identity only on loopback.
 

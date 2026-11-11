@@ -1,6 +1,6 @@
 // Runs against the packaged production server and creates data in an EMPTY, local test database.
-// Required variables: DB_HOST, DB_PORT, DB_NAME (digimium_test_*), DB_USER, DB_PASSWORD,
-// ADMIN_EMAIL, ADMIN_PASSWORD and APP_ORIGIN (http://127.0.0.1:<unused-port>).
+// Supply DB_HOST, DB_PORT, DB_NAME (digimium_test_*), DB_USER, DB_PASSWORD and
+// APP_ORIGIN (http://127.0.0.1:<unused-port>). The test supplies all mail and auth values.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -10,14 +10,16 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import mysql from 'mysql2/promise';
 
-const env = process.env;
+const env = {
+  ...process.env, ADMIN_EMAIL: 'owner@example.invalid', ADMIN_AUTH_SECRET: randomUUID(),
+  RESEND_FROM_EMAIL: 'digimium@example.invalid', RESEND_API_KEY: 're_integration_fixture',
+};
 const base = new URL(env.APP_ORIGIN);
 if (env.DB_HOST !== '127.0.0.1' || !/^digimium_test_[a-z0-9_]+$/.test(env.DB_NAME ?? '') ||
     base.origin !== env.APP_ORIGIN || base.hostname !== '127.0.0.1' || base.protocol !== 'http:' || !base.port) {
   throw new Error('Use a disposable local database named digimium_test_* and an HTTP 127.0.0.1 origin with an unused port.');
 }
-assert.ok(env.DB_USER && env.DB_PASSWORD && env.ADMIN_EMAIL && env.ADMIN_PASSWORD?.length >= 16,
-  'Supply credentials for the disposable test instance.');
+assert.ok(env.DB_USER && env.DB_PASSWORD, 'Supply credentials for the disposable test database.');
 const root = new URL('../', import.meta.url);
 const entry = fileURLToPath(new URL('.next/standalone/server.js', root));
 await access(entry);
@@ -29,22 +31,25 @@ try {
   const [tables] = await db.query('SHOW TABLES');
   assert.equal(tables.length, 0, 'Refusing mutation: this test requires a completely empty disposable database.');
   await db.query(await readFile(new URL('hostinger/schema.sql', root), 'utf8'));
-} finally {
+} catch (error) {
   await db.end();
+  throw error;
 }
 
 const request = (path, options = {}) => fetch(new URL(path, base), { ...options, redirect: 'manual', signal: AbortSignal.timeout(10_000) });
 let child;
-async function start() {
+const messages = [];
+async function start(overrides = {}) {
   // Refuse to interact with another process already serving this address.
   const probe = createServer();
   await new Promise((resolve, reject) => probe.once('error', reject).listen(Number(base.port), base.hostname, resolve));
   await new Promise(resolve => probe.close(resolve));
-  child = spawn(process.execPath, [entry], {
+  child = spawn(process.execPath, ['--import', new URL('tests/fixtures/resend-fetch.mjs', root).href, entry], {
     cwd: fileURLToPath(root),
-    env: { ...env, NODE_ENV: 'production', HOSTNAME: base.hostname, PORT: base.port },
-    stdio: ['ignore', 'inherit', 'inherit'],
+    env: { ...env, FIXTURE_MAIL_FAILURE: '0', NODE_ENV: 'production', HOSTNAME: base.hostname, PORT: base.port, ...overrides },
+    stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
+  child.on('message', message => { if (message?.type === 'otp-mail') messages.push(message); });
   for (let attempt = 0; attempt < 150; attempt++) {
     if (child.exitCode !== null || child.signalCode) break;
     try {
@@ -71,12 +76,42 @@ async function json(response, expected = 200) {
   assert.equal(response.status, expected, 'Unexpected HTTP status on ' + new URL(response.url).pathname);
   return response.json();
 }
-const login = (password, origin = base.origin) => request('/admin/session', {
-  method: 'POST', headers: { Origin: origin }, body: new URLSearchParams({ email: env.ADMIN_EMAIL, password }),
+const login = (fields, cookie = '', origin = base.origin) => request('/admin/session', {
+  method: 'POST', headers: { Origin: origin, Cookie: cookie }, body: new URLSearchParams(fields),
 });
+const issue = (email = env.ADMIN_EMAIL) => login({ action: 'request', email });
+const verify = (cookie, code) => login({ action: 'verify', code }, cookie);
+const destination = res => res.headers.get('location');
+function cookiePair(response, name) {
+  const header = response.headers.getSetCookie().find(cookie => cookie.startsWith(name + '='));
+  assert.ok(header, 'Expected a ' + name + ' cookie');
+  assert.match(header, /HttpOnly/i);
+  assert.match(header, /SameSite=Strict/i);
+  return header.split(';')[0];
+}
+function session(response) {
+  assert.equal(response.status, 303);
+  assert.equal(destination(response), '/admin');
+  const cookie = cookiePair(response, 'digimium_local_admin');
+  const header = response.headers.getSetCookie().find(value => value.startsWith(cookie));
+  assert.match(header, /Max-Age=15552000\b/i, 'Remember this browser for 180 days');
+  return { Cookie: cookie };
+}
+const resetDeliveryWindow = () => db.query('DELETE FROM digimium_otp_send_limit');
+async function issueCode() {
+  const before = messages.length;
+  const response = await issue();
+  assert.equal(response.status, 303);
+  assert.equal(destination(response), '/admin/login?step=verify');
+  assert.equal(messages.length, before + 1);
+  return { cookie: cookiePair(response, 'digimium_local_challenge'), code: messages.at(-1).code };
+}
 const fixtureId = 'test-' + randomUUID();
 const png = await readFile(new URL('public/assets/symbol-blue.png', root));
 try {
+  await start({ ADMIN_AUTH_SECRET: '', ADMIN_PASSWORD: randomUUID() });
+  assert.equal((await request('/api/admin/catalog')).status, 503, 'OTP must be configured even if a legacy password is present');
+  await stop();
   await start();
   const home = await request('/');
   assert.equal(home.status, 200);
@@ -93,17 +128,40 @@ try {
   const forged = { 'oai-authenticated-user-id': 'fake', 'oai-authenticated-user-email': env.ADMIN_EMAIL, Cookie: '__sites_local_auth=1' };
   assert.equal((await request('/api/admin/catalog', { headers: forged })).status, 401);
   assert.equal((await request('/api/admin/logos', { method: 'POST', headers: forged, body: png })).status, 401);
-  assert.equal((await login(env.ADMIN_PASSWORD, 'https://foreign.example')).status, 403);
-  const denied = await login('incorrect-' + randomUUID());
-  assert.equal(denied.headers.get('set-cookie'), null, 'Rejected credentials cannot create a session');
-  assert.ok([303, 401].includes(denied.status));
-  const accepted = await login(env.ADMIN_PASSWORD);
-  assert.equal(accepted.status, 303);
-  assert.equal(new URL(accepted.headers.get('location'), base).pathname, '/admin');
-  const setCookie = accepted.headers.get('set-cookie');
-  assert.match(setCookie, /HttpOnly/i);
-  assert.match(setCookie, /SameSite=Strict/i);
-  const auth = { Cookie: setCookie.split(';')[0] };
+  const loginPage = await (await request('/admin/login')).text();
+  assert.match(loginPage, /type="email"/);
+  assert.doesNotMatch(loginPage, /type="password"/);
+  assert.equal((await login({ action: 'request', email: env.ADMIN_EMAIL }, '', 'https://foreign.example')).status, 403);
+  await issue('another@example.invalid');
+  assert.equal(messages.length, 0, 'A different email address cannot receive a code');
+  const challenge = await issueCode();
+  const [[{ lifetime: codeLifetime }]] = await db.query(
+    'SELECT TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), expires_at) AS lifetime FROM digimium_otp_challenges');
+  assert.ok(codeLifetime > 590 && codeLifetime <= 600, 'Code expires on the server after ten minutes');
+  const codePage = await (await request('/admin/login?step=verify', { headers: { Cookie: challenge.cookie } })).text();
+  assert.match(codePage, /autocomplete="one-time-code"/i);
+  assert.notEqual(destination(await verify('', challenge.code)), '/admin', 'A code requires its browser challenge');
+  assert.equal((await login({ action: 'verify', code: challenge.code }, challenge.cookie, 'https://foreign.example')).status, 403);
+  const retry = await login({ action: 'request' }, challenge.cookie);
+  assert.match(destination(retry), /error=retry/);
+  assert.equal(messages.length, 1, 'The resend cooldown suppresses delivery');
+  await stop();
+  await start({ FIXTURE_MAIL_FAILURE: '1' });
+  await resetDeliveryWindow();
+  const failedDelivery = await login({ action: 'request' }, challenge.cookie);
+  assert.match(destination(failedDelivery), /error=delivery/);
+  await stop();
+  await start();
+  const attempts = await Promise.all([verify(challenge.cookie, challenge.code), verify(challenge.cookie, challenge.code)]);
+  const accepted = attempts.filter(res => destination(res) === '/admin');
+  assert.equal(accepted.length, 1, 'Exactly one verification consumes a valid code, including after a failed resend');
+  assert.match(destination(attempts.find(res => res !== accepted[0])), /error=expired/);
+  const auth = session(accepted[0]);
+  const [[{ lifetime: sessionLifetime }]] = await db.query(
+    'SELECT TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), expires_at) AS lifetime FROM digimium_admin_sessions');
+  assert.ok(sessionLifetime > 15551990 && sessionLifetime <= 15552000, 'The server enforces the persistent cookie lifetime');
+  assert.equal((await request('/api/admin/catalog')).status, 401, 'A new browser still needs to sign in');
+  assert.equal(new URL(destination(await request('/admin/login', { headers: auth })), base).pathname, '/admin');
   assert.equal((await request('/admin', { headers: auth })).status, 200);
   const original = await json(await request('/api/admin/catalog', { headers: auth }));
   assert.equal(original.revision, 0);
@@ -159,12 +217,59 @@ try {
   assert.ok(image.headers.get('etag'));
   assert.equal((await request(path, { headers: { 'If-None-Match': image.headers.get('etag') } })).status, 304);
 
+  await resetDeliveryWindow();
+  const limited = await issueCode();
+  const wrongCode = limited.code === '000000' ? '000001' : '000000';
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const rejected = await verify(limited.cookie, wrongCode);
+    assert.match(destination(rejected), attempt === 5 ? /error=expired/ : /error=code/);
+  }
+  assert.match(destination(await verify(limited.cookie, limited.code)), /error=expired/, 'The attempt budget is final');
+
+  await resetDeliveryWindow();
+  const expired = await issueCode();
+  await db.query('UPDATE digimium_otp_challenges SET expires_at = UTC_TIMESTAMP() - INTERVAL 1 SECOND');
+  assert.match(destination(await verify(expired.cookie, expired.code)), /error=expired/);
+
+  await resetDeliveryWindow();
+  const secondBrowser = await issueCode();
+  await db.query('UPDATE digimium_otp_send_limit SET last_sent_at = UTC_TIMESTAMP() - INTERVAL 61 SECOND');
+  const replacement = await login({ action: 'request' }, secondBrowser.cookie);
+  assert.equal(destination(replacement), '/admin/login?step=verify');
+  const replacementCookie = cookiePair(replacement, 'digimium_local_challenge');
+  assert.match(destination(await verify(secondBrowser.cookie, secondBrowser.code)), /error=expired/, 'Resending retires the old challenge');
+  const secondSession = session(await verify(replacementCookie, messages.at(-1).code));
+  assert.notEqual(secondSession.Cookie, auth.Cookie);
+
+  await db.query('UPDATE digimium_otp_send_limit SET sends = 5, last_sent_at = UTC_TIMESTAMP() - INTERVAL 61 SECOND');
+  const beforeLimit = messages.length;
+  assert.match(destination(await issue()), /error=retry/, 'The hourly limit also applies to a new browser');
+  assert.equal(messages.length, beforeLimit);
   assert.equal((await request('/admin/logout', { method: 'POST', headers: { ...auth, Origin: 'https://foreign.example' } })).status, 403);
   const signedOut = await request('/admin/logout', { method: 'POST', headers: { ...auth, Origin: base.origin } });
   assert.equal(signedOut.status, 303);
   assert.equal((await request('/api/admin/catalog', { headers: auth })).status, 401, 'Revoked session cannot be replayed');
+  assert.equal((await request('/api/admin/catalog', { headers: secondSession })).status, 200, 'The other browser remains signed in');
+  await stop();
+  await start({ ADMIN_AUTH_SECRET: randomUUID() });
+  assert.equal((await request('/api/admin/catalog', { headers: secondSession })).status, 401, 'Rotating the owner secret invalidates remembered browsers');
 
-  console.log('PASS: packaged Hostinger storefront/assets, protected admin, login/logout, CSRF, concurrent catalog saves, public visibility, and catalog/logo persistence after server restart.');
+  await stop();
+  const httpsOrigin = 'https://staging.example.invalid';
+  await start({ APP_ORIGIN: httpsOrigin });
+  await resetDeliveryWindow();
+  const fromHttps = await login({ action: 'request', email: env.ADMIN_EMAIL }, '', httpsOrigin);
+  const httpsChallenge = cookiePair(fromHttps, '__Host-digimium_challenge');
+  assert.match(fromHttps.headers.getSetCookie()[0], /; Secure(?:;|$)/i);
+  const verifiedHttps = await login({ action: 'verify', code: messages.at(-1).code }, httpsChallenge, httpsOrigin);
+  assert.equal(destination(verifiedHttps), '/admin');
+  const hostCookie = cookiePair(verifiedHttps, '__Host-digimium_admin');
+  const httpsSession = verifiedHttps.headers.getSetCookie().find(header => header.startsWith(hostCookie));
+  assert.match(httpsSession, /; Secure(?:;|$)/i);
+  assert.match(httpsSession, /; Path=\/(?:;|$)/i);
+  assert.doesNotMatch(httpsSession, /; Domain=/i);
+  console.log('PASS: packaged storefront and assets, email OTP via stubbed Resend, browser sessions, rate limits, expiry, replay rejection, CSRF, concurrent saves and persistence across restarts.');
 } finally {
   await stop();
+  await db.end();
 }

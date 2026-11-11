@@ -23,3 +23,18 @@ CREATE TABLE IF NOT EXISTS digimium_login_limits (
   window_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
   attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0
 ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS digimium_otp_challenges (
+  challenge_hash BINARY(32) NOT NULL PRIMARY KEY,
+  code_hash BINARY(32) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  attempts_left TINYINT UNSIGNED NOT NULL DEFAULT 5,
+  INDEX (expires_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS digimium_otp_send_limit (
+  id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+  last_sent_at DATETIME NULL,
+  window_start DATETIME NOT NULL,
+  sends TINYINT UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB;

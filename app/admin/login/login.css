@@ -11,11 +11,15 @@
   border-radius: 14px;
   padding: clamp(24px, 5vw, 40px);
 }
-.admin-login h1 { margin: 28px 0 22px; font-size: 28px; }
+.admin-login h1 { margin: 28px 0 8px; font-size: 28px; }
+.admin-login .login-help { margin: 0 0 24px; color: #42546d; font-size: 15px; line-height: 1.55; }
 .admin-login form, .admin-login label { display: grid; gap: 8px; }
 .admin-login form { gap: 20px; }
 .admin-login label { font-weight: 600; }
 .admin-login input, .admin-login button { min-height: 48px; width: 100%; border-radius: 6px; font: inherit; font-size: 16px; }
 .admin-login input { padding: 8px 12px; border: 1px solid #a3b3cd; background: #f4f7fd; }
+.admin-login input[name=code] { letter-spacing: .22em; font-variant-numeric: tabular-nums; }
 .admin-login button { background: var(--blue); color: #fff; border: 0; font-weight: 600; }
-.admin-login [role=alert] { color: #a02535; }
+.admin-login [role=alert] { margin: 0; color: #a02535; }
+.login-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 1em; margin-top: 12px; }
+.login-actions button, .login-actions a { display: inline-flex; align-items: center; min-height: 44px; width: auto; padding: 0; background: transparent; color: var(--blue); font-size: 14px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
