@@ -25,7 +25,9 @@ Choose **Add service**, supply the required details, select a category, and revi
 
 ## Plans and prices
 
-Each product supports up to 30 plans. Add the plan name, price, and duration, then enable **Show on website** for the plans customers should see. Both the plan and service must be published. New plans begin as drafts.
+Each product supports up to 30 plans. Enter a plan name and price. For a service or plan duration, enter a whole number and choose **Day**, **Month**, or **Year**. Leave the number empty for an unspecified duration. Existing offers with custom durations keep their original wording until you edit them.
+
+Use the up and down arrows beside a plan to move it one position. Enable **Show on website** for the plans customers should see, then choose **Save changes**. The storefront shows published plans in the saved order. Both the plan and service must be published. New plans begin as drafts.
 
 Preserve the owner's selected public plan list. Existing hidden alternatives remain in admin; do not publish every imported option automatically.
 

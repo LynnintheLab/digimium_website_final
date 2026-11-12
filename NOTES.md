@@ -2,6 +2,8 @@
 
 ## Current status
 
+The admin editor accepts a duration quantity and a day, month or year for services and plans. Plans can be moved up or down. Saving the catalog sets the order customers see in the plan picker and the first visible plan on the service card.
+
 The public storefront uses Google Tag Manager container `GTM-M7S62K8J` on both Hostinger domains. It sends visitor activity to GA4 stream `G-5LML9P3RE0`. In Analytics reports, filter the Host name to `buywith-digimium.store` for production traffic.
 
 The live Hostinger shop at `https://buywith-digimium.store` tracks `production`. This release promotes the revised Myanmar storefront, mobile catalog, Telegram checkout and Resend email-code admin sign-in from `testing`. Each Hostinger app uses its own origin and database. See [the Hostinger guide](docs/HOSTINGER.md) for the production OTP settings and schema.
@@ -13,6 +15,8 @@ The catalog shows two product cards per row up to 700px and three above. Checkou
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Added duration selectors and plan ordering. Tested in Chrome with a disposable MySQL catalog at 320, 390 and 1024 pixels. Saving and reloading preserved plan IDs, visibility and previously entered promotional durations. The storefront displayed the saved order and selected the first published plan.
 
 Installed the owner's Google tag on the customer storefront. The admin login opens the shop in a fresh document so admin navigation stays outside storefront analytics.
 
@@ -50,6 +54,6 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 Open Google Analytics **Reports → Realtime** to see recent storefront activity.
 
-Verify delivery of a production admin sign-in code to the owner inbox. The live app needs its own OTP tables and private Resend settings as described in [the Hostinger guide](docs/HOSTINGER.md).
+Use the plan arrows to set the preferred order for each service, then save and check its storefront card and plan picker.
 
 Check the share preview and a checkout draft on a phone running Telegram.
