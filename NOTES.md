@@ -2,7 +2,7 @@
 
 ## Current status
 
-Services and individual plans support an optional gift duration and a discounted MMK price. The storefront, cart and Telegram draft use the selected offer’s paid and gift periods and its current sale price.
+Production and testing both serve the gift-duration and discount release. Services and individual plans support an optional gift duration and a discounted MMK price. The storefront, cart and Telegram draft use the selected offer’s paid and gift periods and its current sale price.
 
 The admin editor accepts a duration quantity and a day, month or year for services and plans. Plans can be moved up or down. Saving the catalog sets the order customers see in the plan picker and the first visible plan on the service card.
 
@@ -17,6 +17,8 @@ The catalog shows two product cards per row up to 700px and three above. Checkou
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Rechecked both live domains after deployment of `fecfebc`. Each returned the new gift and discount admin styles and a readable public catalog with 54 products. Both GitHub branches matched the release.
 
 Added editable gift periods and sale prices. Verified saving, reopening and ending promotions against a disposable MySQL catalog. English and Myanmar Chromium checks covered desktop and 360px mobile layouts, crossed-out prices, and a 65,000 MMK checkout with multiple quantities. The Node 24 standalone build, type checks, 11 unit tests and Hostinger integration suite passed.
 
