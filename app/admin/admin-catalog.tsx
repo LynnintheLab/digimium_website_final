@@ -11,7 +11,9 @@ import {
 import { categories, type Catalog, type CatalogSettings, type Product } from '@/lib/catalog';
 
 import { DEFAULT_TELEGRAM_CONTACT, validTelegramUsername } from '@/lib/telegram-contact';
+import { discountPriceError } from '@/lib/pricing';
 import DurationField from './duration-field';
+import PriceField from './price-field';
 import { PlanEditor, planFieldId } from './plan-editor';
 import { LogoEditor, ServiceMark } from './logo-editor';
 
@@ -40,8 +42,16 @@ function validateCatalog(catalog: Catalog): ValidationIssue | null {
         return { message: `Use plain text without links or HTML in ${product.name || 'this service'}’s ${field === 'mm' ? 'Myanmar description' : field}.`, productId: product.id, field: `service-${field}` };
       }
     }
+    const serviceDiscountError = discountPriceError(product.price, product.discountPrice);
+    if (serviceDiscountError) {
+      return { message: `${product.name} — ${serviceDiscountError.message}`, productId: product.id, field: serviceDiscountError.field === 'price' ? 'service-price' : 'service-discount-price' };
+    }
     for (const [index, plan] of (product.plans ?? []).entries()) {
       if (!plan.name.trim()) return { message: `Give plan ${index + 1} in ${product.name} a name before saving.`, productId: product.id, field: planFieldId(plan.id, 'name') };
+      const planDiscountError = discountPriceError(plan.price, plan.discountPrice);
+      if (planDiscountError) {
+        return { message: `${product.name}, ${plan.name} — ${planDiscountError.message}`, productId: product.id, field: planFieldId(plan.id, planDiscountError.field === 'price' ? 'price' : 'discount-price') };
+      }
       for (const field of ['name', 'price', 'duration'] as const) {
         if (unsafeText.test(plan[field])) return { message: `Use plain text without links or HTML in plan ${index + 1}’s ${field}.`, productId: product.id, field: planFieldId(plan.id, field) };
       }
@@ -277,7 +287,8 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
                 <div className="admin-form-section">
                   <h3>Price &amp; availability</h3>
                   <div className="admin-form-grid">
-                    <label className="admin-field" htmlFor="service-price"><span>Price <span className="admin-optional">Optional</span></span><input id="service-price" value={selected.price} maxLength={80} placeholder="e.g. 25,000 MMK" onChange={event => updateProduct({ price: event.target.value })} /><small>Leave blank for customers to ask.</small></label>
+                    <PriceField id="service-price" discountId="service-discount-price" price={selected.price}
+                      discountPrice={selected.discountPrice} onChange={updateProduct} showEnquiryHint />
                     <DurationField key={`duration-${selected.id}-${saved?.revision}-${editorReset}`} id="service-duration"
                       value={selected.duration} onChange={duration => updateProduct({ duration })} optional />
                     <label className="admin-field admin-field-wide" htmlFor="service-availability">Availability<select id="service-availability" value={selected.availability} onChange={event => updateProduct({ availability: event.target.value as Product['availability'] })}><option value="available">Available</option><option value="on-request">Check availability on request</option><option value="unavailable">Temporarily unavailable</option></select></label>

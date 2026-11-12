@@ -1,3 +1,4 @@
+import { effectivePrice, parseMmk } from './pricing.ts';
 import type { Product, ProductPlan } from './catalog';
 
 export type CartItem = { productId: string; planId: string | null; quantity: number };
@@ -48,10 +49,9 @@ export function totalMmk(lines: OrderLine[]): number | undefined {
   let result = 0;
   if (!lines.length) return;
   for (const line of lines) {
-    const price = line.plan ? line.plan.price : line.product.price;
-    const match = /^(\d{1,3}(?:,\d{3})+|\d+)\s*(?:MMK|Ks|ကျပ်)$/i.exec(price.trim());
-    if (!match) return;
-    result += Number(match[1].replaceAll(',', '')) * line.quantity;
+    const amount = parseMmk(effectivePrice(line.plan ?? line.product));
+    if (amount === undefined) return;
+    result += amount * line.quantity;
     if (!Number.isSafeInteger(result)) return;
   }
   return result;

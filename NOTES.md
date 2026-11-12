@@ -2,6 +2,8 @@
 
 ## Current status
 
+Services and individual plans support an optional gift duration and a discounted MMK price. The storefront, cart and Telegram draft use the selected offer’s paid and gift periods and its current sale price.
+
 The admin editor accepts a duration quantity and a day, month or year for services and plans. Plans can be moved up or down. Saving the catalog sets the order customers see in the plan picker and the first visible plan on the service card.
 
 The public storefront uses Google Tag Manager container `GTM-M7S62K8J` on both Hostinger domains. It sends visitor activity to GA4 stream `G-5LML9P3RE0`. In Analytics reports, filter the Host name to `buywith-digimium.store` for production traffic.
@@ -15,6 +17,8 @@ The catalog shows two product cards per row up to 700px and three above. Checkou
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Added editable gift periods and sale prices. Verified saving, reopening and ending promotions against a disposable MySQL catalog. English and Myanmar Chromium checks covered desktop and 360px mobile layouts, crossed-out prices, and a 65,000 MMK checkout with multiple quantities. The Node 24 standalone build, type checks, 11 unit tests and Hostinger integration suite passed.
 
 Added duration selectors and plan ordering. Tested in Chrome with a disposable MySQL catalog at 320, 390 and 1024 pixels. Saving and reloading preserved plan IDs, visibility and previously entered promotional durations. The storefront displayed the saved order and selected the first published plan.
 
@@ -51,6 +55,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+When a promotion is ready, edit the relevant offer in **Admin → Services**, set the gift duration or discount price, and save.
 
 Open Google Analytics **Reports → Realtime** to see recent storefront activity.
 

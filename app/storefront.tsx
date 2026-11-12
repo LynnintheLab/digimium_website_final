@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ArrowUpRight, AudioLines, ChevronDown, Clapperboard, Globe2, LayoutGrid, Mail, Menu, PenTool, Search, ShoppingBag, Sparkles, X } from "lucide-react";
 import { categories, type Catalog, type Product, type ProductPlan } from "../lib/catalog";
-import { categoryName, durationText, planName, priceText, productDescription } from "../lib/shop-language";
+import { categoryName, durationDetail, durationText, planName, productDescription } from "../lib/shop-language";
 import { productLogoSrc } from "../lib/product-logo";
 import { resolveTelegramContact } from "../lib/telegram-contact";
 import { ShopOrder, type ShopOrderHandle } from "./shop-order";
+import { OfferPrice } from "./offer-price";
 import { CursorLight } from "./cursor-light";
 import { ScrollRail } from "./scroll-rail";
 import "./storefront-order.css";
@@ -29,9 +30,9 @@ function Mark({ product }: { product: Product }) {
 
 function PlanSummary({ plan, lang }: { plan: ProductPlan; lang: Language }) {
   const title = planName(plan, lang);
-  const duration = durationText(plan.duration, lang);
-  return <div className="catalog-plan"><span>{title}</span><strong>{priceText(plan.price, lang)}</strong>
-    {duration && !title.toLowerCase().includes(duration.toLowerCase()) && <small>{duration}</small>}
+  const duration = durationDetail(plan.duration, title, lang);
+  return <div className="catalog-plan"><span>{title}</span><OfferPrice offer={plan} lang={lang}/>
+    {duration && <small>{duration}</small>}
   </div>;
 }
 
@@ -174,8 +175,9 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
           <div className="product-top"><Mark product={product} /><ArrowUpRight size={20} /></div>
           <h3>{product.name}</h3><span className="product-category">{categoryName(product.category, lang)}</span>
           {!hideShortDescriptions && <p>{productDescription(product, lang)}</p>}
-          {product.plans?.[0] && <PlanSummary plan={product.plans[0]} lang={lang} />}
-          {product.price && <div className="product-price">{priceText(product.price, lang)}{product.duration && <span> / {durationText(product.duration, lang)}</span>}</div>}
+          {product.plans?.[0] ? <PlanSummary plan={product.plans[0]} lang={lang} /> : (product.price || product.duration) && <div className="product-price">
+            <OfferPrice offer={product} lang={lang}/>{product.duration && <span> / {durationText(product.duration, lang)}</span>}
+          </div>}
           {product.availability === 'unavailable' && <span className="availability availability-unavailable">{t('Currently unavailable', 'လောလောဆယ် မရနိုင်ပါ')}</span>}
           <span className="product-action">{t('View plans', 'Plan များ ကြည့်ရန်')} <ArrowRight size={15} /></span>
         </button>)}</div>

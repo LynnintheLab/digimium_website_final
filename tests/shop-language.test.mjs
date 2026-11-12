@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { resolveOrder, totalMmk, withSelection } from '../lib/cart-order.ts';
-import { durationText, planName, priceText, productDescription } from '../lib/shop-language.ts';
+import { durationDetail, durationText, planName, priceText, productDescription } from '../lib/shop-language.ts';
 
 test('Myanmar descriptions use the current owner copy when it differs from the catalog default', () => {
   const original = { description: 'Bring notes, plans, and projects into one workspace.' };
@@ -28,6 +28,14 @@ test('the cart preserves each product’s plan, price and offer length when the 
   assert.equal(planName(rows[0].plan, 'en'), musicPlan.name);
   assert.equal(planName(rows[0].plan, 'my'), 'Individual 1 လ (ကိုယ်ပိုင်အီးမေးလ်ဖြင့်)');
   assert.equal(priceText(rows[0].plan.price, 'my'), '16,000 ကျပ်');
-  assert.equal(durationText(rows[1].plan.duration, 'my'), '3 လ + 1 လ အခမဲ့');
+  assert.equal(durationText(rows[1].plan.duration, 'my'), '3 လ + 1 လ လက်ဆောင်');
   assert.equal(priceText(rows[1].plan.price, 'en'), designPlan.price);
+});
+
+test('gift periods stay visible when only the paid duration is present in the plan name', () => {
+  const gift = '3 months + 7 days free';
+  assert.equal(durationDetail(gift, 'Plus 3 months', 'en'), gift);
+  assert.equal(durationDetail(gift, 'Plus 3 လ', 'my'), '3 လ + 7 ရက် လက်ဆောင်');
+  assert.equal(durationDetail(gift, 'Plus 3 လ + 7 ရက် လက်ဆောင်', 'my'), '');
+  assert.equal(durationDetail('2 months', 'Plus 12 months', 'en'), '2 months');
 });

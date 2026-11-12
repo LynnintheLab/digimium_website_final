@@ -3,15 +3,23 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight, Check, Copy, Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
 import type { Product } from '../lib/catalog';
-import { CART_KEY, orderMessages, resolveOrder, restoreCart, sameItem, telegramDraft, totalMmk, withSelection, type CartItem } from '../lib/cart-order';
+import { CART_KEY, orderMessages, resolveOrder, restoreCart, sameItem, telegramDraft, totalMmk, withSelection, type CartItem, type OrderLine } from '../lib/cart-order';
+import { effectivePrice } from '../lib/pricing';
 import { productLogoSrc } from '../lib/product-logo';
-import { durationText, planName, priceOnEnquiry, priceText, productDescription } from '../lib/shop-language';
+import { durationDetail, durationText, planName, priceOnEnquiry, priceText, productDescription } from '../lib/shop-language';
+import { OfferPrice } from './offer-price';
 import './shop-order.css';
 
 type Locale = 'en' | 'my';
 export type ShopOrderHandle = { openProduct(product: Product): void; openCart(): void };
 type Props = { products: Product[]; lang: Locale; telegram: string; hideShortDescriptions?: boolean; onCountChange: (count: number) => void };
 type Screen = 'product' | 'cart' | 'handoff' | null;
+
+function orderDescription({product, plan}: OrderLine, lang: Locale) {
+  const name = plan ? planName(plan, lang) : lang === 'my' ? 'အစီအစဉ် စုံစမ်းရန်' : 'Plan enquiry';
+  const duration = durationDetail((plan ?? product).duration, name, lang);
+  return [name, duration].filter(Boolean).join(' · ');
+}
 
 function Logo({product}: {product: Product}) {
   const src = productLogoSrc(product);
@@ -56,12 +64,9 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   const partLabel = (index: number, length: number) => t(`Part ${index} of ${length}`, `အပိုင်း ${index} / ${length}`);
   const orderText = orderMessages(
     t('Hi Digimium, I’d like to order:', 'မင်္ဂလာပါ Digimium၊ အောက်ပါ ဝန်ဆောင်မှုများကို မှာယူချင်ပါတယ်။'),
-    checkoutRows.map(({product: item, plan, quantity}) => {
-      const name = plan ? planName(plan, lang) : t('Plan enquiry', 'အစီအစဉ် စုံစမ်းရန်');
-      const duration = durationText(plan ? plan.duration : item.duration, lang);
-      const unit = priceText(plan ? plan.price : item.price, lang);
-      const detail = [name, duration && !name.includes(duration) ? duration : '', unit].filter(Boolean).join(' · ');
-      return `${quantity} × ${item.name} — ${detail}`;
+    checkoutRows.map(row => {
+      const unit = priceText(effectivePrice(row.plan ?? row.product), lang);
+      return `${row.quantity} × ${row.product.name} — ${orderDescription(row, lang)} · ${unit}`;
     }),
     formattedTotal ? t(`Total: ${formattedTotal}`, `စုစုပေါင်း — ${formattedTotal}`) :
       t('Please confirm the total price and availability.', 'စုစုပေါင်းစျေးနှုန်းနှင့် ရရှိနိုင်မှုကို အတည်ပြုပေးပါ။'),
@@ -186,20 +191,20 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
                 <legend>{t('Choose a plan', 'အစီအစဉ် ရွေးပါ')}</legend>
                 {plans.length ? plans.map(plan => {
                   const name = planName(plan, lang);
-                  const duration = durationText(plan.duration, lang);
+                  const duration = durationDetail(plan.duration, name, lang);
                   return <label className="order-option" key={plan.id}>
                     <input type="radio" name="shop-plan" checked={plan.id === planId} onChange={() => setPlanId(plan.id)}/>
-                    <span className="order-option-name">{name}{duration && !name.includes(duration) && <small>{duration}</small>}</span>
-                    <strong>{priceText(plan.price, lang)}</strong>
+                    <span className="order-option-name">{name}{duration && <small>{duration}</small>}</span>
+                    <OfferPrice offer={plan} lang={lang}/>
                   </label>;
                 }) : <label className="order-option"><input type="radio" name="shop-plan" checked readOnly/>
                   <span className="order-option-name">{t('Ask about this service', 'ဝန်ဆောင်မှုအကြောင်း စုံစမ်းရန်')}{product.duration && <small>{durationText(product.duration, lang)}</small>}</span>
-                  <strong>{priceText(product.price, lang)}</strong></label>}
+                  <OfferPrice offer={product} lang={lang}/></label>}
               </fieldset>
               {product.availability === 'unavailable' && <p className="order-help">{t('Currently unavailable.', 'လက်ရှိ မရရှိနိုင်သေးပါ။')}</p>}
             </div>
             <div className="order-guidance">
-              <CheckoutNote askAboutPrice={priceOnEnquiry(selectedPlan ? selectedPlan.price : product.price)}/>
+              <CheckoutNote askAboutPrice={priceOnEnquiry(effectivePrice(selectedPlan ?? product))}/>
             </div>
           </div>
           <footer className="order-footer">
@@ -212,8 +217,8 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
             <ul className="order-lines order-content">{rows.map(item => <li key={JSON.stringify([item.productId, item.planId])}>
               <Logo product={item.product}/>
               <div className="order-line-info"><h3>{item.product.name}</h3>
-                <p>{item.plan ? planName(item.plan, lang) : t('Plan enquiry', 'အစီအစဉ် စုံစမ်းရန်')}</p>
-                <strong>{priceText(item.plan ? item.plan.price : item.product.price, lang)}</strong>
+                <p>{orderDescription(item, lang)}</p>
+                <OfferPrice offer={item.plan ?? item.product} lang={lang}/>
                 <div className="order-quantity" role="group" aria-label={[item.product.name, item.plan && planName(item.plan, lang)].filter(Boolean).join(' · ')}>
                   <button type="button" className="order-icon" disabled={item.quantity <= 1} aria-label={t('Decrease quantity', 'အရေအတွက် လျှော့ရန်')} onClick={() => changeQuantity(item, -1)}><Minus size={14}/></button>
                   <span>{item.quantity}</span>
@@ -225,7 +230,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
             </li>)}</ul>
             <div className="order-guidance"><div className="order-total"><span>{t('Order total', 'စုစုပေါင်း')}</span><strong>{cartTotal === undefined ?
               t('Confirm on Telegram', 'Telegram တွင် စျေးနှုန်း အတည်ပြုပါ') : priceText(`${cartTotal.toLocaleString('en-US')} MMK`, lang)}</strong></div>
-              <CheckoutNote askAboutPrice={rows.some(item => priceOnEnquiry(item.plan ? item.plan.price : item.product.price))}/>
+              <CheckoutNote askAboutPrice={rows.some(item => priceOnEnquiry(effectivePrice(item.plan ?? item.product)))}/>
             </div>
           </div>
           <footer className="order-footer">

@@ -1,0 +1,10 @@
+.admin-price-fields {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  gap: 14px;
+}
+
+.admin-field .admin-price-error {
+  color: var(--brand-danger, #a62a38);
+}

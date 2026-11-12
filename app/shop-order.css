@@ -49,6 +49,24 @@
 .order-option-name { font-weight: 600; }
 .order-option small, .order-line-info p { display: block; margin: 3px 0; color: var(--muted); font-weight: 400; font-size: 13px; }
 .order-option strong, .order-line-info strong { font-size: 13px; color: var(--blue); font-variant-numeric: tabular-nums; }
+.offer-price {
+  position: relative;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.45em;
+  font-variant-numeric: tabular-nums;
+}
+.offer-price del { color: var(--muted); font-size: 0.85em; font-weight: 500; }
+.offer-price-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.order-option .offer-price { flex-direction: column; align-items: flex-end; }
 .order-guidance, .order-footer { background: var(--soft); }
 .order-guidance { display: flow-root; border-top: 1px solid var(--line); padding: 21px 26px 0; }
 .order-footer { padding-top: 0; }
@@ -134,7 +152,7 @@
   .order-option, .order-line-info h3 { font-size: 16px; }
   .order-option strong, .order-line-info strong, .order-line-info p { font-size: 14px; }
   .order-option { grid-template-columns: auto minmax(0,1fr); }
-  .order-option strong { grid-column: 2; }
+  .order-option .offer-price { grid-column: 2; flex-direction: row; align-items: baseline; }
   .order-lines li { gap: 9px; }
   .order-total { flex-wrap: wrap; }
   .order-action { gap: 6px; min-width: 0; min-height: 48px; padding: 9px; }

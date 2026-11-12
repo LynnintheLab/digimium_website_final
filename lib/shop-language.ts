@@ -84,7 +84,7 @@ const units: Record<string, string> = { month: 'လ', week: 'ပတ်', day: '�
 function translateDurations(text: string): string {
   return text
     .replace(/\b(\d+)\s*(month|week|day|year)s?\b/gi, (_, amount: string, unit: string) => amount + ' ' + units[unit.toLowerCase()])
-    .replace(/\b(\d+)\s+(လ|ပတ်|ရက်|နှစ်)\s+free\b/gi, '$1 $2 အခမဲ့');
+    .replace(/\b(\d+)\s+(လ|ပတ်|ရက်|နှစ်)\s+free\b/gi, '$1 $2 လက်ဆောင်');
 }
 
 export function durationText(raw: string, lang: ShopLanguage): string {
@@ -134,4 +134,12 @@ export function planName(plan: ProductPlan, lang: ShopLanguage): string {
     .replace(/\blaptop\b/gi, 'လက်ပ်တော့')
     .replace(/\bmyanmar region\b/gi, 'မြန်မာဒေသ')
     .replace(/\bplan\b/gi, 'အစီအစဉ်');
+}
+
+export function durationDetail(raw: string, displayedName: string, lang: ShopLanguage): string {
+  const duration = durationText(raw, lang);
+  if (!duration) return '';
+  // Match complete words so a title containing "12 months" cannot hide "2 months".
+  const words = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
+  return (' ' + words(displayedName) + ' ').includes(' ' + words(duration) + ' ') ? '' : duration;
 }

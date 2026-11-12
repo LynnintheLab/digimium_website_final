@@ -179,9 +179,9 @@ try {
   assert.match(path, /^\/media\/logos\/[a-f0-9-]+\.png$/);
   const product = {
     ...original.products[0], id: fixtureId, name: 'Hostinger smoke fixture', description: 'Disposable private English copy',
-    mm: 'မြန်မာ စာမျက်နှာ စမ်းသပ်ချက်', logoPath: path, published: true, featured: true,
+    price: '30,000 MMK', discountPrice: '25,000 MMK', mm: 'မြန်မာ စာမျက်နှာ စမ်းသပ်ချက်', logoPath: path, published: true, featured: true,
     plans: [
-      { id: 'public', name: 'One month', price: '8,500 MMK', duration: '1 month', published: true },
+      { id: 'public', name: 'Quarterly offer', price: '8,500 MMK', discountPrice: '7000', duration: '3 months + 1 month free', published: true },
       { id: 'draft', name: 'Hidden fixture plan', price: '', duration: '1 year', published: false },
     ],
   };
@@ -192,6 +192,12 @@ try {
   });
   assert.equal((await save(body, 'https://foreign.example')).status, 403);
   assert.equal((await save({ ...body, products: [...body.products, product] })).status, 400);
+  for (const invalid of [
+    { ...product, discountPrice: '31,000 MMK' },
+    { ...product, plans: [{ ...product.plans[0], discountPrice: '8,500 MMK' }] },
+  ]) {
+    assert.equal((await save({ ...body, products: [...original.products, invalid] })).status, 400);
+  }
   const firstSave = await Promise.all([save(body), save(body)]);
   assert.deepEqual(firstSave.map(r => r.status).sort(), [200, 409], 'Exactly one first save may win');
   const secondSave = await Promise.all([save({ ...body, expectedRevision: 1 }), save({ ...body, expectedRevision: 1 })]);
@@ -204,6 +210,7 @@ try {
   assert.deepEqual(persisted.products.find(p => p.id === fixtureId), product, 'Bilingual product and uploaded path survive restart');
   const projected = (await json(await request('/api/catalog'))).products.find(p => p.id === fixtureId);
   assert.deepEqual(projected.plans, [product.plans[0]]);
+  assert.equal(projected.discountPrice, product.discountPrice);
   assert.equal(projected.logoPath, path);
   assert.ok(!projected.description && !projected.mm);
   const page = await (await request('/')).text();

@@ -11,3 +11,20 @@
   gap: 3px 12px;
   overflow-wrap: anywhere;
 }
+
+.admin-duration-gift {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-duration-gift-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: 8px;
+}
+
+.admin-duration-add {
+  align-self: flex-start;
+}

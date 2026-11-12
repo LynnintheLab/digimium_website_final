@@ -27,6 +27,10 @@ Choose **Add service**, supply the required details, select a category, and revi
 
 Each product supports up to 30 plans. Enter a plan name and price. For a service or plan duration, enter a whole number and choose **Day**, **Month**, or **Year**. Leave the number empty for an unspecified duration. Existing offers with custom durations keep their original wording until you edit them.
 
+For a bonus period, enter the paid duration, choose **Add gift duration**, then enter the gift quantity and unit. For example, 3 months with a 1-month gift appears as **3 months + 1 month free** in English and **3 လ + 1 လ လက်ဆောင်** in Myanmar. **Remove gift** leaves the paid duration in place.
+
+To run a sale, enter the **Regular price** with its MMK currency and a lower **Discount price**. For example, enter **30,000 MMK** and **25,000**. Customers see the original price crossed out and pay 25,000 MMK per item. The cart and Telegram order use this price. Clear the discount price and save to end the sale.
+
 Use the up and down arrows beside a plan to move it one position. Enable **Show on website** for the plans customers should see, then choose **Save changes**. The storefront shows published plans in the saved order. Both the plan and service must be published. New plans begin as drafts.
 
 Preserve the owner's selected public plan list. Existing hidden alternatives remain in admin; do not publish every imported option automatically.

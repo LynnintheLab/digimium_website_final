@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { discountPriceError } from "./pricing";
 import { markKeys } from "./catalog";
 import { normalizeTelegramUsername, validTelegramUsername } from "./telegram-contact";
 import { LOGO_PATH_PATTERN } from "./logo-path";
@@ -15,13 +16,19 @@ const plainText = (max: number, min = 0) =>
 
 const safeId = z.string().min(1).max(64).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and single hyphens.");
 
+function validateDiscount(offer: { price: string; discountPrice?: string }, context: z.RefinementCtx) {
+  const issue = discountPriceError(offer.price, offer.discountPrice);
+  if (issue) context.addIssue({ code: z.ZodIssueCode.custom, path: [issue.field], message: issue.message });
+}
+
 export const productPlanSchema = z.object({
   id: safeId,
   name: plainText(180, 1),
   price: plainText(80),
+  discountPrice: plainText(80).optional(),
   duration: plainText(80),
   published: z.boolean(),
-}).strict();
+}).strict().superRefine(validateDiscount);
 
 const plansSchema = z.array(productPlanSchema).max(30).superRefine((plans, context) => {
   const ids = new Set<string>();
@@ -41,11 +48,12 @@ export const productSchema = z.object({
   description: plainText(500, 1),
   mm: plainText(500).optional(),
   price: plainText(80),
+  discountPrice: plainText(80).optional(),
   duration: plainText(80),
   availability: z.enum(["available", "on-request", "unavailable"]),
   featured: z.boolean(),
   published: z.boolean(),
-}).strict();
+}).strict().superRefine(validateDiscount);
 
 export const catalogSettingsSchema = z.object({
   hideShortDescriptions: z.boolean().optional(),

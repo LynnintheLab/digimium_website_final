@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import type { ProductPlan } from '@/lib/catalog';
 import DurationField from './duration-field';
+import PriceField from './price-field';
 import './plan-editor.css';
 
 export type PlanEditorProps = {
@@ -14,7 +15,7 @@ export type PlanEditorProps = {
 
 const MAX_PLANS = 30;
 
-export function planFieldId(planId: string, field: 'name' | 'price' | 'duration' | 'published' | 'up' | 'down') {
+export function planFieldId(planId: string, field: 'name' | 'price' | 'discount-price' | 'duration' | 'published' | 'up' | 'down') {
   return `service-plan-${planId}-${field}`;
 }
 
@@ -46,7 +47,7 @@ export function PlanEditor({ plans, onChange, disabled = false }: PlanEditorProp
 
   function removePlan(plan: ProductPlan, index: number) {
     if (disabled) return;
-    const hasContent = Boolean(plan.name.trim() || plan.price.trim() || plan.duration.trim());
+    const hasContent = Boolean(plan.name.trim() || plan.price.trim() || plan.discountPrice?.trim() || plan.duration.trim());
     if (hasContent && !window.confirm(`Remove ${plan.name.trim() || 'this plan'} from your draft? This takes effect when you save changes.`)) return;
     const nextPlan = plans[index + 1] ?? plans[index - 1];
     pendingFocus.current = nextPlan ? planFieldId(nextPlan.id, 'name') : `${prefix}-add`;
@@ -91,9 +92,8 @@ export function PlanEditor({ plans, onChange, disabled = false }: PlanEditorProp
             <label className="admin-field admin-field-wide" htmlFor={planFieldId(plan.id, 'name')}>Plan name
               <input id={planFieldId(plan.id, 'name')} value={plan.name} maxLength={180} required placeholder="e.g. Plus — private account" onChange={event => updatePlan(plan.id, { name: event.target.value })} />
             </label>
-            <label className="admin-field" htmlFor={planFieldId(plan.id, 'price')}>Price
-              <input id={planFieldId(plan.id, 'price')} value={plan.price} maxLength={80} placeholder="e.g. 25,000 MMK" onChange={event => updatePlan(plan.id, { price: event.target.value })} />
-            </label>
+            <PriceField id={planFieldId(plan.id, 'price')} discountId={planFieldId(plan.id, 'discount-price')}
+              price={plan.price} discountPrice={plan.discountPrice} onChange={patch => updatePlan(plan.id, patch)} />
             <DurationField id={planFieldId(plan.id, 'duration')} value={plan.duration} onChange={duration => updatePlan(plan.id, { duration })} />
           </div>
           <div className="admin-plan-actions">
