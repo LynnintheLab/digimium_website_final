@@ -2,15 +2,17 @@
 
 ## Current status
 
-The live Hostinger shop at `https://buywith-digimium.store` tracks `production` and uses password-based admin sign-in. The `testing` branch includes the revised Myanmar storefront, a sticky blurred menu, aligned Telegram and Viber contact links, Resend admin sign-in and Telegram checkout with ordinary spaces. Staging setup, private environment variables and database import steps are in [the Hostinger guide](docs/HOSTINGER.md).
+The live Hostinger shop at `https://buywith-digimium.store` tracks `production`. This release promotes the revised Myanmar storefront, mobile catalog, Telegram checkout and Resend email-code admin sign-in from `testing`. Each Hostinger app uses its own origin and database. See [the Hostinger guide](docs/HOSTINGER.md) for the production OTP settings and schema.
 
-The testing storefront uses the original blue Digimium symbol as its favicon. The branded messaging preview supplies a title, description and 1200 × 630 image in the initial HTML.
+The storefront uses the original blue Digimium symbol as its favicon. The branded messaging preview supplies a title, description and 1200 × 630 image in the initial HTML.
 
-On testing, the catalog shows two product cards per row up to 700px and three above. Checkout empties the browser cart immediately and keeps the full order available on the Telegram handoff screen.
+The catalog shows two product cards per row up to 700px and three above. Checkout empties the browser cart immediately and keeps the full order available on the Telegram handoff screen.
 
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Promoted the tested storefront through `f3ae54d` to production. The Node 24 build, type checks and all eight unit tests passed.
 
 Restored the original transparent blue favicon for storefront and admin tabs at the owner's request.
 
@@ -42,8 +44,6 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-Paste the staging homepage into a Telegram draft to review the card on a phone before promoting it to production.
+Verify delivery of a production admin sign-in code to the owner inbox. The live app needs its own OTP tables and private Resend settings as described in [the Hostinger guide](docs/HOSTINGER.md).
 
-Open a Canva checkout from the testing build on a device running Telegram and check the draft’s spacing before release.
-
-Apply the private environment file to the staging app and redeploy `testing`. Verify delivery to the real inbox, reopening the same browser, signing in from a second profile, and sign-out. The live shop continues to use the password-based setup in the production branch guide.
+Check the share preview and a checkout draft on a phone running Telegram.
