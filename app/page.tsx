@@ -42,5 +42,15 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Home() {
   const [catalog, preferences] = await Promise.all([getPublicCatalog(), cookies()]);
   const language = preferences.get('digimium-language')?.value === 'my' ? 'my' : 'en';
-  return <Storefront initialCatalog={catalog} initialLanguage={language} />;
+  return (
+    <>
+      <script async src="https://www.googletagmanager.com/gtm.js?id=GTM-M7S62K8J" />
+      <script dangerouslySetInnerHTML={{ __html: `
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { window.dataLayer.push(arguments); }
+        gtag('js', new Date());
+      ` }} />
+      <Storefront initialCatalog={catalog} initialLanguage={language} />
+    </>
+  );
 }

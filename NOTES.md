@@ -2,6 +2,8 @@
 
 ## Current status
 
+The public storefront uses Google Tag Manager container `GTM-M7S62K8J` on both Hostinger domains. It sends visitor activity to GA4 stream `G-5LML9P3RE0`. In Analytics reports, filter the Host name to `buywith-digimium.store` for production traffic.
+
 The live Hostinger shop at `https://buywith-digimium.store` tracks `production`. This release promotes the revised Myanmar storefront, mobile catalog, Telegram checkout and Resend email-code admin sign-in from `testing`. Each Hostinger app uses its own origin and database. See [the Hostinger guide](docs/HOSTINGER.md) for the production OTP settings and schema.
 
 The storefront uses the original blue Digimium symbol as its favicon. The branded messaging preview supplies a title, description and 1200 × 630 image in the initial HTML.
@@ -11,6 +13,8 @@ The catalog shows two product cards per row up to 700px and three above. Checkou
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Installed the owner's Google tag on the customer storefront. The admin login opens the shop in a fresh document so admin navigation stays outside storefront analytics.
 
 Promoted the tested storefront through `f3ae54d` to production. The Node 24 build, type checks and all eight unit tests passed.
 
@@ -43,6 +47,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+Open Google Analytics **Reports → Realtime** to see recent storefront activity.
 
 Verify delivery of a production admin sign-in code to the owner inbox. The live app needs its own OTP tables and private Resend settings as described in [the Hostinger guide](docs/HOSTINGER.md).
 

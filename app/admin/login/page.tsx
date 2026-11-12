@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { checkAdmin, emailCodeLogin, signInPath } from "@/lib/admin-auth";
 import "./login.css";
@@ -32,9 +31,10 @@ export default async function LoginPage({ searchParams }: {
   return (
     <main className="admin-login">
       <section aria-labelledby="login-title">
-        <Link href="/" aria-label="Digimium storefront" prefetch={false}>
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Keep storefront analytics in a separate document. */}
+        <a href="/" aria-label="Digimium storefront">
           <Image src="/assets/logo.png" alt="Digimium" width={142} height={48} unoptimized />
-        </Link>
+        </a>
         <h1 id="login-title">{verify ? "Check your email" : "Admin sign in"}</h1>
         <p className="login-help" id="login-help">
           {verify
