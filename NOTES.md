@@ -2,6 +2,8 @@
 
 ## Current status
 
+On 2026-11-14 both public catalogs returned 54 products. The production catalog qualified for three Gemini gift offers (3+1, 6+2 and 12+3 months). Testing qualified for the 3+1 offer. Neither catalog qualified for a Best Seller or Discount slide at the time of the check.
+
 The latest feature release is `4eee1ff` (2026-11-14), pushed to both `production` and `testing`. Both live Hostinger domains were checked after deployment: the new showcase/badge assets were served and each public catalog returned 54 products. See [HANDOFF.md](HANDOFF.md) for the complete continuation guide and access inventory. Subsequent handoff/documentation commits do not change runtime behavior.
 
 Products and plans have independent Best Seller flags. The landing showcase cycles every seven seconds through marked offers, gift promotions and discounted plans, then uses category collections when no promotion or discount is available. Offer links select the displayed plan. Motion pauses for interaction and respects reduced-motion preferences.
@@ -21,6 +23,8 @@ The catalog shows two product cards per row up to 700px and three above. Checkou
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Pulled `testing` for the continuation session and verified that both remote branches contained handoff commit `38d74f6`. Ran all 14 unit tests on Node 24 and checked each public catalog with the storefront’s showcase selection function.
 
 Prepared `HANDOFF.md` for the next chat with the verified release, repository/site links, completed features, current limits, environment key names, database authority, relevant file map, and required access. Updated the architecture guide for offers and best-seller fields. No secrets are included in these documents. GitHub metadata confirms that the repository is currently public (default branch `production`); its visibility was not changed. The owner received a separate local file/chat-access inventory outside Git.
 
@@ -70,7 +74,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-For a new chat, read `HANDOFF.md`, this file, `AGENTS.md`, and the relevant target guide, then pull the working branch before editing. The current Best Seller/showcase request is implemented and deployed; do not recreate it or reset the live catalog to seed data.
+Continue on `testing` once the owner specifies the next change. The handoff review is complete. For future sessions, read `HANDOFF.md`, this file, `AGENTS.md`, and the relevant target guide, then pull the working branch before editing.
 
 Mark the desired products and plans as **Best Seller** and save. Gift durations and discount prices automatically qualify the corresponding published offers for the landing showcase.
 
