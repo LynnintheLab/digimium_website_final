@@ -6,8 +6,7 @@ Updated: **2026-11-14** (Asia/Bangkok). This document is the starting point for 
 
 The current Best Seller / Promotion / Discount request is **implemented, pushed, and observed on both Hostinger sites**. Do not rebuild the website or replace its current catalog.
 
-- Latest functional release: [4eee1ff — Highlight best sellers and rotate promotions on the landing page](https://github.com/LynnintheLab/digimium_website_final/commit/4eee1ff26854f4d0c091cc2bf545e1b930fde9c0).
-- `production` and `testing` both contain that release. This handoff and accompanying documentation are subsequent documentation-only changes.
+- Both branches received the original showcase in [4eee1ff — Highlight best sellers and rotate promotions on the landing page](https://github.com/LynnintheLab/digimium_website_final/commit/4eee1ff26854f4d0c091cc2bf545e1b930fde9c0). See [NOTES.md](NOTES.md) for subsequent releases and verification.
 - Both live public catalog endpoints returned **54 products** after deployment, and both sites served the new showcase/badge assets.
 - The admin sign-in page was reachable. A real inbox OTP, authenticated live admin save, and authenticated hPanel/Resend/Analytics inspection were **not** performed in the final release check.
 - No live prices, publication flags, or Best Seller selections were invented or changed during verification.
@@ -116,9 +115,11 @@ Every qualifying offer has its own slide and opens its exact plan. An offer can 
 
 If **no promotion or discount qualifies**, the existing Think/Create/Unwind category collections follow any Best Seller slides. Empty categories are skipped. Everyday essentials is a fallback when needed. With no eligible products, no showcase is rendered.
 
-Slides rotate every **7 seconds**. Previous/Next and Pause/Play remain available. Hover, keyboard focus, or a background browser tab suspends rotation. Reduced-motion preference disables autoplay by default. Opening an offer pauses it until Play is pressed, preserving the dialog's focus-return target.
+With multiple slides, the showcase advances every **7 seconds**. Use the arrows, tap a short dash, or swipe left for the next slide and right for the previous slide on a phone. The longer, brighter dash marks the current slide. Hover, focus, touch contact and a background browser tab suspend rotation. Selecting the current dash or opening an offer holds the slide until the visitor navigates to another one.
 
-An already-open storefront needs a refresh to receive new catalog edits. Promotion/best-seller/discount settings remain active until edited; there are no start/end dates. Swipe gestures and direct numbered slide selection are not implemented.
+The portal mark drifts over a softly pulsing blue glow even when only one offer qualifies. Text stays still between slide changes. Reduced-motion preferences disable the decorative movement, autoplay and slide transition.
+
+Refresh an open storefront to receive saved catalog edits. Promotions, best-seller flags and discounts remain active until the owner changes them.
 
 ## 5. Cart and Telegram order behavior
 
@@ -241,7 +242,7 @@ Storefront source includes GTM container **GTM-M7S62K8J**. The recorded GA4 stre
 
 ## 8. Verification evidence and boundaries
 
-Completed for the functional release:
+Checks completed for the original showcase release (`4eee1ff`) included the following.
 
 - Node 24 standalone production build.
 - TypeScript check.

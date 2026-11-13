@@ -2,9 +2,11 @@
 
 ## Current status
 
-On 2026-11-14 both public catalogs returned 54 products. The production catalog qualified for three Gemini gift offers (3+1, 6+2 and 12+3 months). Testing qualified for the 3+1 offer. Neither catalog qualified for a Best Seller or Discount slide at the time of the check.
+The showcase now has a slowly floating portal mark and soft blue glow while the offer stays on screen, including single-offer catalogs. Phones support horizontal swipes. With multiple slides, visitors can navigate using the arrows or the position dashes above the action row. System reduced-motion settings keep the artwork and slides still until the visitor navigates.
 
-The latest feature release is `4eee1ff` (2026-11-14), pushed to both `production` and `testing`. Both live Hostinger domains were checked after deployment: the new showcase/badge assets were served and each public catalog returned 54 products. See [HANDOFF.md](HANDOFF.md) for the complete continuation guide and access inventory. Subsequent handoff/documentation commits do not change runtime behavior.
+Both public catalogs returned 54 products at the start of this showcase update. Production had two published ChatGPT plans marked Best Seller. Offer selections and prices reflect each site's current MySQL data.
+
+The original Best Seller and showcase release was `4eee1ff`. See [HANDOFF.md](HANDOFF.md) for the continuation guide and access inventory.
 
 Products and plans have independent Best Seller flags. The landing showcase cycles every seven seconds through marked offers, gift promotions and discounted plans, then uses category collections when no promotion or discount is available. Offer links select the displayed plan. Motion pauses for interaction and respects reduced-motion preferences.
 
@@ -23,6 +25,8 @@ The catalog shows two product cards per row up to 700px and three above. Checkou
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Added persistent background motion, a directional slide transition, tappable position dashes and phone swipe navigation. Verified the Node 24 standalone build, types and 14 unit tests. Local Chromium and WebKit checks covered single and multiple slides, reduced motion, arrows, dashes and opening the selected plan. Chromium touch emulation covered swipe, tap and vertical scrolling at phone widths.
 
 Pulled `testing` for the continuation session and verified that both remote branches contained handoff commit `38d74f6`. Ran all 14 unit tests on Node 24 and checked each public catalog with the storefront’s showcase selection function.
 
@@ -74,7 +78,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-Continue on `testing` once the owner specifies the next change. The handoff review is complete. For future sessions, read `HANDOFF.md`, this file, `AGENTS.md`, and the relevant target guide, then pull the working branch before editing.
+Check the feel of the showcase swipe and background motion on a physical phone. For future changes, read `HANDOFF.md`, this file, `AGENTS.md` and the relevant target guide, then pull `testing` before editing.
 
 Mark the desired products and plans as **Best Seller** and save. Gift durations and discount prices automatically qualify the corresponding published offers for the landing showcase.
 

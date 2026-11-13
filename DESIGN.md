@@ -138,7 +138,9 @@ Main surfaces use the `surface` radius; mobile product cards use `surface-mobile
 - **Catalog filters:** wrapping text controls with 36px minimum height. Active is Persian Blue with white text; inactive hover uses the soft surface. Expose selected state with `aria-pressed`.
 - **Search:** compact on desktop; full-width, lightly tinted and bordered on phones, placed above the filters. Clear control is 44px; Enter dismisses the keyboard.
 - **Product cards:** entire card opens the plan picker; left-aligned mark, display title, muted category and description, and an arrow action. Hover changes the surface to a slightly deeper blue tint and border to blue.
-- **Collection selector:** navy gradient stage with a blue segmented track; the active tab is pale blue. Content enters with a 9px vertical shift and opacity change over 0.45s using `cubic-bezier(.16,1,.3,1)`.
+- **Showcase motion.** The portal mark slowly drifts and tilts over a soft blue glow, including when there is only one offer. Keep the plan text and price stationary while the visitor reads. Reduced motion displays the static artwork.
+- **Showcase navigation.** Short dashes above the action row show slide positions. The current dash is longer and brighter. Visitors can tap a dash, use either arrow, or swipe horizontally on a phone. Incoming content fades in with a short horizontal movement in the direction of travel. With reduced motion enabled, slides change immediately.
+- **Collection selector.** When the showcase displays a category collection, its separate blue segmented control identifies the selected category with a pale blue tab.
 - **FAQ:** native details/summary rows separated by fine borders; the chevron turns when open.
 
 Interactive elements use a 3px blue focus outline with 5px offset. Honor `prefers-reduced-motion`: remove transitions and animation and use automatic scrolling. Inline icons use the existing simple stroke vocabulary. Component examples and motion/breakpoint metadata live in `.impeccable/design.json`; implementation is in `app/globals.css`, `app/storefront.tsx`, `app/storefront-order.css`, and the cart/admin stylesheets.

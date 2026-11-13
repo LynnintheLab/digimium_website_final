@@ -127,8 +127,13 @@
       },
       {
         "name": "collection-entry",
-        "value": "0.45s cubic-bezier(.16,1,.3,1)",
-        "purpose": "Opacity .6 to 1 and translateY(9px) to 0."
+        "value": "0.36s cubic-bezier(.16,1,.3,1)",
+        "purpose": "Incoming showcase copy fades in and travels 22px in the direction of navigation."
+      },
+      {
+        "name": "showcase-backdrop",
+        "value": "8s portal drift, 6s glow, ease-in-out alternate",
+        "purpose": "Ambient motion behind stationary copy, including single-slide offers."
       },
       {
         "name": "reduced-motion",

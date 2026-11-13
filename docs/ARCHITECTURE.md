@@ -14,7 +14,7 @@ The retained Vinext/Vite target builds a Cloudflare Worker for Sites. Its storag
 | --- | --- |
 | `app/page.tsx` | Server catalog load and language cookie. |
 | `app/storefront.tsx` | Browse/search/filter UI, navigation, language, and cart entry point. |
-| `app/collection-showcase.tsx` / `app/collection-showcase.css` | Automatically rotating offers and category fallback, with pause and reduced-motion support. |
+| `app/collection-showcase.tsx` / `app/collection-showcase.css` | Rotating offers and category collections, swipe and arrow navigation, position indicators, and reduced-motion handling. |
 | `lib/showcase.ts` | Published offer selection, best-seller/promotion/discount grouping, and category fallback. |
 | `app/best-seller-badge.tsx` / `app/product-mark.tsx` | Shared best-seller label and product logo rendering. |
 | `app/storefront-order.css` | Storefront ordering controls and mobile refinements. |
