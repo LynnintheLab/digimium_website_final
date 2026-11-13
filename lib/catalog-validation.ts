@@ -27,6 +27,7 @@ export const productPlanSchema = z.object({
   price: plainText(80),
   discountPrice: plainText(80).optional(),
   duration: plainText(80),
+  bestSeller: z.boolean().optional(),
   published: z.boolean(),
 }).strict().superRefine(validateDiscount);
 
@@ -52,6 +53,7 @@ export const productSchema = z.object({
   duration: plainText(80),
   availability: z.enum(["available", "on-request", "unavailable"]),
   featured: z.boolean(),
+  bestSeller: z.boolean().optional(),
   published: z.boolean(),
 }).strict().superRefine(validateDiscount);
 

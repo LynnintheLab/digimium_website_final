@@ -11,7 +11,7 @@
     "build": "next build --webpack && node scripts/package-hostinger.mjs",
     "start": "node .next/standalone/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/cart-order.test.mjs tests/shop-language.test.mjs",
+    "test": "node --test tests/cart-order.test.mjs tests/shop-language.test.mjs tests/showcase.test.mjs",
     "test:integration": "node tests/catalog.integration.mjs && node tests/logo-plans.integration.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",

@@ -27,6 +27,10 @@ html:has(.storefront-shell) {
 .shop-cart-button:hover { color: var(--blue); }
 .shop-cart-count { padding: 1px 6px; border-radius: 4px; background: var(--brand-selected); color: var(--brand-secondary); font: 600 12px/1.6 Manrope,sans-serif; }
 .clear-search { display: grid; place-items: center; min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--muted); }
+.product-top { gap: 6px; flex-wrap: wrap; }
+.product-top .best-seller-badge { margin-inline-start: auto; }
+.catalog-plan .best-seller-badge { color: var(--brand-navy); }
+.catalog-plan-highlight { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 4px; }
 .storefront-shell[lang=my] { font-family: Manrope,Walone,sans-serif; }
 .storefront-shell[lang=my] :is(h1,h2,h3,.about-intro,button,input,textarea,select) { font-family: Manrope,Walone,sans-serif; letter-spacing: 0; }
 .storefront-shell[lang=my] :is(h1,h2,h3) { line-height: 1.68; }
@@ -121,7 +125,7 @@ html:has(.storefront-shell) {
   .product-top > svg { display: none; }
   .product h3 { font-size: clamp(17px, 4.3vw, 20px); }
   .product-category { margin-top: 4px; font-size: 11px; }
-  .product p, .product .catalog-plan > span {
+  .product p, .product .catalog-plan-name {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;

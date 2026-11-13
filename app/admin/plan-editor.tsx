@@ -15,7 +15,7 @@ export type PlanEditorProps = {
 
 const MAX_PLANS = 30;
 
-export function planFieldId(planId: string, field: 'name' | 'price' | 'discount-price' | 'duration' | 'published' | 'up' | 'down') {
+export function planFieldId(planId: string, field: 'name' | 'price' | 'discount-price' | 'duration' | 'published' | 'best-seller' | 'up' | 'down') {
   return `service-plan-${planId}-${field}`;
 }
 
@@ -100,6 +100,10 @@ export function PlanEditor({ plans, onChange, disabled = false }: PlanEditorProp
             <label className="admin-plan-publish" htmlFor={planFieldId(plan.id, 'published')}>
               <input id={planFieldId(plan.id, 'published')} type="checkbox" checked={plan.published} onChange={event => updatePlan(plan.id, { published: event.target.checked })} />
               <span>Show on website</span>
+            </label>
+            <label className="admin-plan-publish" htmlFor={planFieldId(plan.id, 'best-seller')}>
+              <input id={planFieldId(plan.id, 'best-seller')} type="checkbox" checked={plan.bestSeller ?? false} onChange={event => updatePlan(plan.id, { bestSeller: event.target.checked })} />
+              <span>Best Seller</span>
             </label>
             <button type="button" className="admin-text-button admin-plan-remove" aria-label={`Remove ${plan.name || `plan ${index + 1}`}`} onClick={() => removePlan(plan, index)}><Trash2 size={15} />Remove plan</button>
           </div>

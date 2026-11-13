@@ -20,8 +20,11 @@
   display: flex; justify-content: space-between; align-items: center; gap: 14px;
   border-bottom: 1px solid var(--line);
 }
+.order-heading-title {
+  flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center;
+}
 .order-heading h2 {
-  flex: 1; min-width: 0; margin: 0; font: inherit; font-size: 1.55rem; font-weight: 650;
+  min-width: 0; margin: 0; font: inherit; font-size: 1.55rem; font-weight: 650;
   letter-spacing: -.035em; line-height: 1.3;
 }
 .order-icon {
@@ -47,6 +50,7 @@
 .order-option:has(input:checked) { background: var(--soft); border-color: var(--brand-line-strong); }
 .order-option input { width: 16px; height: 16px; margin: 4px 0 0; accent-color: var(--blue); }
 .order-option-name { font-weight: 600; }
+.order-option-name .best-seller-badge { margin-inline-start: 6px; vertical-align: middle; }
 .order-option small, .order-line-info p { display: block; margin: 3px 0; color: var(--muted); font-weight: 400; font-size: 13px; }
 .order-option strong, .order-line-info strong { font-size: 13px; color: var(--blue); font-variant-numeric: tabular-nums; }
 .offer-price {

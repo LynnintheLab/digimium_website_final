@@ -295,7 +295,15 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
                   </div>
                 </div>
                 <PlanEditor key={`plans-${selected.id}-${saved?.revision}-${editorReset}`} plans={selected.plans ?? []} disabled={saving} onChange={plans => updateProduct({ plans })} />
-                <div className="admin-form-section admin-publishing"><h3>On your website</h3><label className="admin-toggle-row"><span><strong>Publish this service</strong><span>Show it in your public service catalog.</span></span><input type="checkbox" className="admin-switch" checked={selected.published} onChange={event => updateProduct({ published: event.target.checked })} /></label><label className="admin-toggle-row"><span><strong>Feature this service</strong><span>Include it in the featured collection when published.</span></span><input type="checkbox" className="admin-switch" checked={selected.featured} onChange={event => updateProduct({ featured: event.target.checked })} /></label></div>
+                <div className="admin-form-section admin-publishing">
+                  <h3>On your website</h3>
+                  <label className="admin-toggle-row"><span><strong>Publish this service</strong><span>Show it in your public service catalog.</span></span><input type="checkbox" className="admin-switch" checked={selected.published} onChange={event => updateProduct({ published: event.target.checked })} /></label>
+                  <label className="admin-toggle-row"><span><strong>Feature this service</strong><span>Include it in the featured collection when published.</span></span><input type="checkbox" className="admin-switch" checked={selected.featured} onChange={event => updateProduct({ featured: event.target.checked })} /></label>
+                  <label className="admin-toggle-row">
+                    <span><strong>Best Seller</strong><span>Show a badge on this product.</span></span>
+                    <input type="checkbox" className="admin-switch" checked={selected.bestSeller ?? false} onChange={event => updateProduct({ bestSeller: event.target.checked })} />
+                  </label>
+                </div>
                 <div className="admin-editor-footer"><p>Changes go live when you save.</p><button type="button" className="admin-text-button" onClick={() => updateProduct({ published: !selected.published })}>{selected.published ? <EyeOff size={16} /> : <Eye size={16} />}{selected.published ? 'Hide service' : 'Publish service'}</button></div>
               </fieldset></form>
             </> : <div className="admin-editor-empty"><LayoutGrid size={32} /><h2>Make your collection yours.</h2><p>Select a service to update its details, or add something new.</p><button type="button" className="admin-button admin-button-primary" onClick={addService} disabled={saving || draft.products.length >= 100}><Plus size={17} />Add a service</button><form id="admin-catalog-form" onSubmit={event => { event.preventDefault(); void saveCatalog(); }} /></div>}

@@ -8,10 +8,11 @@ import { effectivePrice } from '../lib/pricing';
 import { productLogoSrc } from '../lib/product-logo';
 import { durationDetail, durationText, planName, priceOnEnquiry, priceText, productDescription } from '../lib/shop-language';
 import { OfferPrice } from './offer-price';
+import { BestSellerBadge } from './best-seller-badge';
 import './shop-order.css';
 
 type Locale = 'en' | 'my';
-export type ShopOrderHandle = { openProduct(product: Product): void; openCart(): void };
+export type ShopOrderHandle = { openProduct(product: Product, planId?: string): void; openCart(): void };
 type Props = { products: Product[]; lang: Locale; telegram: string; hideShortDescriptions?: boolean; onCountChange: (count: number) => void };
 type Screen = 'product' | 'cart' | 'handoff' | null;
 
@@ -117,9 +118,10 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     setScreen(next);
   }
   useImperativeHandle(ref, () => ({
-    openProduct(item) {
+    openProduct(item, requestedPlanId) {
+      const published = item.plans?.filter(plan => plan.published) ?? [];
       setProductId(item.id);
-      setPlanId(item.plans?.find(plan => plan.published)?.id ?? null);
+      setPlanId(published.find(plan => plan.id === requestedPlanId)?.id ?? published[0]?.id ?? null);
       begin('product');
     },
     openCart() { begin('cart'); },
@@ -174,13 +176,17 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       <button type="button" onClick={() => begin('cart')}>{t('View cart', 'ဈေးခြင်း ကြည့်ရန်')}</button>
     </div>}</div>
     <dialog ref={dialog} className="shop-order" lang={lang} aria-labelledby="shop-order-title"
+      aria-describedby={screen === 'product' && product?.bestSeller ? 'shop-product-badge' : undefined}
       onCancel={event => { event.preventDefault(); setScreen(null); }}
       onClick={event => { if (event.target === event.currentTarget) setScreen(null); }}>
       <div className="order-surface">
         <header className="order-heading">
           {screen === 'product' && hideShortDescriptions && product && <Logo product={product}/>}
-          <h2 id="shop-order-title">{screen === 'product' ? product?.name : screen === 'handoff' ?
-            t('Your Telegram order', 'သင့် Telegram အော်ဒါ') : t('Your cart', 'သင့်ဈေးခြင်း')}</h2>
+          <div className="order-heading-title">
+            <h2 id="shop-order-title">{screen === 'product' ? product?.name : screen === 'handoff' ?
+              t('Your Telegram order', 'သင့် Telegram အော်ဒါ') : t('Your cart', 'သင့်ဈေးခြင်း')}</h2>
+            {screen === 'product' && product?.bestSeller && <BestSellerBadge lang={lang} id="shop-product-badge" />}
+          </div>
           <button type="button" className="order-icon" aria-label={t('Close', 'ပိတ်ရန်')} onClick={() => setScreen(null)}><X size={20}/></button>
         </header>
         {screen === 'product' && product && <>
@@ -194,7 +200,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
                   const duration = durationDetail(plan.duration, name, lang);
                   return <label className="order-option" key={plan.id}>
                     <input type="radio" name="shop-plan" checked={plan.id === planId} onChange={() => setPlanId(plan.id)}/>
-                    <span className="order-option-name">{name}{duration && <small>{duration}</small>}</span>
+                    <span className="order-option-name">{name}{plan.bestSeller && <BestSellerBadge lang={lang} />}{duration && <small>{duration}</small>}</span>
                     <OfferPrice offer={plan} lang={lang}/>
                   </label>;
                 }) : <label className="order-option"><input type="radio" name="shop-plan" checked readOnly/>

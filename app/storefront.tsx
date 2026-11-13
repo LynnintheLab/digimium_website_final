@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, ArrowUpRight, AudioLines, ChevronDown, Clapperboard, Globe2, LayoutGrid, Mail, Menu, PenTool, Search, ShoppingBag, Sparkles, X } from "lucide-react";
-import { categories, type Catalog, type Product, type ProductPlan } from "../lib/catalog";
+import { ArrowRight, ArrowUpRight, ChevronDown, Clapperboard, Globe2, LayoutGrid, Mail, Menu, PenTool, Search, ShoppingBag, Sparkles, X } from "lucide-react";
+import { categories, type Catalog, type ProductPlan } from "../lib/catalog";
 import { categoryName, durationDetail, durationText, planName, productDescription } from "../lib/shop-language";
-import { productLogoSrc } from "../lib/product-logo";
+import { Mark } from "./product-mark";
+import { CollectionShowcase } from "./collection-showcase";
 import { resolveTelegramContact } from "../lib/telegram-contact";
 import { ShopOrder, type ShopOrderHandle } from "./shop-order";
 import { OfferPrice } from "./offer-price";
+import { BestSellerBadge } from "./best-seller-badge";
 import { CursorLight } from "./cursor-light";
 import { ScrollRail } from "./scroll-rail";
 import "./storefront-order.css";
@@ -15,31 +17,22 @@ import "./contact-links.css";
 import "./order-guide.css";
 
 type Language = 'en' | 'my';
-const stages = [
-  { en: 'Think', my: 'အလုပ်', enTitle: 'A brighter way\nto work.', myTitle: 'အလုပ်တွေကို\nပိုလွယ်ကူစေဖို့။', enText: 'A little help. A lot of possibility.', myText: 'အလုပ်အတွက် အသုံးဝင်တဲ့ AI နဲ့ ကိရိယာများ။', category: 1, icon: Sparkles },
-  { en: 'Create', my: 'ဖန်တီးမှု', enTitle: 'An idea.\nThen anything.', myTitle: 'စိတ်ကူးတွေကို\nပုံဖော်လိုက်ပါ။', enText: 'Make room for your next great idea.', myText: 'ဒီဇိုင်းနဲ့ ဗီဒီယို ဖန်တီးသူတွေအတွက်။', category: 2, icon: PenTool },
-  { en: 'Unwind', my: 'အပန်းဖြေ', enTitle: 'Your time.\nWell spent.', myTitle: 'သင့်စိတ်ကြိုက်\nအပန်းဖြေစရာ။', enText: 'Press play on a little more you.', myText: 'နှစ်သက်ရာ သီချင်းနဲ့ ရုပ်ရှင်တွေကို ခံစားလိုက်ပါ။', category: 3, icon: AudioLines },
-];
-
-function Mark({ product }: { product: Product }) {
-  const src = productLogoSrc(product);
-  const [failed, setFailed] = useState<string>();
-  if (!src || failed === src) return <span className="letter-mark" aria-hidden="true">{product.name.slice(0, 1)}</span>;
-  return <img src={src} alt="" className={`service-mark mark-${product.logoPath ? 'uploaded' : product.mark}`} onError={() => setFailed(src)} />;
-}
-
-function PlanSummary({ plan, lang }: { plan: ProductPlan; lang: Language }) {
+function PlanSummary({ plan, bestSeller, id, lang }: { plan: ProductPlan; bestSeller?: ProductPlan; id: string; lang: Language }) {
   const title = planName(plan, lang);
   const duration = durationDetail(plan.duration, title, lang);
-  return <div className="catalog-plan"><span>{title}</span><OfferPrice offer={plan} lang={lang}/>
+  return <div className="catalog-plan" id={id}>
+    {plan.bestSeller && <BestSellerBadge lang={lang} plan />}
+    <span className="catalog-plan-name">{title}</span><OfferPrice offer={plan} lang={lang}/>
     {duration && <small>{duration}</small>}
+    {bestSeller && bestSeller.id !== plan.id && <div className="catalog-plan-highlight">
+      <BestSellerBadge lang={lang} plan /><span className="catalog-plan-name">{planName(bestSeller, lang)}</span>
+    </div>}
   </div>;
 }
 
 export default function Storefront({ initialCatalog, initialLanguage = 'en' }: { initialCatalog: Catalog; initialLanguage?: Language }) {
   const [lang, setLang] = useState<Language>(initialLanguage);
   const t = (en: string, my: string) => lang === 'my' ? my : en;
-  const [collection, setCollection] = useState(0);
   const [category, setCategory] = useState(0);
   const [query, setQuery] = useState('');
   const [all, setAll] = useState(false);
@@ -51,7 +44,6 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
   const { products, settings } = initialCatalog;
   const hideShortDescriptions = settings.hideShortDescriptions === true;
   const telegram = resolveTelegramContact(settings);
-  const stage = stages[collection];
   const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   const matches = products.filter(product => {
     if (category && product.category !== category) return false;
@@ -64,7 +56,6 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
   const featured = matches.filter(product => product.featured);
   const browsingAll = all || category !== 0 || terms.length > 0;
   const visible = browsingAll ? matches : featured.length ? featured : matches.slice(0, 6);
-  const collectionProducts = products.filter(product => product.category === stage.category).slice(0, 3);
   const cartLabel = t('Cart', 'ဈေးခြင်း');
 
   useEffect(() => {
@@ -156,13 +147,8 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
           <p className="hero-description">{t('Discover subscriptions for work, creativity, and entertainment. Choose a plan and order through Digimium on Telegram.', 'အလုပ်အတွက်၊ ကျောင်းအတွက်၊ အပန်းဖြေဖို့အတွက် သင့်တော်တဲ့ ဝန်ဆောင်မှုတွေကို စိတ်ကြိုက်ရွေးချယ်ဝယ်ယူနိုင်ပါသည်။')}</p>
           <div className="hero-actions"><a className="button primary" href="#services">{t('Explore services', 'ပစ္စည်းများ ကြည့်ရန်')} <ArrowUpRight size={18} /></a><a className="text-link" href="#how-it-works">{t('How to order', 'ဘယ်လိုဝယ်ယူရမလဲ')} <ArrowRight size={17} /></a></div>
         </div>
-        <div className="showcase">
-          <div className="showcase-top"><span>{t('Explore a collection', 'အမျိုးအစားအလိုက် ရွေးချယ်ပါ')}</span><img src="/assets/symbol-white.png" alt="" /></div>
-          <div className="collection-switch" role="group" aria-label={t('Collections', 'ဝန်ဆောင်မှု အမျိုးအစားများ')}>{stages.map((item, i) => <button key={item.en} aria-pressed={collection === i} onClick={() => setCollection(i)}><item.icon size={15} />{item[lang]}</button>)}</div>
-          <div className="collection-art" key={collection}><img className="portal" src="/assets/symbol-white.png" alt="" /><h2>{t(stage.enTitle, stage.myTitle)}</h2><p>{t(stage.enText, stage.myText)}</p></div>
-          <div className="collection-bottom">{collectionProducts.map(product => <button key={product.id} onClick={() => shop.current?.openProduct(product)} aria-label={product.name + ' · ' + t('Choose plan', 'အစီအစဉ် ရွေးရန်')}><Mark product={product} /><span>{product.name}</span><ArrowUpRight size={14} /></button>)}</div>
-          <button className="collection-link" onClick={() => showCategory(stage.category)}>{categoryName(stage.category, lang)} <ArrowRight size={17} /></button>
-        </div>
+        <CollectionShowcase products={products} lang={lang} onCategory={showCategory}
+          onProduct={(product, planId) => shop.current?.openProduct(product, planId)} />
       </section>
       <div className="purpose-strip wrap"><span>{t('One place. More possibilities.', 'တစ်နေရာတည်းမှာ အားလုံးကို စိတ်ကြိုက်ရွေးချယ်လို့ရပါပြီ')}</span><div><span><Sparkles size={16} />{t('Work smarter', 'အလုပ်အတွက်')}</span><span><PenTool size={16} />{t('Create freely', 'ဖန်တီးဖို့')}</span><span><Clapperboard size={16} />{t('Enjoy your downtime', 'အပန်းဖြေဖို့')}</span></div></div>
       <section id="services" className="services wrap" aria-labelledby="services-title">
@@ -171,16 +157,23 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
           <div className="filters" role="group" aria-label={t('Filter services', 'အမျိုးအစား ရွေးရန်')}>{categories.map((name, i) => <button key={name} aria-pressed={category === i} onClick={() => { setCategory(i); setAll(i === 0); }}>{i === 0 && <LayoutGrid size={14} />} {categoryName(i, lang)}</button>)}</div>
           <label className="search"><Search size={19} /><input type="search" enterKeyHint="search" autoComplete="off" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} placeholder={t('Find a product or plan', 'Product (သို့) Plan ရှာမယ်')} aria-label={t('Search products and plans', 'Product (သို့) Plan ရှာမယ်')} />{query && <button className="clear-search" type="button" aria-label={t('Clear search', 'ရှာဖွေမှု ရှင်းရန်')} onClick={() => setQuery('')}><X size={18}/></button>}</label>
         </div>
-        <div className="catalog-grid">{visible.map(product => <button className="product" type="button" key={product.id} onClick={() => shop.current?.openProduct(product)} aria-label={product.name + ' · ' + t('View plans', 'Plan များ ကြည့်ရန်')}>
-          <div className="product-top"><Mark product={product} /><ArrowUpRight size={20} /></div>
-          <h3>{product.name}</h3><span className="product-category">{categoryName(product.category, lang)}</span>
-          {!hideShortDescriptions && <p>{productDescription(product, lang)}</p>}
-          {product.plans?.[0] ? <PlanSummary plan={product.plans[0]} lang={lang} /> : (product.price || product.duration) && <div className="product-price">
-            <OfferPrice offer={product} lang={lang}/>{product.duration && <span> / {durationText(product.duration, lang)}</span>}
-          </div>}
-          {product.availability === 'unavailable' && <span className="availability availability-unavailable">{t('Currently unavailable', 'လောလောဆယ် မရနိုင်ပါ')}</span>}
-          <span className="product-action">{t('View plans', 'Plan များ ကြည့်ရန်')} <ArrowRight size={15} /></span>
-        </button>)}</div>
+        <div className="catalog-grid">{visible.map(product => {
+          const firstPlan = product.plans?.find(plan => plan.published);
+          const bestSellerPlan = product.plans?.find(plan => plan.published && plan.bestSeller);
+          const badgeId = product.bestSeller ? `product-badge-${product.id}` : undefined;
+          const summaryId = firstPlan ? `product-summary-${product.id}` : undefined;
+          return <button className="product" type="button" key={product.id} onClick={() => shop.current?.openProduct(product)} aria-label={product.name + ' · ' + t('View plans', 'Plan များ ကြည့်ရန်')}
+            aria-describedby={[badgeId, summaryId].filter(Boolean).join(' ') || undefined}>
+            <div className="product-top"><Mark product={product} />{product.bestSeller && <BestSellerBadge lang={lang} id={badgeId} />}<ArrowUpRight size={20} /></div>
+            <h3>{product.name}</h3><span className="product-category">{categoryName(product.category, lang)}</span>
+            {!hideShortDescriptions && <p>{productDescription(product, lang)}</p>}
+            {firstPlan && summaryId ? <PlanSummary plan={firstPlan} bestSeller={bestSellerPlan} id={summaryId} lang={lang} /> : (product.price || product.duration) && <div className="product-price">
+              <OfferPrice offer={product} lang={lang}/>{product.duration && <span> / {durationText(product.duration, lang)}</span>}
+            </div>}
+            {product.availability === 'unavailable' && <span className="availability availability-unavailable">{t('Currently unavailable', 'လောလောဆယ် မရနိုင်ပါ')}</span>}
+            <span className="product-action">{t('View plans', 'Plan များ ကြည့်ရန်')} <ArrowRight size={15} /></span>
+          </button>;
+        })}</div>
         {!matches.length && <div className="empty"><Search size={30} /><h3>{t('No matching services', 'ကိုက်ညီသော Product မတွေ့ပါ')}</h3><button className="button secondary" onClick={() => { setQuery(''); setCategory(0); setAll(true); }}>{t('Show all services', 'Product အားလုံး ကြည့်ရန်')}</button></div>}
         <div className="catalog-footer"><p aria-live="polite" lang="en">{visible.length} of {matches.length} services</p>
           {category === 0 && !query && matches.length > featured.length && <button className="text-link" onClick={() => setAll(!all)}>{all ? t('Show featured services', 'ရွေးချယ်ထားသော Product များ ကြည့်ရန်') : t(`Browse all ${products.length} services`, `Product ${products.length} ခုလုံး ကြည့်ရန်`)}<ChevronDown size={17} className={all ? 'rotate' : ''} /></button>}

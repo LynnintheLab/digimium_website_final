@@ -20,7 +20,8 @@ On phones and smaller tablets, the list and editor appear separately. **Back to 
 Choose **Add service**, supply the required details, select a category, and review before publishing. The catalog supports up to 100 products. Each product has a stable ID; changing an ID manually can invalidate customer cart references.
 
 - **Published** controls presence in the public catalog.
-- **Featured** controls inclusion in the featured storefront collection.
+- **Feature this service** includes the service in the featured storefront collection.
+- **Best Seller** under **On your website** adds a badge to the published product. Each plan has its own checkbox.
 - **Available**, **On request**, and **Unavailable** describe purchase availability. Unavailable services cannot be added to checkout.
 
 ## Plans and prices
@@ -33,11 +34,19 @@ To run a sale, enter the **Regular price** with its MMK currency and a lower **D
 
 Use the up and down arrows beside a plan to move it one position. Enable **Show on website** for the plans customers should see, then choose **Save changes**. The storefront shows published plans in the saved order. Both the plan and service must be published. New plans begin as drafts.
 
+Select **Best Seller** under an individual plan to label that option in the plan picker. You can mark multiple plans and set each badge independently of the product badge. Clear a checkbox and save to remove its badge.
+
 Preserve the owner's selected public plan list. Existing hidden alternatives remain in admin; do not publish every imported option automatically.
 
 Leave a price empty for a quote. The order flow displays the red Myanmar checkout guidance, with the additional price-enquiry sentence for unpriced selections. An unpriced selected plan remains an enquiry even if its parent product has a service-level price. A total appears only when every line can safely be read as an MMK amount. Unknown or unrecognized amounts require confirmation.
 
-The card highlights its first visible plan. The product dialog lists all visible alternatives. A service without a visible plan can support a general enquiry using its service-level price/duration when available.
+The card shows the first published plan’s price. If you mark plans as **Best Seller**, the card also identifies the first marked, published plan in the saved order. The product dialog lists all visible alternatives with their individual badges. A service without a visible plan can support a general enquiry using its service-level price/duration when available.
+
+## Landing page showcase
+
+The first panel rotates through marked best sellers, plans with gift time, and discounted offers. Clicking an offer opens its plan. A product with published plans uses those plans’ gift durations and prices. A product without published plans uses its own. Only published, orderable products appear here.
+
+When there are no active gifts or discounts, category collections rotate alongside any marked best sellers. The catalog filters below the panel stay available in either case.
 
 ## Hide all short descriptions
 

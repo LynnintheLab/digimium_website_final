@@ -14,12 +14,12 @@
 .admin-plan-order button:disabled{cursor:default;opacity:.4}
 @media(pointer:coarse),(max-width:620px){.admin-plan-order button{width:44px;height:44px}}
 .admin-plan-row .admin-form-grid{gap:14px 16px}
-.admin-plan-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:14px}
+.admin-plan-actions{display:flex;align-items:center;flex-wrap:wrap;gap:4px 16px;margin-top:14px}
 .admin-plan-publish{display:inline-flex;align-items:center;gap:9px;min-height:36px;font-size:11px;font-weight:600;color:var(--brand-text);cursor:pointer}
 .admin-plan-publish input{width:16px;height:16px;margin:0;accent-color:var(--admin-blue);cursor:pointer}
 .admin-plan-publish:has(input:disabled){cursor:default;opacity:.6}
 .admin-plan-publish input:disabled{cursor:default}
-.admin-plan-remove{min-height:36px}
+.admin-plan-remove{min-height:36px;margin-inline-start:auto}
 .admin-plan-empty{margin:20px 0}
 .admin-plan-footer{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .admin-plan-notice:empty{display:none}

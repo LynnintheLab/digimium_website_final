@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { durationPattern } from '../../lib/duration';
 import './duration-field.css';
 
 type DurationUnit = 'day' | 'month' | 'year';
@@ -12,8 +13,6 @@ type DurationFieldProps = {
   onChange: (duration: string) => void;
   optional?: boolean;
 };
-
-const durationPattern = /^([1-9]\d*)\s*(day|month|year)s?(?:\s*\+\s*([1-9]\d*)\s*(day|month|year)s?\s+free)?$/i;
 
 function formatPeriod({ quantity, unit }: Period) {
   return quantity + ' ' + unit + (quantity === '1' ? '' : 's');

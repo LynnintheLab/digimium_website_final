@@ -179,13 +179,15 @@ try {
   assert.match(path, /^\/media\/logos\/[a-f0-9-]+\.png$/);
   const product = {
     ...original.products[0], id: fixtureId, name: 'Hostinger smoke fixture', description: 'Disposable private English copy',
-    price: '30,000 MMK', discountPrice: '25,000 MMK', mm: 'မြန်မာ စာမျက်နှာ စမ်းသပ်ချက်', logoPath: path, published: true, featured: true,
+    price: '30,000 MMK', discountPrice: '25,000 MMK', mm: 'မြန်မာ စာမျက်နှာ စမ်းသပ်ချက်', logoPath: path, published: true, featured: false, bestSeller: true,
     plans: [
       { id: 'public', name: 'Quarterly offer', price: '8,500 MMK', discountPrice: '7000', duration: '3 months + 1 month free', published: true },
-      { id: 'draft', name: 'Hidden fixture plan', price: '', duration: '1 year', published: false },
+      { id: 'draft', name: 'Hidden fixture plan', price: '', duration: '1 year', published: false, bestSeller: true },
+      { id: 'monthly', name: 'Monthly offer', price: '3,000 MMK', duration: '1 month', published: true, bestSeller: true },
     ],
   };
-  const body = { expectedRevision: original.revision, products: [...original.products, product],
+  const hidden = { ...product, id: 'hidden-' + fixtureId, name: 'Hidden fixture product', published: false };
+  const body = { expectedRevision: original.revision, products: [...original.products, product, hidden],
     settings: { ...original.settings, hideShortDescriptions: true } };
   const save = (payload, origin = base.origin) => request('/api/admin/catalog', {
     method: 'PUT', headers: { ...auth, Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -193,6 +195,8 @@ try {
   assert.equal((await save(body, 'https://foreign.example')).status, 403);
   assert.equal((await save({ ...body, products: [...body.products, product] })).status, 400);
   for (const invalid of [
+    { ...product, bestSeller: 'yes' },
+    { ...product, plans: [{ ...product.plans[0], bestSeller: 1 }] },
     { ...product, discountPrice: '31,000 MMK' },
     { ...product, plans: [{ ...product.plans[0], discountPrice: '8,500 MMK' }] },
   ]) {
@@ -207,15 +211,31 @@ try {
 
   const persisted = await json(await request('/api/admin/catalog', { headers: auth }));
   assert.equal(persisted.revision, 2);
-  assert.deepEqual(persisted.products.find(p => p.id === fixtureId), product, 'Bilingual product and uploaded path survive restart');
-  const projected = (await json(await request('/api/catalog'))).products.find(p => p.id === fixtureId);
-  assert.deepEqual(projected.plans, [product.plans[0]]);
+  assert.deepEqual(persisted.products, body.products, 'Products, plan order, flags, unpublished entries and uploaded path survive restart');
+  const published = (await json(await request('/api/catalog'))).products;
+  assert.ok(!published.some(p => p.id === hidden.id), 'A best seller can remain unpublished');
+  const projected = published.find(p => p.id === fixtureId);
+  assert.equal(projected.bestSeller, true);
+  assert.equal(projected.featured, false);
+  assert.deepEqual(projected.plans, [product.plans[0], product.plans[2]], 'Published plans keep their saved order, including unmarked plans');
   assert.equal(projected.discountPrice, product.discountPrice);
   assert.equal(projected.logoPath, path);
   assert.ok(!projected.description && !projected.mm);
   const page = await (await request('/')).text();
   assert.ok(page.includes(product.name));
-  assert.ok(!page.includes(product.description) && !page.includes(product.plans[1].name));
+  assert.ok(!page.includes(product.description) && !page.includes(product.plans[1].name) && !page.includes(hidden.name));
+
+  const unmarkedProduct = { ...product, bestSeller: false };
+  const third = await json(await save({ ...body, expectedRevision: 2, products: [...original.products, unmarkedProduct, hidden] }));
+  const planOnly = (await json(await request('/api/catalog'))).products.find(p => p.id === fixtureId);
+  assert.equal(planOnly.bestSeller, false);
+  assert.equal(planOnly.plans[1].bestSeller, true, 'Removing a product badge preserves its plan badge');
+
+  const productOnly = { ...product, plans: product.plans.map(plan => plan.id === 'monthly' ? { ...plan, bestSeller: false } : plan) };
+  await json(await save({ ...body, expectedRevision: third.revision, products: [...original.products, productOnly, hidden] }));
+  const withoutPlanBadge = (await json(await request('/api/catalog'))).products.find(p => p.id === fixtureId);
+  assert.equal(withoutPlanBadge.bestSeller, true);
+  assert.equal(withoutPlanBadge.plans[1].bestSeller, false, 'Removing a plan badge preserves its product badge');
   const image = await request(path);
   assert.equal(image.status, 200);
   assert.equal(image.headers.get('content-type'), 'image/png');

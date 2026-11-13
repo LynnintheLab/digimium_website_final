@@ -1,0 +1,16 @@
+.best-seller-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--brand-selected);
+  color: var(--brand-navy);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.best-seller-badge svg { fill: currentColor; }
+[lang=my] .best-seller-badge { line-height: 1.9; }

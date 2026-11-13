@@ -2,6 +2,8 @@
 
 ## Current status
 
+Products and plans have independent Best Seller flags. The landing showcase cycles every seven seconds through marked offers, gift promotions and discounted plans, then uses category collections when no promotion or discount is available. Offer links select the displayed plan. Motion pauses for interaction and respects reduced-motion preferences.
+
 Production and testing both serve the gift-duration and discount release. Services and individual plans support an optional gift duration and a discounted MMK price. The storefront, cart and Telegram draft use the selected offer’s paid and gift periods and its current sale price.
 
 The admin editor accepts a duration quantity and a day, month or year for services and plans. Plans can be moved up or down. Saving the catalog sets the order customers see in the plan picker and the first visible plan on the service card.
@@ -17,6 +19,8 @@ The catalog shows two product cards per row up to 700px and three above. Checkou
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Added Best Seller controls, public badges and the automatic landing showcase. Verified independent save, reload and removal of product/plan flags against disposable local MySQL, including hidden plans and unchanged default plan selection. Chromium checks covered English/Myanmar at 320px and 390px, timed rotation, pause, reduced motion, gift/discount plan selection and category fallback. The Node 24 build, type checks, 14 unit tests and expanded Hostinger integration suite passed.
 
 Rechecked both live domains after deployment of `fecfebc`. Each returned the new gift and discount admin styles and a readable public catalog with 54 products. Both GitHub branches matched the release.
 
@@ -57,6 +61,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+Mark the desired products and plans as **Best Seller** and save. Gift durations and discount prices automatically qualify the corresponding published offers for the landing showcase.
 
 When a promotion is ready, edit the relevant offer in **Admin → Services**, set the gift duration or discount price, and save.
 

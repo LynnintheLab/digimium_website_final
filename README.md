@@ -13,7 +13,7 @@ The Hostinger build protects `/admin` with a one-time code sent to the owner’s
 
 | Area | Behavior |
 | --- | --- |
-| Storefront | Category browsing, search, featured collections, FAQ, English/Myanmar language preference, and contact links. |
+| Storefront | An automatic showcase of best sellers, gift promotions and discounts, with category collections when no promotion or discount is active. Includes search, category filters, FAQ, English/Myanmar and contact links. |
 | Product plans | Only published plans appear to customers. Unpriced products remain available for enquiries. |
 | Cart | Selected plans stay in the browser cart until checkout. Opening the Telegram order clears the cart and keeps the draft available to copy or reopen. |
 | Telegram checkout | Combine the cart and selected plan, copy the order, and open the store's Telegram DM with a draft. The customer sends the message. |
