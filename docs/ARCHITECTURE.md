@@ -14,6 +14,9 @@ The retained Vinext/Vite target builds a Cloudflare Worker for Sites. Its storag
 | --- | --- |
 | `app/page.tsx` | Server catalog load and language cookie. |
 | `app/storefront.tsx` | Browse/search/filter UI, navigation, language, and cart entry point. |
+| `app/collection-showcase.tsx` / `app/collection-showcase.css` | Automatically rotating offers and category fallback, with pause and reduced-motion support. |
+| `lib/showcase.ts` | Published offer selection, best-seller/promotion/discount grouping, and category fallback. |
+| `app/best-seller-badge.tsx` / `app/product-mark.tsx` | Shared best-seller label and product logo rendering. |
 | `app/storefront-order.css` | Storefront ordering controls and mobile refinements. |
 | `app/shop-order.tsx` / `app/shop-order.css` | Plan picker, cart, checkout sheet, and Telegram handoff. |
 | `app/cursor-light.tsx` / `app/globals.css` | Brand styling, fonts, gradients, lighting, focus, and reduced motion. |
@@ -23,6 +26,8 @@ The retained Vinext/Vite target builds a Cloudflare Worker for Sites. Its storag
 | `lib/initial-catalog.ts` | Merge original catalog with imported plans/services. |
 | `lib/cart-order.ts` | Cart validation, deduplication, totals, message splitting, and Telegram links. |
 | `lib/shop-language.ts` | Bilingual product, plan, duration, and price presentation. |
+| `lib/duration.ts` / `lib/pricing.ts` | Paid/gift duration parsing and validated regular/sale MMK price calculations. |
+| `app/offer-price.tsx` | Consistent regular and discounted price presentation. |
 | `lib/admin-auth*.ts` | Platform-specific admin authorization and same-origin mutations. |
 | `hostinger/` | MySQL connections, catalog and logo storage, admin sessions, and database schema. |
 | `runtime/` | Sites adapters for D1/R2 storage and ChatGPT authentication. |
@@ -47,7 +52,9 @@ The retained Vinext/Vite target builds a Cloudflare Worker for Sites. Its storag
 
 ## Catalog model and authority
 
-A catalog has `revision`, `updatedAt`, `products`, and `settings`. Products have stable IDs, display fields, category, optional logo path/plans, availability, feature state, and publication state. Plan IDs are unique per product. Settings include contacts and optional `hideShortDescriptions`.
+A catalog has `revision`, `updatedAt`, `products`, and `settings`. Products have stable IDs, display fields, category, optional logo path/plans, availability, feature state, and publication state. Products and plans both support an optional `discountPrice` and an independent optional `bestSeller` boolean. Duration remains a string; the admin quantity/unit controls serialize paid and optional gift periods into that string. Plan IDs are unique per product. Settings include contacts and optional `hideShortDescriptions`.
+
+Best-seller labels are manually assigned, independently of `featured` and `published`. The showcase uses published offers with available/on-request status. Published plans supply the offers when present; product-level offers apply when no published plan exists. Gift promotion detection uses the canonical duration parser. Valid lower sale prices qualify for Discount slides. When no gifts or discounts qualify, category collections follow any Best Seller slides. These fields are stored in the catalog JSON and require no additional SQL columns.
 
 The MySQL `digimium_catalog` table or D1 `catalog_snapshots` table has one row with ID `main`, a JSON payload, positive revision, and timestamp. Saving is atomic: revision zero inserts only if no row exists; later saves update only the revision loaded by that editor. Concurrent saves cannot silently overwrite each other.
 

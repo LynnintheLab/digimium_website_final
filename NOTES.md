@@ -2,13 +2,15 @@
 
 ## Current status
 
+The latest feature release is `4eee1ff` (2026-11-14), pushed to both `production` and `testing`. Both live Hostinger domains were checked after deployment: the new showcase/badge assets were served and each public catalog returned 54 products. See [HANDOFF.md](HANDOFF.md) for the complete continuation guide and access inventory. Subsequent handoff/documentation commits do not change runtime behavior.
+
 Products and plans have independent Best Seller flags. The landing showcase cycles every seven seconds through marked offers, gift promotions and discounted plans, then uses category collections when no promotion or discount is available. Offer links select the displayed plan. Motion pauses for interaction and respects reduced-motion preferences.
 
-Production and testing both serve the gift-duration and discount release. Services and individual plans support an optional gift duration and a discounted MMK price. The storefront, cart and Telegram draft use the selected offer’s paid and gift periods and its current sale price.
+The current release includes editable gift durations and discounts. Services and individual plans support an optional gift duration and a discounted MMK price. The storefront, cart and Telegram draft use the selected offer’s paid and gift periods and its current sale price.
 
 The admin editor accepts a duration quantity and a day, month or year for services and plans. Plans can be moved up or down. Saving the catalog sets the order customers see in the plan picker and the first visible plan on the service card.
 
-The public storefront uses Google Tag Manager container `GTM-M7S62K8J` on both Hostinger domains. It sends visitor activity to GA4 stream `G-5LML9P3RE0`. In Analytics reports, filter the Host name to `buywith-digimium.store` for production traffic.
+The public storefront uses Google Tag Manager container `GTM-M7S62K8J` on both Hostinger domains. The recorded GA4 stream is `G-5LML9P3RE0`; authenticated Analytics delivery was not rechecked in this handoff session. In Analytics reports, filter the Host name to `buywith-digimium.store` for production traffic.
 
 The live Hostinger shop at `https://buywith-digimium.store` tracks `production`. This release promotes the revised Myanmar storefront, mobile catalog, Telegram checkout and Resend email-code admin sign-in from `testing`. Each Hostinger app uses its own origin and database. See [the Hostinger guide](docs/HOSTINGER.md) for the production OTP settings and schema.
 
@@ -20,7 +22,13 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
+Prepared `HANDOFF.md` for the next chat with the verified release, repository/site links, completed features, current limits, environment key names, database authority, relevant file map, and required access. Updated the architecture guide for offers and best-seller fields. No secrets are included in these documents. GitHub metadata confirms that the repository is currently public (default branch `production`); its visibility was not changed. The owner received a separate local file/chat-access inventory outside Git.
+
 Added Best Seller controls, public badges and the automatic landing showcase. Verified independent save, reload and removal of product/plan flags against disposable local MySQL, including hidden plans and unchanged default plan selection. Chromium checks covered English/Myanmar at 320px and 390px, timed rotation, pause, reduced motion, gift/discount plan selection and category fallback. The Node 24 build, type checks, 14 unit tests and expanded Hostinger integration suite passed.
+
+After pushing `4eee1ff`, checked production and testing over HTTPS. Both served the new release assets, readable 54-product catalogs and the admin sign-in page. No live catalog edits, live OTP delivery test, or authenticated hPanel/Resend changes were performed in that verification.
+
+### Earlier work (historical)
 
 Rechecked both live domains after deployment of `fecfebc`. Each returned the new gift and discount admin styles and a readable public catalog with 54 products. Both GitHub branches matched the release.
 
@@ -61,6 +69,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+For a new chat, read `HANDOFF.md`, this file, `AGENTS.md`, and the relevant target guide, then pull the working branch before editing. The current Best Seller/showcase request is implemented and deployed; do not recreate it or reset the live catalog to seed data.
 
 Mark the desired products and plans as **Best Seller** and save. Gift durations and discount prices automatically qualify the corresponding published offers for the landing showcase.
 

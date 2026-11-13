@@ -1,6 +1,6 @@
 # Host Digimium on Hostinger Business or Cloud
 
-Use a **Node.js Web App** with a Hostinger MySQL database. The app serves the storefront, `/admin`, and the catalog and image APIs from the same HTTPS address. Hostinger can build it directly from the private GitHub repository. You can complete these steps in hPanel without SSH.
+Use a **Node.js Web App** with a Hostinger MySQL database. The app serves the storefront, `/admin`, and the catalog and image APIs from the same HTTPS address. Hostinger can build it directly from the GitHub repository. You can complete these steps in hPanel without SSH.
 
 Both Hostinger apps use email-code login. For an existing password-based deployment, keep its database connection, import the updated schema from step 2 into that database, then apply its own admin and Resend settings from step 3.
 

@@ -6,6 +6,7 @@ Digimium is a bilingual digital subscription catalog for browsing products, choo
 - Earlier Sites deployment: [Digimium](https://digimium-minimal.aungnyeinchantun23.chatgpt.site)
 - Earlier Sites administration: [Manage catalog](https://digimium-minimal.aungnyeinchantun23.chatgpt.site/admin)
 - Source: [LynnintheLab/digimium_website_final](https://github.com/LynnintheLab/digimium_website_final)
+- Continue in another chat: [complete project handoff](HANDOFF.md), including release status, links, architecture, access requirements, and next steps.
 
 The Hostinger build protects `/admin` with a one-time code sent to the owner’s inbox through Resend. A verified browser stays signed in for up to 180 days. The earlier Sites deployment uses ChatGPT sign-in.
 
