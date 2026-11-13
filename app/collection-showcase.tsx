@@ -5,6 +5,7 @@ import { categoryName, durationText, planName, type ShopLanguage } from '../lib/
 import { showcaseSlides } from '../lib/showcase';
 import { Mark } from './product-mark';
 import { OfferPrice } from './offer-price';
+import { OfferSculpture, ServiceTiles } from './showcase-artwork';
 import './collection-showcase.css';
 
 const collections = [
@@ -23,15 +24,22 @@ function watchMotion(onChange: () => void) {
 }
 const prefersReducedMotion = () => window.matchMedia(motionQuery).matches;
 const serverReducedMotion = () => true;
+function watchVisibility(onChange: () => void) {
+  document.addEventListener('visibilitychange', onChange);
+  return () => document.removeEventListener('visibilitychange', onChange);
+}
+const pageIsHidden = () => document.hidden;
+const serverPageHidden = () => false;
 
 type Props = {
   products: Product[];
   lang: ShopLanguage;
+  motionPaused: boolean;
   onProduct: (product: Product, planId?: string) => void;
   onCategory: (category: number) => void;
 };
 
-export function CollectionShowcase({ products, lang, onProduct, onCategory }: Props) {
+export function CollectionShowcase({ products, lang, motionPaused, onProduct, onCategory }: Props) {
   const t = (en: string, my: string) => lang === 'my' ? my : en;
   const slides = useMemo(() => showcaseSlides(products), [products]);
   const [page, setPage] = useState({ index: 0, direction: 0 });
@@ -42,24 +50,15 @@ export function CollectionShowcase({ products, lang, onProduct, onCategory }: Pr
   const swipeStart = useRef<{ id: number; x: number; y: number } | null>(null);
   const suppressClick = useRef(false);
   const reducedMotion = useSyncExternalStore(watchMotion, prefersReducedMotion, serverReducedMotion);
+  const hidden = useSyncExternalStore(watchVisibility, pageIsHidden, serverPageHidden);
+  const motionStopped = motionPaused || hidden;
   const count = slides.length;
-  const rotating = count > 1 && !reducedMotion && !held && !hovered && !focusWithin && !touching;
+  const rotating = count > 1 && !motionStopped && !reducedMotion && !held && !hovered && !focusWithin && !touching;
 
   useEffect(() => {
     if (!rotating) return;
-    let timer: number | undefined;
-    function schedule() {
-      window.clearTimeout(timer);
-      if (!document.hidden) {
-        timer = window.setTimeout(() => setPage({ index: (page.index + 1) % count, direction: 1 }), rotationDelay);
-      }
-    }
-    schedule();
-    document.addEventListener('visibilitychange', schedule);
-    return () => {
-      window.clearTimeout(timer);
-      document.removeEventListener('visibilitychange', schedule);
-    };
+    const timer = window.setTimeout(() => setPage({ index: (page.index + 1) % count, direction: 1 }), rotationDelay);
+    return () => window.clearTimeout(timer);
   }, [count, page, rotating]);
 
   if (!count) return null;
@@ -119,7 +118,7 @@ export function CollectionShowcase({ products, lang, onProduct, onCategory }: Pr
     onProduct(item, planId);
   }
 
-  return <section className="showcase" aria-roledescription={t('carousel', 'ဆလိုက်ရှိုး')} aria-label={t('Service highlights', 'ရွေးချယ်ထားသော ဝန်ဆောင်မှုများ')}
+  return <section className="showcase" data-kind={slide.kind} data-motion-paused={motionStopped} aria-roledescription={t('carousel', 'ဆလိုက်ရှိုး')} aria-label={t('Service highlights', 'ရွေးချယ်ထားသော ဝန်ဆောင်မှုများ')}
     onPointerEnter={event => setHovered(event.pointerType !== 'touch')} onPointerLeave={() => setHovered(false)}
     onPointerDownCapture={startSwipe} onPointerUpCapture={endSwipe} onPointerCancel={() => {
       swipeStart.current = null;
@@ -134,55 +133,59 @@ export function CollectionShowcase({ products, lang, onProduct, onCategory }: Pr
     onFocusCapture={() => setFocusWithin(true)} onBlurCapture={event => {
       if (!event.currentTarget.contains(event.relatedTarget)) setFocusWithin(false);
     }}>
-    <div className="showcase-top">
-      <span className="showcase-label">{collection ? <img src="/assets/symbol-white.png" alt="" /> : <Icon size={18} aria-hidden="true" />}{label}</span>
-      {count > 1 && <div className="showcase-controls">
-        <button type="button" aria-label={t('Previous slide', 'ရှေ့ပြကွက်')} onClick={() => step(-1)}><ChevronLeft size={18} /></button>
-        <button type="button" aria-label={t('Next slide', 'နောက်ပြကွက်')} onClick={() => step(1)}><ChevronRight size={18} /></button>
-      </div>}
-    </div>
-    {collection && categories.length > 1 && <div className="collection-switch" role="group" aria-label={t('Collections', 'ဝန်ဆောင်မှု အမျိုးအစားများ')}>
-      {categories.map(item => <button key={item.index} type="button" aria-pressed={item.index === current} onClick={() => goTo(item.index)}>
-        <item.icon size={15} />{item[lang]}
-      </button>)}
-    </div>}
-    <div role="group" aria-roledescription={t('slide', 'ပြကွက်')} aria-label={slideLabel(current)}
-      className="showcase-slide" data-direction={page.direction}>
-      <div className="showcase-backdrop" aria-hidden="true">
-        <img className="portal" src="/assets/symbol-white.png" alt="" />
+    <ServiceTiles />
+    <div className="showcase-surface">
+      <div className="showcase-top">
+        <span className="showcase-label">{collection ? <img src="/assets/symbol-white.png" alt="" /> : <Icon size={18} aria-hidden="true" />}{label}</span>
+        {count > 1 && <div className="showcase-controls">
+          <button type="button" aria-label={t('Previous slide', 'ရှေ့ပြကွက်')} onClick={() => step(-1)}><ChevronLeft size={18} /></button>
+          <button type="button" aria-label={t('Next slide', 'နောက်ပြကွက်')} onClick={() => step(1)}><ChevronRight size={18} /></button>
+        </div>}
       </div>
-      <div aria-live={rotating ? 'off' : 'polite'} aria-atomic="true">
-        <div className={collection ? 'collection-art' : 'collection-art showcase-offer'}>
-          <div key={current} className="showcase-copy">
-            {collection ? <>
-              <h2>{t(collection.enTitle, collection.myTitle)}</h2>
-              {collection.enText && <p>{t(collection.enText, collection.myText)}</p>}
-            </> : <>
-              <span className="showcase-logo"><Mark product={product} /></span>
-              <h2>{product.name}</h2>
-              {plan && <p className="showcase-plan">{planName(plan, lang)}</p>}
-              {showOfferDetails && <div className="showcase-terms">
-                {offer.duration && <span>{durationText(offer.duration, lang)}</span>}
-                <OfferPrice offer={offer} lang={lang} />
-              </div>}
-            </>}
-          </div>
+      {collection && categories.length > 1 && <div className="collection-switch" role="group" aria-label={t('Collections', 'ဝန်ဆောင်မှု အမျိုးအစားများ')}>
+        {categories.map(item => <button key={item.index} type="button" aria-pressed={item.index === current} onClick={() => goTo(item.index)}>
+          <item.icon size={15} />{item[lang]}
+        </button>)}
+      </div>}
+      <div role="group" aria-roledescription={t('slide', 'ပြကွက်')} aria-label={slideLabel(current)}
+        className="showcase-slide" data-direction={page.direction}>
+        <div className="showcase-backdrop" aria-hidden="true">
+          <img className="portal" src="/assets/symbol-white.png" alt="" />
         </div>
-        {collection && <div className="collection-bottom">{slide.items.map(({ product: item }) => <button key={item.id} type="button" onClick={() => openProduct(item)}
-          aria-label={item.name + ' · ' + t('Choose plan', 'အစီအစဉ် ရွေးရန်')}><Mark product={item} /><span>{item.name}</span><ArrowUpRight size={14} /></button>)}</div>}
+        <div aria-live={rotating ? 'off' : 'polite'} aria-atomic="true">
+          <div className={collection ? 'collection-art' : 'collection-art showcase-offer'}>
+            {!collection && <OfferSculpture gift={slide.kind === 'promotion'} />}
+            <div key={current} className="showcase-copy">
+              {collection ? <>
+                <h2>{t(collection.enTitle, collection.myTitle)}</h2>
+                {collection.enText && <p>{t(collection.enText, collection.myText)}</p>}
+              </> : <>
+                <span className="showcase-logo"><Mark product={product} /></span>
+                <h2>{product.name}</h2>
+                {plan && <p className="showcase-plan">{planName(plan, lang)}</p>}
+                {showOfferDetails && <div className="showcase-terms">
+                  {offer.duration && <span>{durationText(offer.duration, lang)}</span>}
+                  <OfferPrice offer={offer} lang={lang} />
+                </div>}
+              </>}
+            </div>
+          </div>
+          {collection && <div className="collection-bottom">{slide.items.map(({ product: item }) => <button key={item.id} type="button" onClick={() => openProduct(item)}
+            aria-label={item.name + ' · ' + t('Choose plan', 'အစီအစဉ် ရွေးရန်')}><Mark product={item} /><span>{item.name}</span><ArrowUpRight size={14} /></button>)}</div>}
+        </div>
+        {count > 1 && <div className="showcase-pages" role="group" aria-label={t('Choose a slide', 'ပြကွက် ရွေးရန်')}>
+          {Array.from({ length: dashCount }, (_, offset) => {
+            const i = firstDash + offset;
+            const clippedEdge = (offset === 0 && i > 0) || (offset === dashCount - 1 && i < count - 1);
+            return <button key={i} type="button" aria-label={slideLabel(i)} aria-current={i === current ? 'step' : undefined}
+              className={clippedEdge ? 'more-slides' : undefined} onClick={() => goTo(i)} />;
+          })}
+        </div>}
+        {collection && category
+          ? <button className="collection-link" type="button" onClick={() => onCategory(category)}>{categoryName(category, lang)} <ArrowRight size={17} /></button>
+          : <button type="button" className="collection-link showcase-offer-link" onClick={() => openProduct(product, plan?.id)}
+              aria-label={[product.name, plan && planName(plan, lang), viewPlan].filter(Boolean).join(' · ')}>{viewPlan} <ArrowUpRight size={17} /></button>}
       </div>
-      {count > 1 && <div className="showcase-pages" role="group" aria-label={t('Choose a slide', 'ပြကွက် ရွေးရန်')}>
-        {Array.from({ length: dashCount }, (_, offset) => {
-          const i = firstDash + offset;
-          const clippedEdge = (offset === 0 && i > 0) || (offset === dashCount - 1 && i < count - 1);
-          return <button key={i} type="button" aria-label={slideLabel(i)} aria-current={i === current ? 'step' : undefined}
-            className={clippedEdge ? 'more-slides' : undefined} onClick={() => goTo(i)} />;
-        })}
-      </div>}
-      {collection && category
-        ? <button className="collection-link" type="button" onClick={() => onCategory(category)}>{categoryName(category, lang)} <ArrowRight size={17} /></button>
-        : <button type="button" className="collection-link showcase-offer-link" onClick={() => openProduct(product, plan?.id)}
-            aria-label={[product.name, plan && planName(plan, lang), viewPlan].filter(Boolean).join(' · ')}>{viewPlan} <ArrowUpRight size={17} /></button>}
     </div>
   </section>;
 }

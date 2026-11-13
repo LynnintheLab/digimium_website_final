@@ -40,6 +40,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
   const menuButton = useRef<HTMLButtonElement>(null);
   const header = useRef<HTMLElement>(null);
   const [cartCount, setCartCount] = useState(0);
+  const [motionPaused, setMotionPaused] = useState(false);
   const shop = useRef<ShopOrderHandle>(null);
   const { products, settings } = initialCatalog;
   const hideShortDescriptions = settings.hideShortDescriptions === true;
@@ -119,7 +120,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
   ];
 
   return <div className="storefront-shell" lang={lang}>
-    <CursorLight />
+    <CursorLight paused={motionPaused} />
     <a className="skip" href="#services">{t('Skip to services', 'Product စာရင်းသို့ သွားရန်')}</a>
     <ScrollRail lang={lang} />
     <header ref={header} className="header wrap">
@@ -147,7 +148,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
           <p className="hero-description">{t('Discover subscriptions for work, creativity, and entertainment. Choose a plan and order through Digimium on Telegram.', 'အလုပ်အတွက်၊ ကျောင်းအတွက်၊ အပန်းဖြေဖို့အတွက် သင့်တော်တဲ့ ဝန်ဆောင်မှုတွေကို စိတ်ကြိုက်ရွေးချယ်ဝယ်ယူနိုင်ပါသည်။')}</p>
           <div className="hero-actions"><a className="button primary" href="#services">{t('Explore services', 'ပစ္စည်းများ ကြည့်ရန်')} <ArrowUpRight size={18} /></a><a className="text-link" href="#how-it-works">{t('How to order', 'ဘယ်လိုဝယ်ယူရမလဲ')} <ArrowRight size={17} /></a></div>
         </div>
-        <CollectionShowcase products={products} lang={lang} onCategory={showCategory}
+        <CollectionShowcase products={products} lang={lang} motionPaused={motionPaused} onCategory={showCategory}
           onProduct={(product, planId) => shop.current?.openProduct(product, planId)} />
       </section>
       <div className="purpose-strip wrap"><span>{t('One place. More possibilities.', 'တစ်နေရာတည်းမှာ အားလုံးကို စိတ်ကြိုက်ရွေးချယ်လို့ရပါပြီ')}</span><div><span><Sparkles size={16} />{t('Work smarter', 'အလုပ်အတွက်')}</span><span><PenTool size={16} />{t('Create freely', 'ဖန်တီးဖို့')}</span><span><Clapperboard size={16} />{t('Enjoy your downtime', 'အပန်းဖြေဖို့')}</span></div></div>
@@ -218,7 +219,11 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
           <span className="contact-number">Viber · {settings.viberLabel}</span><a className="email" href={`mailto:${settings.email}`}><Mail size={15} />{settings.email}</a>
         </div></section>
     </main>
-    <footer className="footer wrap"><a className="brand" href="#" aria-label={t('Back to top', 'အပေါ်သို့ ပြန်သွားရန်')}><img src="/assets/logo.png" alt="digimium." /></a><div><Globe2 size={14} />{t('Myanmar & English', 'မြန်မာနှင့် အင်္ဂလိပ်')}<a className="admin-link" href="/admin">{t('Manage catalog', 'စာရင်း စီမံရန်')}</a><span>© {new Date().getFullYear()} Digimium</span></div></footer>
+    <footer className="footer wrap"><a className="brand" href="#" aria-label={t('Back to top', 'အပေါ်သို့ ပြန်သွားရန်')}><img src="/assets/logo.png" alt="digimium." /></a><div><Globe2 size={14} />{t('Myanmar & English', 'မြန်မာနှင့် အင်္ဂလိပ်')}
+      <button type="button" className="store-motion-control" onClick={() => setMotionPaused(paused => !paused)}>
+        {motionPaused ? t('Resume motion', 'လှုပ်ရှားမှု ပြန်ဖွင့်ရန်') : t('Pause motion', 'လှုပ်ရှားမှု ရပ်ရန်')}
+      </button>
+      <a className="admin-link" href="/admin">{t('Manage catalog', 'စာရင်း စီမံရန်')}</a><span>© {new Date().getFullYear()} Digimium</span></div></footer>
     <ShopOrder ref={shop} products={products} lang={lang} telegram={telegram} hideShortDescriptions={hideShortDescriptions} onCountChange={setCartCount} />
   </div>;
 }

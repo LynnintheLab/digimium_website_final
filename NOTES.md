@@ -2,7 +2,7 @@
 
 ## Current status
 
-The showcase now has a slowly floating portal mark and soft blue glow while the offer stays on screen, including single-offer catalogs. Phones support horizontal swipes. With multiple slides, visitors can navigate using the arrows or the position dashes above the action row. System reduced-motion settings keep the artwork and slides still until the visitor navigates.
+Ten service-logo tiles now float around the edges of the showcase. Offer slides carry a dimensional Digimium mark and sparkle. A gift-period promotion also shows a lavender parcel with a gold ribbon. The large watermark is stationary. A footer motion control, page visibility and the system reduced-motion preference govern animation. Phones support horizontal swipes, and multiple slides retain arrow and dash navigation.
 
 Both public catalogs returned 54 products at the start of this showcase update. Production had two published ChatGPT plans marked Best Seller. Offer selections and prices reflect each site's current MySQL data.
 
@@ -25,6 +25,8 @@ The catalog shows two product cards per row up to 700px and three above. Checkou
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Adapted the ten original service icons from the Digimium profile pill to the storefront. Added transparent 3D renders, including a portal derived from the supplied brand outline. Checked the decorative hit areas, text clearance, reduced motion, hiding the tab and the footer control in Chromium and WebKit with English and Myanmar fixtures.
 
 Added persistent background motion, a directional slide transition, tappable position dashes and phone swipe navigation. Verified the Node 24 standalone build, types and 14 unit tests. Local Chromium and WebKit checks covered single and multiple slides, reduced motion, arrows, dashes and opening the selected plan. Chromium touch emulation covered swipe, tap and vertical scrolling at phone widths.
 
@@ -78,7 +80,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-Check the feel of the showcase swipe and background motion on a physical phone. For future changes, read `HANDOFF.md`, this file, `AGENTS.md` and the relevant target guide, then pull `testing` before editing.
+Check the service tiles and gift art on a physical phone, including swiping between offers. For future changes, read `HANDOFF.md`, this file, `AGENTS.md` and the relevant target guide, then pull `testing` before editing.
 
 Mark the desired products and plans as **Best Seller** and save. Gift durations and discount prices automatically qualify the corresponding published offers for the landing showcase.
 

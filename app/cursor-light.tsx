@@ -3,13 +3,13 @@
 import { useEffect, useRef } from "react";
 
 /** A single decorative light, with a separate clipped light on the active card. */
-export function CursorLight() {
+export function CursorLight({ paused }: { paused: boolean }) {
   const lightRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const light = lightRef.current;
     const surface = light?.closest(".storefront-shell");
-    if (!light || !surface) return;
+    if (!light || !surface || paused) return;
 
     const preference = window.matchMedia("(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)");
     let frame = 0;
@@ -87,7 +87,7 @@ export function CursorLight() {
       window.removeEventListener("blur", hide);
       preference.removeEventListener("change", hide);
     };
-  }, []);
+  }, [paused]);
 
   return <div className="cursor-light" ref={lightRef} aria-hidden="true" />;
 }

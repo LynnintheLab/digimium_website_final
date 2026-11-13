@@ -54,3 +54,17 @@ Artwork retrieved on November 10, 2026. Brand marks identify the corresponding s
 | `grammarly.svg` | Grammarly | [Simple Icons](https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/grammarly.svg) |
 | `kling.svg` | Kling AI | [Lobe Icons](https://raw.githubusercontent.com/lobehub/lobe-icons/master/packages/static-svg/icons/kling-color.svg) |
 | `expressvpn.png` | ExpressVPN | User’s older store, `logos/products/expressvpn.png` (256 × 256 PNG). |
+
+## Showcase tiles
+
+The tiles use the artwork from Digimium’s profile link pill, including its original colors and proportions. ChatGPT, Gemini, Spotify, Claude and Duolingo use the existing catalog SVGs.
+
+| File | Artwork used by the profile |
+| --- | --- |
+| `canva-icon.svg` | Square Canva icon from the owner’s OTP Link artwork. |
+| `netflix-icon.svg` | Netflix N from the owner’s Brand Film artwork. |
+| `adobe-creative-cloud.svg` | Rainbow Creative Cloud icon from the owner’s Brand Film artwork. |
+| `capcut-icon.svg` | Transparent CapCut mark from the owner’s Brand Film artwork. |
+| `quillbot.svg` | Icon from [QuillBot’s Chrome Web Store listing](https://chromewebstore.google.com/detail/quillbot-ai-writing-and-g/iidnbdjijdkbmajdffnidomddglmieko). |
+
+Netflix, Creative Cloud, CapCut and QuillBot retain the original PNG embedded in each local SVG.
