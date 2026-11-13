@@ -1,11 +1,12 @@
 .hero:not(:has(.showcase)) { grid-template-columns: minmax(0, 1fr); }
 .hero > .showcase {
-  --tile-size: 34px;
+  --tile-size: 40px;
   touch-action: pan-y pinch-zoom;
   overflow: visible;
   isolation: isolate;
   background: transparent;
-  margin-block: 24px;
+  margin-block: 32px;
+  margin-inline-end: 10px;
 }
 .showcase-surface {
   position: relative;
@@ -23,13 +24,21 @@
 }
 .service-float {
   position: absolute;
-  left: var(--x);
   width: var(--tile-size);
   height: var(--tile-size);
+}
+.service-float:is([data-edge="top"], [data-edge="bottom"]) {
+  left: var(--at);
   margin-left: calc(var(--tile-size) * -.5);
+}
+.service-float:is([data-edge="left"], [data-edge="right"]) {
+  top: var(--at);
+  margin-top: calc(var(--tile-size) * -.5);
 }
 .service-float[data-edge="top"] { top: calc(0px - var(--peek)); }
 .service-float[data-edge="bottom"] { bottom: calc(0px - var(--peek)); }
+.service-float[data-edge="left"] { left: calc(0px - var(--peek)); }
+.service-float[data-edge="right"] { right: calc(0px - var(--peek)); }
 .service-tile {
   position: relative;
   display: grid;
@@ -46,7 +55,7 @@
 .offer-sculpture {
   position: absolute;
   top: 10px;
-  right: 24px;
+  right: 34px;
   width: 110px;
   height: 86px;
   pointer-events: none;
@@ -147,7 +156,7 @@
   height: auto;
   min-height: 302px;
   padding-block: 26px 32px;
-  padding-inline-end: 28px;
+  padding-inline: 36px;
   overflow-wrap: anywhere;
 }
 .showcase-offer .showcase-copy { display: grid; justify-items: start; gap: 10px; }
@@ -183,15 +192,18 @@
 .showcase-offer-link::after { content: ''; position: absolute; inset: 0; z-index: 1; }
 .showcase-slide:has(.showcase-offer-link:hover) .showcase-offer-link { background: var(--brand-dark-mid); color: white; }
 
+@media (min-width: 701px) and (max-width: 1150px) {
+  .hero > .showcase { margin-inline-end: 25px; }
+}
 @media (max-width: 800px) {
   .showcase .showcase-top { padding-inline: 18px; }
-  .showcase .showcase-offer { min-height: 240px; padding: 24px 20px; }
+  .showcase .showcase-offer { min-height: 240px; padding: 24px 32px; }
   .showcase-controls { gap: 0; }
   .showcase-label { gap: 6px; }
-  .offer-sculpture { width: 87px; height: 62px; top: 10px; right: 16px; }
+  .offer-sculpture { width: 87px; height: 62px; top: 10px; right: 30px; }
 }
 @media (max-width: 700px) {
-  .hero > .showcase { --tile-size: 30px; margin-block: 22px; }
+  .hero > .showcase { --tile-size: 35px; margin: 29px 23px 26px 16px; }
   .service-tile { border-radius: 7px; }
 }
 

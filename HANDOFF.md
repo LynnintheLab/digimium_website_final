@@ -117,7 +117,7 @@ If **no promotion or discount qualifies**, the existing Think/Create/Unwind cate
 
 With multiple slides, the showcase advances every **7 seconds**. Use the arrows, tap a short dash, or swipe left for the next slide and right for the previous slide on a phone. The longer, brighter dash marks the current slide. Hover, focus, touch contact and a background browser tab suspend rotation. Selecting the current dash or opening an offer holds the slide until the visitor navigates to another one.
 
-Ten decorative service tiles float along the top and bottom edges. Offer slides include a dimensional Digimium mark and a gold sparkle. Gift-period promotion slides also include a ribboned gift box. The interior watermark and text stay still. Visitors can pause and resume decorative motion and autoplay from the storefront footer. A hidden tab suspends both, and reduced motion displays the stationary artwork with manual slide navigation.
+Ten decorative service tiles float at staggered positions on the top, right, bottom and left edges. Offer slides include a dimensional Digimium mark and a gold sparkle. Gift-period promotion slides also include a ribboned gift box. The interior watermark and text stay still. Visitors can pause and resume decorative motion and autoplay from the storefront footer. A hidden tab suspends both, and reduced motion displays the stationary artwork with manual slide navigation.
 
 Refresh an open storefront to receive saved catalog edits. Promotions, best-seller flags and discounts remain active until the owner changes them.
 
