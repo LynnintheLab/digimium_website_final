@@ -48,8 +48,8 @@ export default defineConfig(async ({ command }) => {
     define: { "process.env.NEXT_PUBLIC_DIGIMIUM_TARGET": JSON.stringify("sites") },
     resolve: {
       alias: {
-        "@digimium/auth": fileURLToPath(new URL("./runtime/auth.sites.ts", import.meta.url)),
-        "@digimium/storage": fileURLToPath(new URL("./runtime/storage.sites.ts", import.meta.url)),
+        "../runtime/auth": fileURLToPath(new URL("./runtime/auth.sites.ts", import.meta.url)),
+        "../runtime/storage": fileURLToPath(new URL("./runtime/storage.sites.ts", import.meta.url)),
       },
     },
     server: {

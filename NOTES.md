@@ -28,6 +28,8 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
+Verified the staging account page, MySQL-backed session lookup, storefront account link and protected order endpoints. Corrected a legacy Vinext resolution issue discovered during the Worker smoke test. A local build of the legacy target served all 54 seed products from its D1-backed catalog, used the Telegram checkout and returned 404 on customer account routes.
+
 Connected storefront checkout, customer accounts, the admin order queue and private purchase history. Verified the real account and approval flow with a disposable local database and a simulated admin OTP, including lost checkout acknowledgements, concurrent requests, price snapshots, encrypted delivery details and customer isolation. Chromium covered mobile registration through delivery. WebKit checked the Myanmar account entry at 320px. See the Hostinger guide for first-use schema setup and credential backup.
 
 Removed the gift box, 3D portal and sparkle artwork at the owner’s request. Strengthened Best Seller styling across the showcase, product cards, dialog and plan options. Node 24 build and types, 14 unit tests and Chromium/WebKit checks at 320, 390 and 1280px passed. English and Myanmar checks covered marked and ordinary plans, selected states, wrapping and full-card offer activation.

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import * as auth from "@digimium/auth";
+import * as auth from "../runtime/auth";
 import type { ChatGPTUser } from "../app/chatgpt-auth";
 import type { AdminCheck } from "./admin-auth-policy";
 

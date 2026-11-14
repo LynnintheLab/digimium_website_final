@@ -1,4 +1,4 @@
-import { readSnapshot, writeSnapshot } from "@digimium/storage";
+import { readSnapshot, writeSnapshot } from "../runtime/storage";
 import type { CatalogSnapshot } from "./storage-types";
 import type { Catalog } from "./catalog";
 import { initialCatalog } from "./initial-catalog";

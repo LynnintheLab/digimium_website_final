@@ -2,7 +2,7 @@
 
 ## Runtime
 
-The React 19 and TypeScript storefront uses the Next.js App Router. The default build creates a standalone Next.js Node server for Hostinger. The `@digimium/storage` adapter reads and writes catalog snapshots and uploaded logo bytes in MySQL. Admin sessions use the same database. [Hostinger setup](HOSTINGER.md)
+The React 19 and TypeScript storefront uses the Next.js App Router. The default build creates a standalone Next.js Node server for Hostinger. The `runtime/storage.ts` adapter reads and writes catalog snapshots and uploaded logo bytes in MySQL. Admin sessions use the same database. [Hostinger setup](HOSTINGER.md)
 
 The retained Vinext/Vite target builds a Cloudflare Worker for Sites. Its storage adapter uses Drizzle/D1 for catalog snapshots and R2 for images. The Sites Vite integration copies the hosting metadata and migrations into its build output.
 

@@ -26,12 +26,6 @@
     "paths": {
       "@/*": [
         "./*"
-      ],
-      "@digimium/auth": [
-        "./hostinger/auth.ts"
-      ],
-      "@digimium/storage": [
-        "./hostinger/storage.ts"
       ]
     },
     "types": [

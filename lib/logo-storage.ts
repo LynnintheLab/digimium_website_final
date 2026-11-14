@@ -1,4 +1,4 @@
-import { logoExists, putLogo, readLogo } from "@digimium/storage";
+import { logoExists, putLogo, readLogo } from "../runtime/storage";
 import { LOGO_FILE_PATTERN, MAX_LOGO_BYTES, MAX_LOGO_DIMENSION, logoObjectKey } from "./logo-path";
 
 type ImageType = { mime: "image/png" | "image/jpeg" | "image/webp"; extension: "png" | "jpg" | "webp" };
