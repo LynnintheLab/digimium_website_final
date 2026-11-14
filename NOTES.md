@@ -4,7 +4,7 @@
 
 Account and history now use a clearer type hierarchy: bold customer/service names, separate plan/duration/unit-price lines, prominent totals and distinct pending/approved labels. Latin text uses Manrope and Myanmar glyphs use Wa Lone in account body and headings. Active terms use emerald, urgent/pending use amber, expired terms use muted red, and other states retain their labels. The white account panel keeps its heading/close control pinned while scrolling; pending Telegram instructions appear once per section with a clear action on each order.
 
-Customer login uses one shared chooser in Account, Order history and checkout. Google, Telegram and phone options are disabled Coming soon placeholders. Email-first sign-in asks existing customers for their password; new addresses choose a password then provide a name. There are no social-provider credentials, callbacks, SMS sending or customer-schema migrations in this release. See [LOGIN-PROVIDERS.md](docs/LOGIN-PROVIDERS.md) for future setup.
+Customer login uses one shared chooser in Account, Order history and checkout. Google OAuth is implemented and becomes available only when that Hostinger app has its private GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET settings. A Digimium Store Web client has been created in Google Cloud with both live/staging origins and callbacks; its credential pair is saved privately in the ignored .env.google.local file and an owner-only outputs/google-login.env import copy. Hostinger credential entry and a real Google sign-in still await the owner. Telegram and phone remain Coming soon. Email-first sign-in remains available. See [LOGIN-PROVIDERS.md](docs/LOGIN-PROVIDERS.md) for setup and the requested future Telegram code-selection bot flow.
 
 The storefront, Account and Order history default to Myanmar. An explicit English language selection persists. The initial HTML language matches that preference; the English admin subtree is marked separately.
 
@@ -35,6 +35,10 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Implemented Google sign-in with PKCE, verified ID-token claims, stable Google identities, browser-bound expiring challenges and first-party customer sessions. Existing email/password accounts require their password once before linking; new Google-only accounts have no website password. Checkout returns to the unchanged cart. Cancellation, overlapping attempts and popup-close fallback are tied to the original flow, so late callbacks cannot complete a cancelled attempt or replace a newer attempt. Created the approved Google Cloud External/Testing app and Web client with only openid/email/profile scopes. Secrets are private and ignored; no provider credentials were added to Git or Hostinger.
+
+Node 24 standalone and Sites builds, focused ESLint, 23 unit tests, disposable-MariaDB commerce and Google protocol/race integration passed. Browser fixtures passed desktop English and WebKit 320px Myanmar, including actual popup origin/source checks, wrong-password linking/retry, missing-name completion, blocked/closed popups, stale responses, fixed fallback navigation, cart preservation and Google-only settings. Real Google provider authentication awaits Hostinger credential entry. Sites build route types overwrite the Next generated declarations; regenerate with next typegen before a standalone typecheck after switching build targets.
 
 Refined account/history clarity from the owner’s screenshots using the existing fonts, stronger weights, restrained status colors and clearer grouping. Localized unit prices/totals consistently, kept quantity separate, and removed repeated long Telegram guidance from each order. Kept all pending orders, the three-line history preview, full history dates and Telegram draft behavior. Node 24 standalone build, types, focused ESLint and all 23 unit tests passed. Chromium1440/390 English and WebKit320 Myanmar fixtures covered long emails/plans, duplicate-service subscriptions, active/expired/urgent states, three pending orders, no overflow and a pinned panel heading.
 
@@ -112,7 +116,9 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-When ready to add social/phone login, follow the provider setup guide, implement the identity/callback handling and carrier tests, then activate one provider at a time. Current buttons intentionally stay disabled until that work is complete.
+The owner must import the private two-key outputs/google-login.env file into the staging Hostinger app, review/apply the new variables and restart/redeploy. Verify /api/customer/google reports enabled, then test a real Google sign-in on staging. Apply the same approved client pair to production and verify its Google capability/button. Existing application/database/fulfillment settings must retain their values. The browser credential-entry policy requires the owner to perform secret entry and submission; no secret should be pasted into chat.
+
+For Telegram, implement the documented website comparison-code and bot approval flow when requested; it remains unimplemented. Phone login still needs a chosen SMS provider and carrier tests.
 
 Check the checkout choices and account popup on a physical phone with its software keyboard and Telegram app. Guests refer to the Telegram order message; there is no automatic later account linking. Keep ALTER privilege on the order table for the first deployment migration and retain database backups.
 

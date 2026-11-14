@@ -2,7 +2,7 @@
 
 Use a **Node.js Web App** with a Hostinger MySQL database. The app serves the storefront, `/admin`, and the catalog and image APIs from the same HTTPS address. Hostinger can build it directly from the GitHub repository. You can complete these steps in hPanel without SSH.
 
-Both Hostinger apps use email-code login. For an existing password-based deployment, keep its database connection, import the updated schema from step 2 into that database, then apply its own admin and Resend settings from step 3.
+Both Hostinger apps use email-code login for the owner admin. Customers use email/password or Google when Google OAuth is configured. For an existing password-based deployment, keep its database connection, import the updated schema from step 2 into that database, then apply its own admin and Resend settings from step 3.
 
 ## 1. Create the web app
 
@@ -61,6 +61,8 @@ For an existing deployment, you can enter the same values directly in the web ap
 | `ORDER_FULFILLMENT_SECRET` | Optional private secret of at least 32 characters for encrypting delivered account details. Set it before approving the first order. When empty, the app derives its encryption key from `ADMIN_AUTH_SECRET`. |
 | `RESEND_API_KEY` | Sending key from the Resend account used for this site |
 | `RESEND_FROM_EMAIL` | `onboarding@resend.dev` for the Resend account inbox, or an address on a verified sending domain |
+| `GOOGLE_CLIENT_ID` | Optional customer Google OAuth Web client ID for this app; configure with the matching secret |
+| `GOOGLE_CLIENT_SECRET` | Optional private Google OAuth client secret; both Google values are needed to enable customer Google sign-in |
 
 Store the effective order encryption secret in a private backup with the database recovery instructions. If orders were fulfilled using the fallback, set `ORDER_FULFILLMENT_SECRET` to the original admin secret before rotating `ADMIN_AUTH_SECRET`. Changing the effective encryption key requires re-encrypting existing fulfillment data.
 
@@ -74,9 +76,16 @@ Click **Apply changes** and **Restart** the running Node application. Use **Rede
 
 [Hostinger's environment variable guide](https://www.hostinger.com/support/how-to-edit-or-add-environment-variables-after-deployment/)
 
+### Enable customer Google sign-in
+
+Create a Google Cloud OAuth **Web application** client and configure the exact callback `APP_ORIGIN/api/customer/google/callback`. In production that is `https://buywith-digimium.store/api/customer/google/callback`; in staging it is `https://test.buywith-digimium.store/api/customer/google/callback`. Add the two Google variables to each app privately and restart/redeploy. Validate staging before public activation. The current app uses External / Testing and requests only `openid email profile`, which Google exempts from the test-user allowlist requirement; publishing solely to permit these sign-ins is not required. Additional scopes change that rule, and Google Workspace/account restrictions can still apply. See [Google’s audience rules](https://support.google.com/cloud/answer/15549945?hl=en). Until valid credentials are configured, Google is unavailable; Telegram and phone remain Coming soon.
+
+The first Google identity flow adds the identity/challenge tables and makes customer `password_hash` nullable, preserving existing hashes and orders. It requires CREATE, REFERENCES and ALTER privileges, or the equivalent administrator-applied migration. Back up these tables with the customer/session/order data. Existing local accounts are linked only after their password is confirmed. See [Google setup and planned Telegram code approval](LOGIN-PROVIDERS.md) for full setup and verification steps.
+
 ## 4. Verify the live store
 
 - In a private browser window, open `/` and search for a product. Select a plan and use **Add to cart**. Reopen the cart and check that **Continue to Telegram** offers account or Telegram checkout. The account form must stay in the order popup and return to the cart after success; Telegram checkout displays a history notice and asks for no identity fields. In a test environment, register a customer, save an order, inspect the Telegram draft with its name/email/reference, approve it in admin, then verify dates in the customer account. Verify guest ordering in a disposable test environment, including a repeated request, and check the Guest label in admin. Open the storefront account panel for its three-plan preview and password settings; open Order history for all approved purchases and remaining time.
+- If Google is configured, verify it using the separate staging checks in [the login guide](LOGIN-PROVIDERS.md): a new Google account, repeat sign-in, an existing-email password confirmation, cancellation, and checkout cart preservation. Do not use a live customer account for mutation tests.
 - Open `/admin`. Enter the configured admin email, then enter the six-digit code from the inbox in the same browser within 10 minutes. Close and reopen the same normal browser profile to confirm it remembers you. A fresh private window should ask for its own code. Open a product and confirm that the plan details match what you expect. Test an edit on an unpublished service, upload a small logo, save it and reload. The edit and logo should persist after a restart.
 - Sign out. Opening `/admin` should ask you to sign in again. The customer storefront should still be accessible. A signed-out request to `/api/admin/catalog` should return `401`.
 

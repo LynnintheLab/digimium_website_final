@@ -7,7 +7,7 @@ import { isSameOriginMutation } from "../lib/admin-auth-policy";
 import { getPool } from "./mysql";
 import { CommerceError, readCommerceJson } from "../lib/commerce-http";
 
-export type Customer = { id: string; name: string; email: string; createdAt: string };
+export type Customer = { id: string; name: string; email: string; createdAt: string; passwordAvailable?: false };
 const sessionSeconds = 30 * 24 * 60 * 60;
 let schema: Promise<void> | undefined;
 
@@ -60,12 +60,14 @@ export async function currentCustomer(request: Request): Promise<Customer | null
   const token = config && sessionToken(request, config.cookie);
   if (!token) return null;
   await ensureCustomerSchema();
-  const [rows] = await getPool().execute<(Customer & RowDataPacket)[]>(
-    `SELECT c.id, c.name, c.email, DATE_FORMAT(c.created_at, '%Y-%m-%dT%H:%i:%sZ') AS createdAt FROM digimium_customer_sessions s
+  const [rows] = await getPool().execute<(Customer & RowDataPacket & { password_available: number })[]>(
+    `SELECT c.id, c.name, c.email, c.password_hash IS NOT NULL AS password_available, DATE_FORMAT(c.created_at, '%Y-%m-%dT%H:%i:%sZ') AS createdAt FROM digimium_customer_sessions s
      JOIN digimium_customers c ON c.id = s.customer_id
      WHERE s.token_hash = ? AND s.expires_at > UTC_TIMESTAMP()`, [digest(token)],
   );
-  return rows[0] ?? null;
+  if (!rows[0]) return null;
+  const { password_available, ...customer } = rows[0];
+  return password_available ? customer : { ...customer, passwordAvailable: false };
 }
 
 type Input = { action: "login" | "register"; email: string; name: string; password: string };
@@ -96,7 +98,7 @@ async function hashPassword(password: string) {
   return ["scrypt-v1", salt.toString("hex"), key.toString("hex")].join("$");
 }
 
-async function matchesPassword(password: string, encoded?: string) {
+async function matchesPassword(password: string, encoded?: string | null) {
   const match = /^scrypt-v1\$([\da-f]{32})\$([\da-f]{64})$/.exec(encoded ?? "");
   // A missing account takes the same scrypt work as a valid one.
   const salt = match ? Buffer.from(match[1], "hex") : Buffer.alloc(16);
@@ -118,7 +120,7 @@ async function claimAttempt(scope: string, max: number, bucket: number) {
   return result.affectedRows === 1;
 }
 
-async function withinLimit(request: Request, input: { action: "login" | "register" | "password"; email: string }) {
+async function withinLimit(request: Request, input: { action: "login" | "register" | "password" | "google-link"; email: string }) {
   const bucket = Math.floor(Date.now() / 900000);
   // Cap total hash work even if a proxy does not supply a trustworthy address.
   if (!await claimAttempt("all", 900, bucket)) return false;
@@ -137,9 +139,65 @@ function reply(data: unknown, status = 200, cookie?: string) {
   return Response.json(data, { status, headers });
 }
 
+/** Internal server helper: call only after a verified external identity has been resolved. */
+export async function issueCustomerSession(request: Request, verifiedCustomer: Customer, googleFlow?: {
+  idHash: Buffer; browserHash: Buffer; stage: 'exchanging' | 'processing';
+}): Promise<Response> {
+  const config = site();
+  if (!config) throw new CommerceError(503, "unavailable");
+  await ensureCustomerSchema();
+  const connection = await getPool().getConnection();
+  const token = randomBytes(32).toString("base64url");
+  let customer: Customer;
+  try {
+    await connection.beginTransaction();
+    if (googleFlow) {
+      // Serialize session issuance with cancellation, consuming the still-live flow atomically.
+      const [flows] = await connection.execute<RowDataPacket[]>(
+        'SELECT 1 FROM digimium_google_auth_challenges WHERE id_hash = ? AND browser_hash = ? AND stage = ? AND expires_at > UTC_TIMESTAMP() FOR UPDATE',
+        [googleFlow.idHash, googleFlow.browserHash, googleFlow.stage],
+      );
+      if (!flows.length) throw new CommerceError(400, "expired");
+    }
+    const [rows] = await connection.execute<(RowDataPacket & Customer & { password_available: number })[]>(
+      "SELECT id, name, email, DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%sZ') AS createdAt, password_hash IS NOT NULL AS password_available FROM digimium_customers WHERE id = ? FOR UPDATE",
+      [verifiedCustomer.id],
+    );
+    if (!rows[0]) throw new CommerceError(401, "signed_out");
+    const { password_available, ...person } = rows[0];
+    customer = password_available ? person : { ...person, passwordAvailable: false };
+    const previous = sessionToken(request, config.cookie);
+    if (previous) await connection.execute("DELETE FROM digimium_customer_sessions WHERE token_hash = ?", [digest(previous)]);
+    await connection.execute(
+      "INSERT INTO digimium_customer_sessions (token_hash, customer_id, expires_at) VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND))",
+      [digest(token), customer.id, sessionSeconds],
+    );
+    if (googleFlow) await connection.execute(
+      'DELETE FROM digimium_google_auth_challenges WHERE id_hash = ? AND browser_hash = ?', [googleFlow.idHash, googleFlow.browserHash],
+    );
+    await connection.commit();
+  } catch (error) { await connection.rollback(); throw error; }
+  finally { connection.release(); }
+  return reply({ customer }, 200, `${config.cookie}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${sessionSeconds}${config.secure ? "; Secure" : ""}`);
+}
+
+/** Preserve the existing password policy and limit expensive account-link password checks. */
+export async function proveCustomerPasswordForGoogle(request: Request, customer: Pick<Customer, "id" | "email">, password: string): Promise<string> {
+  if (typeof password !== "string" || !password.length || password.length > 256) throw new CommerceError(400, "invalid");
+  await ensureCustomerSchema();
+  if (!await withinLimit(request, { action: "google-link", email: customer.email })) throw new CommerceError(429, "rate_limited");
+  const [rows] = await getPool().execute<(RowDataPacket & { password_hash: string | null })[]>(
+    "SELECT password_hash FROM digimium_customers WHERE id = ? AND email = ?", [customer.id, customer.email],
+  );
+  const hash = rows[0]?.password_hash;
+  if (!await matchesPassword(password, hash) || !hash) throw new CommerceError(400, "credentials");
+  return hash;
+}
+
 async function changePassword(request: Request, oldToken: string | null, cookie: (token: string, age: number) => string) {
   const customer = await currentCustomer(request);
   if (!customer || !oldToken) return reply({ error: "signed_out" }, 401);
+  if (customer.passwordAvailable === false) return reply({ error: "provider_password" }, 400);
   const body = await readCommerceJson(request, 4096);
   if (!body || typeof body !== "object" || Array.isArray(body)) return reply({ error: "invalid" }, 400);
   const { action, currentPassword, newPassword } = body as Record<string, unknown>;

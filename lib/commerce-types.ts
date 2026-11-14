@@ -3,6 +3,7 @@ export type CommerceCustomer = {
   name: string;
   email: string;
   createdAt: string;
+  passwordAvailable?: false;
 };
 
 export type CommerceOrderLine = {

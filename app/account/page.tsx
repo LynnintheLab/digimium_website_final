@@ -13,9 +13,9 @@ export const metadata: Metadata = {
 };
 
 export default async function AccountPage({ searchParams }: {
-  searchParams: Promise<{ checkout?: string }>;
+  searchParams: Promise<{ checkout?: string; google?: string; returnTo?: string }>;
 }) {
   if (!commerceEnabled) notFound();
   const [preferences, query] = await Promise.all([cookies(), searchParams]);
-  return <Account lang={preferredShopLanguage(preferences.get("digimium-language")?.value)} checkout={query.checkout === "1"} />;
+  return <Account lang={preferredShopLanguage(preferences.get("digimium-language")?.value)} checkout={query.checkout === "1" || query.returnTo === "checkout"} resumeGoogle={query.google === "continue" || query.google === "error"} googleReturnTo={query.returnTo === "checkout" ? "checkout" : query.returnTo === "history" ? "history" : "account"} />;
 }

@@ -13,7 +13,7 @@ import { AuthForm } from "./auth-form";
 export { CheckoutAuth } from "./auth-form";
 import { SubscriptionTerm } from "./subscription-term";
 
-type AccountProps = { lang: ShopLanguage; checkout?: boolean; embedded?: boolean; history?: boolean; onClose?: () => void };
+type AccountProps = { lang: ShopLanguage; checkout?: boolean; embedded?: boolean; history?: boolean; resumeGoogle?: boolean; googleReturnTo?: "checkout" | "account" | "history"; onClose?: () => void };
 type Translate = (en: string, my: string) => string;
 
 const sessionPath = "/api/customer/session";
@@ -155,7 +155,7 @@ function RecentOrders({ orders, lang, t, onClose }: { orders: CommerceOrder[]; l
   </section>;
 }
 
-export function AccountContent({ lang, checkout = false, embedded = false, history = false, onClose }: AccountProps) {
+export function AccountContent({ lang, checkout = false, embedded = false, history = false, resumeGoogle = false, googleReturnTo = "account", onClose }: AccountProps) {
   const Container = embedded ? "section" : "main";
   const Title = embedded ? "h2" : "h1";
   const t: Translate = (en, my) => lang === "my" ? my : en;
@@ -183,6 +183,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
         if (!session.ok) throw new Error("session");
         const { customer: person } = await session.json() as { customer: Customer | null };
         if (!active) return;
+        if (resumeGoogle) { setCustomer(null); setOrders(null); setFailed(false); setLoading(false); return; }
         setCustomer(person);
         setOrders(null);
         if (person && checkout && !embedded) { window.location.replace("/?checkout=1"); return; }
@@ -203,7 +204,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
     }
     void load();
     return () => { active = false; controller.abort(); };
-  }, [reload, checkout, embedded, history]);
+  }, [reload, checkout, embedded, history, resumeGoogle]);
 
   useEffect(() => {
     function clearOnLeave() { setCustomer(null); setOrders(null); setLoading(true); }
@@ -243,6 +244,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
   }
 
   function signedIn(person: Customer) {
+    if (resumeGoogle) { window.location.replace(googleReturnTo === "checkout" ? "/?checkout=1" : googleReturnTo === "history" ? "/order-history" : "/account"); return; }
     if (checkout && !embedded) { window.location.replace("/?checkout=1"); return; }
     setCustomer(person);
     refresh();
@@ -274,7 +276,8 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
           <div>{!embedded && !history && <Title>{t("My account", "ကျွန်ုပ်၏အကောင့်")}</Title>}<p><strong className="customer-profile-name">{customer.name}</strong><span className="customer-profile-email">{customer.email}</span></p>{!history && <small className="customer-member-since">{t("Joined", "အကောင့်ဖွင့်သည့်နေ့")} <time dateTime={customer.createdAt}>{formatDate(customer.createdAt, lang)}</time></small>}</div>
           <button type="button" onClick={logout} disabled={loggingOut}><LogOut size={16} aria-hidden />{t("Sign out", "အကောင့်ထွက်ရန်")}</button>
         </div>
-        {!history && <PasswordForm t={t} onUpdated={setCustomer} onSignedOut={() => { setCustomer(null); setOrders(null); refresh(); }} />}
+        {!history && customer.passwordAvailable !== false && <PasswordForm t={t} onUpdated={setCustomer} onSignedOut={() => { setCustomer(null); setOrders(null); refresh(); }} />}
+        {!history && customer.passwordAvailable === false && <p className="customer-google-connected">{t("Signed in with Google", "Google ဖြင့် ဝင်ထားသည်")}</p>}
         {!orders && !failed && <p role="status">{t("Loading orders…", "အော်ဒါများကို ဖော်ပြနေပါတယ်…")}</p>}
         {orders && <>
           {!history && <RecentOrders orders={approved} lang={lang} t={t} onClose={onClose} />}

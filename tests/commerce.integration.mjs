@@ -348,6 +348,27 @@ try {
   assert.equal((await submit({ ...guestBody, requestId: randomUUID() }, guestCookie)).status, 429);
   assert.deepEqual(await json(await submit(guestBody, guestCookie)), guestCheckout, 'Safe retries remain available at the new-order limit');
 
+  // A Google-only customer has no local password and must never see a fictitious password flow.
+  const googleOnlyId = randomUUID();
+  const googleOnlyEmail = 'google-only@example.invalid';
+  const googleOnlyToken = randomBytes(32).toString('base64url');
+  const googleOnlyCookie = 'digimium_local_customer=' + googleOnlyToken;
+  await db.execute('INSERT INTO digimium_customers (id, name, email, password_hash, created_at) VALUES (?, ?, ?, NULL, UTC_TIMESTAMP())',
+    [googleOnlyId, 'Google customer fixture', googleOnlyEmail]);
+  await db.execute('INSERT INTO digimium_customer_sessions (token_hash, customer_id, expires_at) VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 HOUR))',
+    [createHash('sha256').update(googleOnlyToken).digest(), googleOnlyId]);
+  assert.deepEqual(await json(await mutate(customerEmailStep, 'POST', { email: googleOnlyEmail })), { next: 'google' });
+  const googleOnlySession = await json(await get(customerSession, googleOnlyCookie));
+  assert.equal(googleOnlySession.customer.id, googleOnlyId);
+  assert.equal(googleOnlySession.customer.passwordAvailable, false);
+  assert.ok(!Object.hasOwn(googleOnlySession.customer, 'password_hash'));
+  assert.equal((await mutate(customerSession, 'POST', { action: 'login', email: googleOnlyEmail, password: randomUUID() })).status, 401);
+  assert.deepEqual(await json(await mutate(customerSession, 'PATCH', { currentPassword: 'not-a-real-password', newPassword: randomUUID() }, googleOnlyCookie), 400),
+    { error: 'provider_password' });
+  await json(await mutate(customerSession, 'DELETE', {}, googleOnlyCookie));
+  assert.equal((await json(await get(customerSession, googleOnlyCookie))).customer, null);
+  await db.execute('DELETE FROM digimium_customers WHERE id = ?', [googleOnlyId]);
+
   console.log('Commerce integration passed: account sessions, Telegram checkout, guest schema migration, isolated guests, exact retries, guest limits, date approvals, password rotation and owner-only history.');
 } finally {
   if (server && server.exitCode === null && !server.signalCode) {

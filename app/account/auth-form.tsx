@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { ArrowLeft, ArrowRight, ArrowUpRight, Phone } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { CommerceCustomer } from '../../lib/commerce-types';
+import { useGoogleLogin } from './use-google-login';
 import type { ShopLanguage } from '../../lib/shop-language';
 
 type Translate = (en: string, my: string) => string;
@@ -16,7 +17,7 @@ type AuthFormProps = {
   onGuest?: () => void;
   onBusyChange?: (busy: boolean) => void;
 };
-type Step = 'email' | 'password' | 'new-password' | 'name';
+type Step = 'email' | 'password' | 'new-password' | 'name' | 'google-link' | 'google-name';
 
 function GoogleMark() {
   return <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
@@ -35,21 +36,37 @@ export function AuthForm({ checkout, embedded, history, t, onSuccess, onGuest, o
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [emailBusy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const inFlight = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
   const hintId = useId();
+  const google = useGoogleLogin(checkout ? 'checkout' : history ? 'history' : 'account', {
+    onSuccess,
+    onBusyChange,
+    onPending: (kind, address) => { setPassword(''); setError(''); if (address) setEmail(address); setStep(kind === 'link' ? 'google-link' : 'google-name'); },
+  });
+  const busy = emailBusy || google.busy;
+  const googleErrors: Record<string,string> = {
+    popup_blocked: t('Allow the Google sign-in window, then try again.', 'Google အကောင့်ဝင်တဲ့ window ဖွင့်ခွင့်ပေးပြီး ပြန်ကြိုးစားပါ။'),
+    cancelled: t('Google sign-in was cancelled. You can try again.', 'Google အကောင့်ဝင်ခြင်းကို ပိတ်လိုက်ပါတယ်။ ပြန်ကြိုးစားနိုင်ပါတယ်။'),
+    expired: t('Google sign-in expired. Please start again.', 'Google အကောင့်ဝင်ချိန် ကုန်သွားပါပြီ။ အစက ပြန်ဝင်ပါ။'),
+    credentials: t('The existing account password is incorrect.', 'ရှိပြီးသားအကောင့်ရဲ့ စကားဝှက် မှားနေပါတယ်။'),
+    account_conflict: t('This email is linked to another account. Use email sign-in.', 'ဒီ email ကို အခြားအကောင့်နဲ့ ချိတ်ထားပါတယ်။ Email ဖြင့် အကောင့်ဝင်ပါ။'),
+    rate_limited: t('Too many attempts. Try again in 15 minutes.', 'အကြိမ်ရေ များသွားပါတယ်။ ၁၅ မိနစ်နောက် ပြန်ကြိုးစားပါ။'),
+  };
+  const googleError = google.error ? googleErrors[google.error] || t('Google sign-in is unavailable. Try again or use email.', 'Google ဖြင့် ခေတ္တအကောင့်ဝင်မရပါ။ ပြန်ကြိုးစားပါ သို့မဟုတ် Email ဖြင့် ဝင်ပါ။') : '';
   const Title = embedded || history ? 'h2' : 'h1';
-  const title = step === 'email' ? t('Log in or sign up', 'အကောင့်ဝင် / ဖွင့်ရန်') : step === 'password' ? t('Enter your password', 'စကားဝှက် ထည့်ပါ') : step === 'new-password' ? t('Create your account', 'အကောင့်အသစ် ဖွင့်မယ်') : t('What should we call you?', 'နာမည် ထည့်ပါ');
+  const title = step === 'google-link' ? t('Connect your existing account', 'ရှိပြီးသားအကောင့် ချိတ်ဆက်မယ်') : step === 'google-name' ? t('Your name', 'သင့်နာမည်') : step === 'email' ? t('Log in or sign up', 'အကောင့်ဝင် / ဖွင့်ရန်') : step === 'password' ? t('Enter your password', 'စကားဝှက် ထည့်ပါ') : step === 'new-password' ? t('Create your account', 'အကောင့်အသစ် ဖွင့်မယ်') : t('What should we call you?', 'နာမည် ထည့်ပါ');
 
   useEffect(() => {
     if (step !== 'email') heading.current?.focus({preventScroll: true});
   }, [step]);
 
   function back() {
-    if (inFlight.current) return;
+    if (inFlight.current || busy) return;
+    google.cancel();
     setError('');
     setPassword('');
     setStep(step === 'name' ? 'new-password' : 'email');
@@ -57,8 +74,14 @@ export function AuthForm({ checkout, embedded, history, t, onSuccess, onGuest, o
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (inFlight.current) return;
+    if (inFlight.current || google.busy) return;
     const values = new FormData(event.currentTarget);
+    if (step === 'email') google.cancel();
+    google.clearError();
+    if (step === 'google-link' || step === 'google-name') {
+      await google.complete(step === 'google-link' ? {password:String(values.get('password') || '')} : {name:String(values.get('name') || '')});
+      return;
+    }
     if (step === 'new-password') {
       setPassword(String(values.get('password') || ''));
       setError('');
@@ -78,8 +101,12 @@ export function AuthForm({ checkout, embedded, history, t, onSuccess, onGuest, o
           password: step === 'name' ? password : values.get('password'), name: values.get('name'),
         }),
       });
-      const data = await response.json() as {next?: 'password' | 'register'; customer?: CommerceCustomer; error?: string};
+      const data = await response.json() as {next?: 'password' | 'register' | 'google'; customer?: CommerceCustomer; error?: string};
       if (response.ok) {
+        if (lookup && data.next === 'google') {
+          setError(t('This account uses Google. Choose Continue with Google above.', 'ဒီအကောင့်က Google ဖြင့် ဝင်ရတဲ့အကောင့်ပါ။ အပေါ်က Google ဖြင့် ဝင်မယ် ကို ရွေးပါ။'));
+          return;
+        }
         if (lookup && (data.next === 'password' || data.next === 'register')) {
           setEmail(email.trim().toLowerCase());
           setStep(data.next === 'password' ? 'password' : 'new-password');
@@ -103,26 +130,30 @@ export function AuthForm({ checkout, embedded, history, t, onSuccess, onGuest, o
     <Title ref={heading} tabIndex={-1} id={titleId}>{title}</Title>
     {step === 'email' ? <>
       <p className="customer-auth-intro">{t('Choose how you’d like to continue.', 'အကောင့်ဝင်ရန် နည်းလမ်းရွေးပါ။')}</p>
-      <div className="customer-providers" aria-label={t('More sign-in methods coming soon', 'အခြား အကောင့်ဝင်နည်းများ မကြာမီ ရရှိပါမည်')}>
-        <button type="button" className="customer-provider" disabled><GoogleMark/><span>{t('Continue with Google', 'Google ဖြင့် ဝင်မယ်')}</span><small>Coming soon</small></button>
+      <div className="customer-providers" aria-label={t('Sign-in methods', 'အကောင့်ဝင်ရန် နည်းလမ်းများ')}>
+        <button type="button" className="customer-provider" data-ready={google.enabled || undefined} disabled={busy || !google.enabled} onClick={() => { setError(''); void google.start(); }}><GoogleMark/><span>{t('Continue with Google', 'Google ဖြင့် ဝင်မယ်')}</span>{google.enabled === false && <small>Coming soon</small>}</button>
         <button type="button" className="customer-provider" disabled><Image src="/assets/marks/telegram.svg" alt="" width={20} height={20} unoptimized /><span>{t('Continue with Telegram', 'Telegram ဖြင့် ဝင်မယ်')}</span><small>Coming soon</small></button>
         <button type="button" className="customer-provider" disabled><Phone size={20} aria-hidden/><span>{t('Continue with phone', 'ဖုန်းနံပါတ်ဖြင့် ဝင်မယ်')}</span><small>Coming soon</small></button>
       </div>
       <div className="customer-auth-divider"><span>{t('or use email', 'သို့မဟုတ် email ဖြင့်')}</span></div>
     </> : <div className="customer-auth-email"><span>{email}</span><button type="button" disabled={busy} onClick={back}><ArrowLeft size={14} aria-hidden/>{t('Back', 'ပြန်သွားရန်')}</button></div>}
+    {step === 'google-link' && <p className="customer-auth-intro">{t('An account already uses this email. Confirm its password once to connect Google and keep your orders.', 'ဒီ email နဲ့ အကောင့်ရှိပြီးသားပါ။ Google နဲ့ ချိတ်ပြီး အော်ဒါမှတ်တမ်းတွေ ဆက်သုံးဖို့ ရှိပြီးသားစကားဝှက်ကို တစ်ကြိမ် အတည်ပြုပေးပါ။')}</p>}
+    {step === 'google-name' && <p className="customer-auth-intro">{t('Google is verified. Add your name to finish creating your account.', 'Google အကောင့်ကို အတည်ပြုပြီးပါပြီ။ အကောင့်ဖွင့်ပြီးဖို့ သင့်နာမည် ထည့်ပေးပါ။')}</p>}
+    {google.busy && step === 'email' && <div className="customer-google-wait" role="status"><p>{t('Finish signing in in the Google window.', 'Google window မှာ အကောင့်ဝင်ပြီး အတည်ပြုပေးပါ။')}</p><button type="button" onClick={google.cancel}>{t('Cancel Google sign-in', 'Google အကောင့်ဝင်ခြင်း ပယ်ဖျက်ရန်')}</button></div>}
+    {googleError && <p role="alert" className="customer-error customer-google-error">{googleError}</p>}
     {step === 'new-password' && <p className="customer-auth-intro" role="status">{t('There’s no account with this email yet. Choose a password to create one.', 'ဒီ email နဲ့ အကောင့်မရှိသေးပါ။ အကောင့်ဖွင့်ဖို့ စကားဝှက်အသစ် သတ်မှတ်ပါ။')}</p>}
     <form key={step} onSubmit={submit} aria-busy={busy}>
       {step === 'email' && <label>{t('Email address', 'အီးမေးလ်')}<input name="email" type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="username" autoCapitalize="none" maxLength={254} required disabled={busy}/></label>}
-      {(step === 'password' || step === 'new-password') && <>
+      {(step === 'password' || step === 'new-password' || step === 'google-link') && <>
         <input type="hidden" name="email" autoComplete="username" value={email}/>
-        <label>{step === 'password' ? t('Password', 'စကားဝှက်') : t('Create a password', 'စကားဝှက်အသစ်')}<input name="password" type="password" autoComplete={step === 'password' ? 'current-password' : 'new-password'} minLength={step === 'new-password' ? 10 : undefined} maxLength={256} required disabled={busy} aria-describedby={step === 'new-password' ? hintId : undefined}/></label>
+        <label>{step !== 'new-password' ? t('Password', 'စကားဝှက်') : t('Create a password', 'စကားဝှက်အသစ်')}<input name="password" type="password" autoComplete={step === 'new-password' ? 'new-password' : 'current-password'} minLength={step === 'new-password' ? 10 : undefined} maxLength={256} required disabled={busy} aria-describedby={step === 'new-password' ? hintId : undefined}/></label>
         {step === 'new-password' && <small id={hintId}>{t('Use at least 10 characters.', 'အနည်းဆုံး စာလုံး ၁၀ လုံး သုံးပါ။')}</small>}
       </>}
-      {step === 'name' && <label>{t('Your name', 'သင့်နာမည်')}<input name="name" autoComplete="name" maxLength={100} required disabled={busy}/></label>}
+      {(step === 'name' || step === 'google-name') && <label>{t('Your name', 'သင့်နာမည်')}<input name="name" autoComplete="name" maxLength={100} required disabled={busy}/></label>}
       {error && <p role="alert" className="customer-error">{error}</p>}
-      <button type="submit" className="customer-primary" disabled={busy}>{busy ? t('Please wait…', 'ခဏစောင့်ပါ…') : step === 'name' ? t('Create account', 'အကောင့်ဖွင့်မယ်') : step === 'password' ? t('Log in', 'အကောင့်ဝင်မယ်') : t('Continue', 'ဆက်လုပ်မယ်')}<ArrowRight size={17} aria-hidden/></button>
+      <button type="submit" className="customer-primary" disabled={busy}>{busy ? t('Please wait…', 'ခဏစောင့်ပါ…') : (step === 'name' || step === 'google-name') ? t('Create account', 'အကောင့်ဖွင့်မယ်') : step === 'google-link' ? t('Connect Google', 'Google နဲ့ ချိတ်ဆက်မယ်') : step === 'password' ? t('Log in', 'အကောင့်ဝင်မယ်') : t('Continue', 'ဆက်လုပ်မယ်')}<ArrowRight size={17} aria-hidden/></button>
     </form>
-    {checkout && <div className="customer-auth-alternative">{onGuest ? <button type="button" className="customer-guest-link" disabled={busy} onClick={onGuest}>{t('Buy on Telegram instead', 'Telegram မှာ တိုက်ရိုက်ဝယ်မယ်')}<ArrowUpRight size={16} aria-hidden/></button>
+    {checkout && <div className="customer-auth-alternative">{onGuest ? <button type="button" className="customer-guest-link" disabled={busy} onClick={() => { google.cancel(); onGuest(); }}>{t('Buy on Telegram instead', 'Telegram မှာ တိုက်ရိုက်ဝယ်မယ်')}<ArrowUpRight size={16} aria-hidden/></button>
       // eslint-disable-next-line @next/next/no-html-link-for-pages -- Restore the checkout in a fresh storefront document.
       : <a className="customer-guest-link" href="/?checkout=1">{t('Buy on Telegram instead', 'Telegram မှာ တိုက်ရိုက်ဝယ်မယ်')}<ArrowUpRight size={16} aria-hidden/></a>}</div>}
   </section>;

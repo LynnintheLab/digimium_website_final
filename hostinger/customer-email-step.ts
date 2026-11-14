@@ -41,10 +41,10 @@ export async function customerEmailStep(request: Request): Promise<Response> {
     }
     await ensureCustomerSchema();
     if (!await allowedAttempt(request, email)) return commerceJson({ error: 'rate_limited' }, 429);
-    const [rows] = await getPool().execute<RowDataPacket[]>('SELECT 1 FROM digimium_customers WHERE email = ? LIMIT 1', [email]);
+    const [rows] = await getPool().execute<RowDataPacket[]>('SELECT password_hash IS NOT NULL AS password_available FROM digimium_customers WHERE email = ? LIMIT 1', [email]);
     // Existence is the minimum disclosure needed for the requested email-first sign-in/registration flow.
     // Do not return a customer identifier, profile, credentials, or any session from this step.
-    return commerceJson({ next: rows.length ? 'password' : 'register' });
+    return commerceJson({ next: rows.length ? rows[0].password_available ? 'password' : 'google' : 'register' });
   } catch (error) {
     if (error instanceof CommerceError) return commerceJson({ error: 'invalid' }, error.status);
     return commerceJson({ error: 'unavailable' }, 503);
