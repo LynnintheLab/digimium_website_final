@@ -5,7 +5,7 @@ import './admin.css';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
-  title: 'Catalog admin — digimium.',
+  title: 'Store admin — digimium.',
   robots: { index: false, follow: false },
 };
 

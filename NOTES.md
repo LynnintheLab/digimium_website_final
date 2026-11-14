@@ -2,6 +2,8 @@
 
 ## Current status
 
+Hostinger customers can register with a name, email and password at `/account`. Online checkout saves a pending order to MySQL. Admin has **Customers** and **Orders** views and can approve an order with editable start and expiration dates and optional purchased-account details per item. The customer sees pending orders and approved purchase history separately. Contact and payment arrangements remain manual. See [the deployment guide](docs/HOSTINGER.md) for table creation, backups and the fulfillment encryption key.
+
 Ten floating service-logo tiles surround all four edges of the showcase, with mixed sizes, clustered placements and open gaps. Best Seller badges use a bright gold background and filled star. Marked plans have a pale gold gradient and amber border; the selected plan has a blue outline and checked radio. The large watermark is stationary. A footer motion control, page visibility and the system reduced-motion preference govern animation. Phones support horizontal swipes, and multiple slides retain arrow and dash navigation.
 
 Both public catalogs returned 54 products at the start of this showcase update. Production had two published ChatGPT plans marked Best Seller. Offer selections and prices reflect each site's current MySQL data.
@@ -20,11 +22,13 @@ The live Hostinger shop at `https://buywith-digimium.store` tracks `production`.
 
 The storefront uses the original blue Digimium symbol as its favicon. The branded messaging preview supplies a title, description and 1200 × 630 image in the initial HTML.
 
-The catalog shows two product cards per row up to 700px and three above. Checkout empties the browser cart immediately and keeps the full order available on the Telegram handoff screen.
+The catalog shows two product cards per row up to 700px and three above. Hostinger checkout clears the cart on server confirmation. Sites checkout retains its Telegram draft handoff.
 
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Connected storefront checkout, customer accounts, the admin order queue and private purchase history. Verified the real account and approval flow with a disposable local database and a simulated admin OTP, including lost checkout acknowledgements, concurrent requests, price snapshots, encrypted delivery details and customer isolation. Chromium covered mobile registration through delivery. WebKit checked the Myanmar account entry at 320px. See the Hostinger guide for first-use schema setup and credential backup.
 
 Removed the gift box, 3D portal and sparkle artwork at the owner’s request. Strengthened Best Seller styling across the showcase, product cards, dialog and plan options. Node 24 build and types, 14 unit tests and Chromium/WebKit checks at 320, 390 and 1280px passed. English and Myanmar checks covered marked and ordinary plans, selected states, wrapping and full-card offer activation.
 
@@ -84,6 +88,8 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
+For an incoming order, open **Admin → Orders → Pending**, review its items, confirm subscription dates and enter any access details before approval. Use **Customers** to look up the customer and their orders.
+
 Check the new Best Seller badge and plan treatment on a physical phone. For future changes, read `HANDOFF.md`, this file, `AGENTS.md` and the relevant target guide, then pull `testing` before editing.
 
 Mark the desired products and plans as **Best Seller** and save. Gift durations and discount prices automatically qualify the corresponding published offers for the landing showcase.
@@ -94,4 +100,4 @@ Open Google Analytics **Reports → Realtime** to see recent storefront activity
 
 Use the plan arrows to set the preferred order for each service, then save and check its storefront card and plan picker.
 
-Check the share preview and a checkout draft on a phone running Telegram.
+The legacy Sites target can be checked on a phone running Telegram.

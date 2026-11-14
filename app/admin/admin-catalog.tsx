@@ -6,12 +6,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleAlert, Eye, EyeOff,
   LayoutGrid, LoaderCircle, LogOut, Mail, Plus, RotateCcw, Save, Search,
-  Settings, Sparkles, X,
+  Settings, ShoppingBag, Sparkles, Users, X,
 } from 'lucide-react';
 import { categories, type Catalog, type CatalogSettings, type Product } from '@/lib/catalog';
 
 import { DEFAULT_TELEGRAM_CONTACT, validTelegramUsername } from '@/lib/telegram-contact';
 import { discountPriceError } from '@/lib/pricing';
+import { commerceEnabled } from '@/lib/commerce-enabled';
+import AdminCommerce from './commerce/admin-commerce';
 import DurationField from './duration-field';
 import PriceField from './price-field';
 import { PlanEditor, planFieldId } from './plan-editor';
@@ -71,7 +73,9 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
   const [draft, setDraft] = useState<Catalog | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showServiceEditor, setShowServiceEditor] = useState(false);
-  const [view, setView] = useState<'services' | 'settings'>('services');
+  const [view, setView] = useState<'services' | 'settings' | 'orders' | 'customers'>('services');
+  const [orderCustomerId, setOrderCustomerId] = useState<string | null>(null);
+  const [orderDirty, setOrderDirty] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
   const [status, setStatus] = useState('all');
@@ -115,11 +119,11 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
 
   useEffect(() => { void loadCatalog(); }, [loadCatalog]);
   useEffect(() => {
-    if (!dirty && !uploadingLogo) return;
+    if (!dirty && !uploadingLogo && !orderDirty) return;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warnBeforeLeaving);
     return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
-  }, [dirty, uploadingLogo]);
+  }, [dirty, uploadingLogo, orderDirty]);
 
   const filteredProducts = useMemo(() => draft?.products.filter(product => {
     const matchesSearch = `${product.name} ${product.description} ${product.mm || ''}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
@@ -219,35 +223,57 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
     } finally { setSaving(false); }
   }
 
+  function navigate(next: typeof view, customerId: string | null = null) {
+    if (orderDirty && view !== next && !window.confirm('Leave this order and discard your edits?')) return;
+    if (view !== next) setOrderDirty(false);
+    setOrderCustomerId(customerId);
+    setView(next);
+    if (next === 'services') setShowServiceEditor(false);
+  }
+
+  const commerceView = view === 'orders' || view === 'customers' ? view : null;
+  const pages = {
+    services: ['Service catalog', 'A little care for your digital collection.'],
+    settings: ['Contact settings', 'Keep it easy for customers to reach you.'],
+    orders: ['Orders', 'Review checkouts and manage subscription access.'],
+    customers: ['Customers', 'View registered customers and their orders.'],
+  };
   const lastSaved = saved?.updatedAt ? new Date(saved.updatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : null;
 
   return <div className="admin-shell">
-    <a className="admin-skip" href="#admin-main">Skip to catalog</a>
+    <a className="admin-skip" href="#admin-main">Skip to main content</a>
     <aside className="admin-sidebar" aria-label="Admin navigation">
       <div className="admin-brand"><img src="/assets/logo.png" alt="digimium." /><span>Admin</span></div>
-      <nav className="admin-navigation">
-        <button type="button" onClick={() => { setView('services'); setShowServiceEditor(false); }} aria-current={view === 'services' ? 'page' : undefined}><LayoutGrid size={18} />Services<span>{draft?.products.length ?? '—'}</span></button>
-        <button type="button" onClick={() => setView('settings')} aria-current={view === 'settings' ? 'page' : undefined}><Settings size={18} />Contact settings</button>
+      <nav className="admin-navigation" data-commerce={commerceEnabled}>
+        <button type="button" onClick={() => navigate('services')} aria-current={view === 'services' ? 'page' : undefined}><LayoutGrid size={18} />Services<span>{draft?.products.length ?? '—'}</span></button>
+        {commerceEnabled && <>
+          <button type="button" onClick={() => navigate('orders')} aria-current={view === 'orders' ? 'page' : undefined}><ShoppingBag size={18} />Orders</button>
+          <button type="button" onClick={() => navigate('customers')} aria-current={view === 'customers' ? 'page' : undefined}><Users size={18} />Customers</button>
+        </>}
+        <button type="button" onClick={() => navigate('settings')} aria-current={view === 'settings' ? 'page' : undefined}><Settings size={18} />Contact settings</button>
       </nav>
       <div className="admin-sidebar-bottom">
         <a className="admin-site-link" href="/" target="_blank" rel="noopener noreferrer">View website<ArrowUpRight size={17} /></a>
         <div className="admin-identity"><span className="admin-avatar">{(identity.name || identity.email).slice(0, 1).toUpperCase()}</span><div><strong>{identity.name}</strong><span title={identity.email}>{identity.email}</span></div></div>
-        {postSignOut ? <form action={signOutHref} method="post" onSubmit={event => { if ((dirty || uploadingLogo) && !window.confirm('Sign out and discard your unsaved changes?')) event.preventDefault(); }}>
+        {postSignOut ? <form action={signOutHref} method="post" onSubmit={event => { if ((dirty || uploadingLogo || orderDirty) && !window.confirm('Sign out and discard your unsaved changes?')) event.preventDefault(); }}>
           <button type="submit" className="admin-signout"><LogOut size={15} />Sign out</button>
-        </form> : <a className="admin-signout" href={signOutHref} target="_top" onClick={event => { if ((dirty || uploadingLogo) && !window.confirm('Sign out and discard your unsaved changes?')) event.preventDefault(); }}><LogOut size={15} />Sign out</a>}
+        </form> : <a className="admin-signout" href={signOutHref} target="_top" onClick={event => { if ((dirty || uploadingLogo || orderDirty) && !window.confirm('Sign out and discard your unsaved changes?')) event.preventDefault(); }}><LogOut size={15} />Sign out</a>}
       </div>
     </aside>
 
     <main id="admin-main" className="admin-main" data-service-editor={view === 'services' && showServiceEditor && !!selected}>
       <header className="admin-page-header">
-        <div><h1>{view === 'services' ? 'Service catalog' : 'Contact settings'}</h1><p>{view === 'services' ? 'A little care for your digital collection.' : 'Keep it easy for customers to reach you.'}</p></div>
-        <div className="admin-header-actions">
+        <div><h1>{pages[view][0]}</h1><p>{pages[view][1]}</p></div>
+        {!commerceView && <div className="admin-header-actions">
           <span className={`admin-save-state ${dirty ? 'is-dirty' : ''}`} aria-live="polite">{uploadingLogo ? 'Uploading logo…' : saving ? 'Saving changes…' : dirty ? 'Unsaved changes' : draft ? 'All changes saved' : ''}</span>
           <button className="admin-button admin-button-secondary admin-revert" type="button" disabled={!dirty || saving || loading || uploadingLogo} onClick={discardChanges}><RotateCcw size={16} />Revert</button>
           <button className="admin-button admin-button-primary" type="submit" form="admin-catalog-form" disabled={!dirty || saving || loading || uploadingLogo || feedback?.kind === 'conflict'}>{saving ? <LoaderCircle size={16} className="admin-spinner" /> : <Save size={16} />}<span>{saving ? 'Saving…' : 'Save changes'}</span></button>
-        </div>
+        </div>}
       </header>
 
+      {commerceView ? <AdminCommerce key={commerceView} view={commerceView} customerId={orderCustomerId}
+        onDirtyChange={setOrderDirty} clearCustomer={() => setOrderCustomerId(null)}
+        showCustomerOrders={id => navigate('orders', id)} /> : <>
       {feedback && <div className="admin-feedback admin-feedback-error" role="alert"><CircleAlert size={19} /><div><p>{feedback.message}</p>{feedback.kind === 'conflict' && <button type="button" onClick={reloadLatest}>Load latest catalog<RotateCcw size={14} /></button>}{feedback.kind === 'load' && <button type="button" disabled={loading} onClick={() => void loadCatalog()}>Try again<RotateCcw size={14} /></button>}{feedback.kind === 'auth' && <a href="/signin-with-chatgpt?return_to=%2Fadmin" target="_top" onClick={event => { if (dirty && !window.confirm('Sign in again? Your unsaved changes will be lost when you leave this page.')) event.preventDefault(); }}>Sign in again<ArrowUpRight size={14} /></a>}{feedback.kind === 'save' && <button type="button" disabled={saving} onClick={() => void saveCatalog()}>Try saving again<RotateCcw size={14} /></button>}</div></div>}
       {notice && <div className="admin-feedback admin-feedback-success" role="status"><Check size={18} /><p>{notice}</p><button type="button" aria-label="Dismiss message" onClick={() => setNotice('')}><X size={16} /></button></div>}
 
@@ -310,10 +336,11 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
           </section>
         </div> : <section className="admin-settings-panel"><div className="admin-settings-intro"><div className="admin-settings-icon"><Mail size={24} /></div><h2>A direct line to Digimium.</h2><p>These contact details appear on your website and in service enquiries.</p></div><form id="admin-catalog-form" noValidate onSubmit={event => { event.preventDefault(); void saveCatalog(); }}><fieldset disabled={saving}><div className="admin-form-section"><label className="admin-field" htmlFor="contact-telegram">Telegram order username
               <input id="contact-telegram" required value={draft.settings.telegram ?? DEFAULT_TELEGRAM_CONTACT} maxLength={33} autoCapitalize="none" spellCheck={false} autoComplete="off" placeholder="@LynnIsHeree" onChange={event => updateSettings({ telegram: event.target.value })} />
-              <small>Checkout opens a direct conversation with this Telegram account.</small>
+              <small>{commerceEnabled ? 'Customers can contact this Telegram account with order questions.' : 'Checkout opens a direct conversation with this Telegram account.'}</small>
             </label><label className="admin-field" htmlFor="contact-email">Contact email<input id="contact-email" type="email" maxLength={254} required value={draft.settings.email} placeholder="hello@example.com" autoComplete="email" onChange={event => updateSettings({ email: event.target.value })} /></label><label className="admin-field" htmlFor="contact-viber">Viber phone number<input id="contact-viber" type="tel" maxLength={16} required value={draft.settings.viber} placeholder="+959123456789" autoComplete="tel" onChange={event => updateSettings({ viber: event.target.value })} /><small>Use your country code and digits, with no spaces. This opens your Viber chat.</small></label><label className="admin-field" htmlFor="contact-viber-label">Viber display number<input id="contact-viber-label" maxLength={80} required value={draft.settings.viberLabel} placeholder="+95 9 123 456 789" onChange={event => updateSettings({ viberLabel: event.target.value })} /><small>The readable number customers see on your website.</small></label></div><div className="admin-editor-footer"><p>Changes go live when you save.</p><a className="admin-text-button" href="/#contact" target="_blank" rel="noopener noreferrer">View contact section<ArrowUpRight size={16} /></a></div></fieldset></form></section>}
         <footer className="admin-workspace-footer"><span>{lastSaved ? `Last saved ${lastSaved}` : 'Your catalog is ready to edit.'}</span><a href="/" target="_blank" rel="noopener noreferrer">Open website<ArrowUpRight size={14} /></a></footer>
       </> : !feedback && <div className="admin-loading"><CircleAlert size={24} /><h2>Your catalog isn’t available yet</h2><button className="admin-button admin-button-secondary" onClick={() => void loadCatalog()}>Try again</button></div>}
+      </>}
       <a className="admin-mobile-back" href="/" target="_blank" rel="noopener noreferrer"><ArrowLeft size={15} />Back to website</a>
     </main>
   </div>;

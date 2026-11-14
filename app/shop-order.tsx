@@ -4,6 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import { ArrowUpRight, Check, Copy, Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
 import type { Product } from '../lib/catalog';
 import { CART_KEY, orderMessages, resolveOrder, restoreCart, sameItem, telegramDraft, totalMmk, withSelection, type CartItem, type OrderLine } from '../lib/cart-order';
+import { commerceEnabled } from '../lib/commerce-enabled';
 import { effectivePrice } from '../lib/pricing';
 import { productLogoSrc } from '../lib/product-logo';
 import { durationDetail, durationText, planName, priceOnEnquiry, priceText, productDescription } from '../lib/shop-language';
@@ -14,7 +15,7 @@ import './shop-order.css';
 type Locale = 'en' | 'my';
 export type ShopOrderHandle = { openProduct(product: Product, planId?: string): void; openCart(): void };
 type Props = { products: Product[]; lang: Locale; telegram: string; hideShortDescriptions?: boolean; onCountChange: (count: number) => void };
-type Screen = 'product' | 'cart' | 'handoff' | null;
+type Screen = 'product' | 'cart' | 'handoff' | 'submitted' | null;
 
 function orderDescription({product, plan}: OrderLine, lang: Locale) {
   const name = plan ? planName(plan, lang) : lang === 'my' ? 'အစီအစဉ် စုံစမ်းရန်' : 'Plan enquiry';
@@ -29,7 +30,12 @@ function Logo({product}: {product: Product}) {
     ? <img src={src} alt="" onError={() => setFailed(src)} /> : product.name.slice(0, 1)}</span>;
 }
 
-function CheckoutNote({askAboutPrice}: {askAboutPrice: boolean}) {
+function CheckoutNote({askAboutPrice, lang}: {askAboutPrice: boolean; lang: Locale}) {
+  if (commerceEnabled) return <p className="order-checkout-note">{lang === 'my'
+    ? 'အကောင့်ဝင်ပြီး အော်ဒါတင်ပါ။ Digimium က အတည်ပြုပေးတဲ့အခါ သင့်အကောင့်ထဲမှာ ဝယ်ယူမှုမှတ်တမ်းကို ကြည့်နိုင်ပါတယ်။'
+    : 'Place your order from your account. Once Digimium approves it, you’ll find it in your purchase history.'}
+    {askAboutPrice && <><br/>{lang === 'my' ? 'ဈေးနှုန်း မဖော်ပြထားသော အစီအစဉ်အတွက် Admin က ဈေးနှုန်း အတည်ပြုပေးပါမယ်။' : 'Digimium will confirm the price of any plan marked “Price on enquiry”.'}</>}
+  </p>;
   return <p lang="my" className="order-checkout-note">
     ဝယ်ယူရန် (သို့မဟုတ်) Plan အကြောင်း အသေးစိတ်မေးမြန်ရန် Check Out ကို နှိပ်ပြီး Telegram မှာမေးမြန်နိုင်ပါသည်။
     {askAboutPrice && <><br/>ဈေးနှုန်းအသေးစိတ်ကိုလည်း Admin မှ ချက်ချင်းပြန်လည် ဖြေကြားပေးပါမည်။</>}
@@ -49,6 +55,11 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   const [lastAdded, setLastAdded] = useState('');
   const [handoff, setHandoff] = useState<string[]>([]);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'manual'>('idle');
+  const [orderId, setOrderId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [orderError, setOrderError] = useState('');
+  const inFlight = useRef(false);
+  const attempt = useRef<{basket: string; requestId: string} | null>(null);
   const copyAttempt = useRef(0);
   const product = products.find(item => item.id === productId);
   const plans = product?.plans?.filter(plan => plan.published) ?? [];
@@ -82,12 +93,21 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       catch { /* A private browser can still use the in-memory cart. */ }
       setReady(true);
     }
-    read();
+    const frame = window.requestAnimationFrame(() => {
+      read();
+      const url = new URL(window.location.href);
+      if (commerceEnabled && url.searchParams.get('checkout') === '1') {
+        setScreen('cart');
+        url.searchParams.delete('checkout');
+        window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+      }
+    });
     const synchronize = (event: StorageEvent) => { if (event.key === CART_KEY || event.key === null) read(); };
     const resume = (event: PageTransitionEvent) => { if (event.persisted) read(); };
     window.addEventListener('storage', synchronize);
     window.addEventListener('pageshow', resume);
     return () => {
+      window.cancelAnimationFrame(frame);
       window.removeEventListener('storage', synchronize);
       window.removeEventListener('pageshow', resume);
     };
@@ -113,6 +133,8 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
 
   function begin(next: Exclude<Screen, null>) {
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (inFlight.current) return;
+    setOrderError('');
     setLastAdded('');
     setCopyStatus('idle');
     setScreen(next);
@@ -128,7 +150,6 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   }));
 
   function saveCart(next: CartItem[]) {
-    // Save in the click handler before the browser switches to Telegram.
     setCart(next);
     try { localStorage.setItem(CART_KEY, JSON.stringify(next)); }
     catch { /* The in-memory cart still works when storage is unavailable. */ }
@@ -160,12 +181,56 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     void copy(orderText.join('\n\n'));
     setScreen('handoff');
   }
+  async function placeOrder() {
+    if (inFlight.current || !checkoutRows.length) return;
+    const items = checkoutRows.map(({productId, planId, quantity}) => ({productId, planId, quantity}));
+    const basket = JSON.stringify(items);
+    const key = 'digimium-checkout-attempt';
+    inFlight.current = true;
+    setSubmitting(true);
+    setOrderError('');
+    try {
+      if (!attempt.current) {
+        try { attempt.current = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch { /* Storage is optional. */ }
+      }
+      if (attempt.current?.basket !== basket || !attempt.current?.requestId) {
+        attempt.current = {basket, requestId: crypto.randomUUID()};
+      }
+      try { sessionStorage.setItem(key, JSON.stringify(attempt.current)); } catch { /* Retain the in-memory key for retries. */ }
+      const response = await fetch('/api/customer/orders', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({items, requestId: attempt.current.requestId}),
+      });
+      if (response.status === 401) {
+        window.location.assign('/account?checkout=1');
+        return;
+      }
+      const data = await response.json() as {id?: string; error?: string};
+      if (!response.ok || typeof data.id !== 'string') throw new Error(data.error || '');
+      setOrderId(data.id);
+      saveCart([]);
+      attempt.current = null;
+      try { sessionStorage.removeItem(key); } catch { /* No persisted attempt. */ }
+      setScreen('submitted');
+    } catch (error) {
+      setOrderError(error instanceof Error && error.message && !(error instanceof TypeError) && !(error instanceof SyntaxError)
+        ? error.message : t('We couldn’t confirm your order. Your cart is saved. Please try again.', 'အော်ဒါတင်ပြီးကြောင်း အတည်မပြုနိုင်သေးပါ။ သင့်ဈေးခြင်းကို သိမ်းထားပါတယ်။ ထပ်စမ်းကြည့်ပါ။'));
+    } finally {
+      inFlight.current = false;
+      setSubmitting(false);
+    }
+  }
   function changeQuantity(item: CartItem, difference: number) {
     saveCart(cart.map(entry => sameItem(item, entry) ?
       {...entry, quantity: Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, entry.quantity + difference))} : entry));
   }
-  const checkoutAllowed = ready && Boolean(checkoutUrl) && checkoutRows.length > 0 && (screen !== 'product' || Boolean(selected));
-  const checkoutControl = checkoutAllowed
+  const checkoutAllowed = ready && (commerceEnabled || Boolean(checkoutUrl)) && checkoutRows.length > 0 && (screen !== 'product' || Boolean(selected));
+  const checkoutControl = commerceEnabled
+    ? <button type="button" className="order-action order-primary" disabled={!checkoutAllowed || submitting} onClick={() => {
+        if (screen === 'product') { saveCart(effectiveCart); begin('cart'); }
+        else void placeOrder();
+      }}>{screen === 'product' ? t('Checkout', 'Check Out') : submitting ? t('Placing order…', 'အော်ဒါတင်နေသည်…') : t('Place order', 'အော်ဒါတင်ရန်')}<ArrowUpRight size={17}/></button>
+    : checkoutAllowed
     ? <a className="order-action order-primary" href={checkoutUrl} target="_blank" rel="noopener noreferrer" onClick={checkout}>
         {t('Checkout on Telegram', 'Check Out')}<ArrowUpRight size={17}/>
       </a>
@@ -177,17 +242,17 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     </div>}</div>
     <dialog ref={dialog} className="shop-order" lang={lang} aria-labelledby="shop-order-title"
       aria-describedby={screen === 'product' && product?.bestSeller ? 'shop-product-badge' : undefined}
-      onCancel={event => { event.preventDefault(); setScreen(null); }}
-      onClick={event => { if (event.target === event.currentTarget) setScreen(null); }}>
+      onCancel={event => { event.preventDefault(); if (!inFlight.current) setScreen(null); }}
+      onClick={event => { if (event.target === event.currentTarget && !inFlight.current) setScreen(null); }}>
       <div className="order-surface">
         <header className="order-heading">
           {screen === 'product' && hideShortDescriptions && product && <Logo product={product}/>}
           <div className="order-heading-title">
             <h2 id="shop-order-title">{screen === 'product' ? product?.name : screen === 'handoff' ?
-              t('Your Telegram order', 'သင့် Telegram အော်ဒါ') : t('Your cart', 'သင့်ဈေးခြင်း')}</h2>
+              t('Your Telegram order', 'သင့် Telegram အော်ဒါ') : screen === 'submitted' ? t('Order received', 'အော်ဒါ လက်ခံရရှိပြီးပါပြီ') : t('Your cart', 'သင့်ဈေးခြင်း')}</h2>
             {screen === 'product' && product?.bestSeller && <BestSellerBadge lang={lang} id="shop-product-badge" />}
           </div>
-          <button type="button" className="order-icon" aria-label={t('Close', 'ပိတ်ရန်')} onClick={() => setScreen(null)}><X size={20}/></button>
+          <button type="button" disabled={submitting} className="order-icon" aria-label={t('Close', 'ပိတ်ရန်')} onClick={() => setScreen(null)}><X size={20}/></button>
         </header>
         {screen === 'product' && product && <>
           <div className="order-scroll">
@@ -210,7 +275,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
               {product.availability === 'unavailable' && <p className="order-help">{t('Currently unavailable.', 'လက်ရှိ မရရှိနိုင်သေးပါ။')}</p>}
             </div>
             <div className="order-guidance">
-              <CheckoutNote askAboutPrice={priceOnEnquiry(effectivePrice(selectedPlan ?? product))}/>
+              <CheckoutNote lang={lang} askAboutPrice={priceOnEnquiry(effectivePrice(selectedPlan ?? product))}/>
             </div>
           </div>
           <footer className="order-footer">
@@ -226,23 +291,29 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
                 <p>{orderDescription(item, lang)}</p>
                 <OfferPrice offer={item.plan ?? item.product} lang={lang}/>
                 <div className="order-quantity" role="group" aria-label={[item.product.name, item.plan && planName(item.plan, lang)].filter(Boolean).join(' · ')}>
-                  <button type="button" className="order-icon" disabled={item.quantity <= 1} aria-label={t('Decrease quantity', 'အရေအတွက် လျှော့ရန်')} onClick={() => changeQuantity(item, -1)}><Minus size={14}/></button>
+                  <button type="button" className="order-icon" disabled={submitting || item.quantity <= 1} aria-label={t('Decrease quantity', 'အရေအတွက် လျှော့ရန်')} onClick={() => changeQuantity(item, -1)}><Minus size={14}/></button>
                   <span>{item.quantity}</span>
-                  <button type="button" className="order-icon" aria-label={t('Increase quantity', 'အရေအတွက် တိုးရန်')} onClick={() => changeQuantity(item, 1)}><Plus size={14}/></button>
+                  <button type="button" className="order-icon" disabled={submitting} aria-label={t('Increase quantity', 'အရေအတွက် တိုးရန်')} onClick={() => changeQuantity(item, 1)}><Plus size={14}/></button>
                 </div>
               </div>
-              <button type="button" className="order-icon" aria-label={t(`Remove ${item.product.name}`, `${item.product.name} ကို ဖယ်ရှားရန်`)}
+              <button type="button" className="order-icon" disabled={submitting} aria-label={t(`Remove ${item.product.name}`, `${item.product.name} ကို ဖယ်ရှားရန်`)}
                 onClick={() => saveCart(cart.filter(entry => !sameItem(entry, item)))}><Trash2 size={16}/></button>
             </li>)}</ul>
             <div className="order-guidance"><div className="order-total"><span>{t('Order total', 'စုစုပေါင်း')}</span><strong>{cartTotal === undefined ?
-              t('Confirm on Telegram', 'Telegram တွင် စျေးနှုန်း အတည်ပြုပါ') : priceText(`${cartTotal.toLocaleString('en-US')} MMK`, lang)}</strong></div>
-              <CheckoutNote askAboutPrice={rows.some(item => priceOnEnquiry(effectivePrice(item.plan ?? item.product)))}/>
+              (commerceEnabled ? t('Awaiting price confirmation', 'ဈေးနှုန်း အတည်ပြုရန်') : t('Confirm on Telegram', 'Telegram တွင် စျေးနှုန်း အတည်ပြုပါ')) : priceText(`${cartTotal.toLocaleString('en-US')} MMK`, lang)}</strong></div>
+              <CheckoutNote lang={lang} askAboutPrice={rows.some(item => priceOnEnquiry(effectivePrice(item.plan ?? item.product)))}/>
             </div>
           </div>
           <footer className="order-footer">
-            <div className="order-actions"><button type="button" className="order-action order-secondary" onClick={() => setScreen(null)}>{t('Keep browsing', 'ဆက်လက် ရွေးချယ်ရန်')}</button>{checkoutControl}</div>
+            {orderError && <p className="order-checkout-note" role="alert">{orderError}</p>}
+            <div className="order-actions"><button type="button" disabled={submitting} className="order-action order-secondary" onClick={() => setScreen(null)}>{t('Keep browsing', 'ဆက်လက် ရွေးချယ်ရန်')}</button>{checkoutControl}</div>
           </footer>
         </> : <div className="order-empty"><ShoppingBag size={30}/><p>{t('Your cart is empty. Choose a product and add a plan.', 'ဈေးခြင်းထဲမှာ ပစ္စည်း မရှိသေးပါ။ ဝန်ဆောင်မှုတစ်ခု ရွေးပြီး အစီအစဉ်ကို ထည့်လိုက်ပါ။')}</p><button className="order-action order-secondary" onClick={() => setScreen(null)}>{t('Browse products', 'ပစ္စည်းများ ကြည့်ရန်')}</button></div>)}
+        {screen === 'submitted' && <div className="order-content order-handoff">
+          <p role="status">{t('Your order is waiting for Digimium’s approval.', 'သင့်အော်ဒါက Digimium ရဲ့ အတည်ပြုချက်ကို စောင့်နေပါတယ်။')}</p>
+          <p>{t('Order reference', 'အော်ဒါအမှတ်')} <strong>{orderId.slice(0, 8).toUpperCase()}</strong></p>
+          <a href="/account" className="order-action order-primary">{t('View my orders', 'ကျွန်ုပ်၏ အော်ဒါများ ကြည့်ရန်')}<ArrowUpRight size={16}/></a>
+        </div>}
         {screen === 'handoff' && <div className="order-content order-handoff">
           <p role="status">{copyStatus === 'copied' ? t('Order copied. Tap Send in the Telegram chat to confirm your request.', 'အော်ဒါကို ကူးယူပြီးပါပြီ။ Telegram စာပို့ခန်းမှာ ပို့ရန်ကို နှိပ်ပေးပါ။') :
             t('Your order is ready. Copy the details or open your draft in Telegram.', 'အော်ဒါ အဆင်သင့်ဖြစ်ပါပြီ။ အသေးစိတ်ကို ကူးယူပါ သို့မဟုတ် Telegram တွင် ဖွင့်ပါ။')}</p>

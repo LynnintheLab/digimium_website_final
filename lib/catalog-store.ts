@@ -18,7 +18,7 @@ export class CatalogConflictError extends Error {
   }
 }
 
-function decodeSnapshot(row: CatalogSnapshot): Catalog {
+export function decodeSnapshot(row: CatalogSnapshot): Catalog {
   const payload = catalogPayloadSchema.parse(JSON.parse(row.payload));
   if (!Number.isSafeInteger(row.revision) || row.revision < 1 || Number.isNaN(Date.parse(row.updatedAt))) {
     throw new Error("Invalid catalog revision or timestamp.");

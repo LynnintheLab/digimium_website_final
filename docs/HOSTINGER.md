@@ -34,6 +34,8 @@ The build produces a self-contained server in `.next/standalone/`, with `server.
 3. Open **phpMyAdmin** for that database. Select the database in the left sidebar, open **Import**, choose the downloaded SQL file, and run the import. For an existing database, import the updated schema before requesting a code. It adds the OTP tables alongside the catalog, logo and admin session tables. It preserves existing rows when rerun.
 4. For a fresh database, leave the catalog table empty. The application starts with the bundled 54 products and 50 publicly visible plans. Its first successful admin save writes the catalog to MySQL.
 
+Customer registration and orders create their additional tables on first use. Give the app user CREATE and REFERENCES privileges on its database or import [customer-auth-schema.sql](../hostinger/customer-auth-schema.sql) followed by [order-schema.sql](../hostinger/order-schema.sql). Both files use additive CREATE TABLE IF NOT EXISTS statements. Back up the customer and order tables together with the existing database.
+
 [Hostinger's database connection guide](https://www.hostinger.com/support/connecting-a-hostinger-mysql-database-to-a-node-js-application/)
 
 ## 3. Set the private application values
@@ -56,8 +58,11 @@ For an existing deployment, you can enter the same values directly in the web ap
 | `APP_ORIGIN` | `https://buywith-digimium.store` for production or `https://test.buywith-digimium.store` for staging |
 | `ADMIN_EMAIL` | Owner inbox that receives the login codes |
 | `ADMIN_AUTH_SECRET` | Private random secret of at least 32 characters. Generate one with the command below and keep it across redeploys. Rotating it revokes remembered sessions and pending codes. |
+| `ORDER_FULFILLMENT_SECRET` | Optional private secret of at least 32 characters for encrypting delivered account details. Set it before approving the first order. When empty, the app derives its encryption key from `ADMIN_AUTH_SECRET`. |
 | `RESEND_API_KEY` | Sending key from the Resend account used for this site |
 | `RESEND_FROM_EMAIL` | `onboarding@resend.dev` for the Resend account inbox, or an address on a verified sending domain |
+
+Store the effective order encryption secret in a private backup with the database recovery instructions. If orders were fulfilled using the fallback, set `ORDER_FULFILLMENT_SECRET` to the original admin secret before rotating `ADMIN_AUTH_SECRET`. Changing the effective encryption key requires re-encrypting existing fulfillment data.
 
 Generate the secret locally and paste the output into the private environment settings.
 
@@ -71,7 +76,7 @@ Click **Apply changes** and **Restart** the running Node application. Use **Rede
 
 ## 4. Verify the live store
 
-- In a private browser window, open `/` and search for a product. Select a plan and use **Add to cart**. Reopen the cart and check that **Checkout on Telegram** prepares a draft for the store's Telegram contact.
+- In a private browser window, open `/` and search for a product. Select a plan and use **Add to cart**. Reopen the cart and check that **Place order** prompts a signed-out visitor to sign in. In a test environment, register a customer, submit an order, approve it in admin, then verify the dates and access details in the customer account.
 - Open `/admin`. Enter the configured admin email, then enter the six-digit code from the inbox in the same browser within 10 minutes. Close and reopen the same normal browser profile to confirm it remembers you. A fresh private window should ask for its own code. Open a product and confirm that the plan details match what you expect. Test an edit on an unpublished service, upload a small logo, save it and reload. The edit and logo should persist after a restart.
 - Sign out. Opening `/admin` should ask you to sign in again. The customer storefront should still be accessible. A signed-out request to `/api/admin/catalog` should return `401`.
 

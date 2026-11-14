@@ -138,3 +138,7 @@ html:has(.storefront-shell) {
   .product-action { gap: 5px; padding-top: 12px; font-size: 12px; }
   .product-action svg { flex-shrink: 0; }
 }
+
+.shop-account-link { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; color: var(--ink); font-size: 14px; }
+.shop-account-link:hover { color: var(--blue); }
+@media (max-width: 900px) { .shop-account-link { min-width: 40px; } }

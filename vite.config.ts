@@ -45,6 +45,7 @@ export default defineConfig(async ({ command }) => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    define: { "process.env.NEXT_PUBLIC_DIGIMIUM_TARGET": JSON.stringify("sites") },
     resolve: {
       alias: {
         "@digimium/auth": fileURLToPath(new URL("./runtime/auth.sites.ts", import.meta.url)),

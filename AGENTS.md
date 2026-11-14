@@ -1,6 +1,6 @@
 # Digimium contributor instructions
 
-Digimium is a bilingual digital subscription catalog with a persistent browser cart, Telegram order drafts, and an authenticated catalog/logo admin panel. The default deployment runs Next.js on Hostinger’s managed Node.js service. MySQL stores the catalog, uploaded logos, and admin session state. The existing ChatGPT Sites target runs through Vinext with D1 and R2.
+Digimium is a bilingual digital subscription catalog with a persistent browser cart, customer accounts, approved-order history, and authenticated catalog and order administration. The default deployment runs Next.js on Hostinger’s managed Node.js service. MySQL stores the catalog, uploaded logos, and admin session state. The existing ChatGPT Sites target runs through Vinext with D1 and R2.
 
 ## Start here
 
@@ -8,7 +8,7 @@ Digimium is a bilingual digital subscription catalog with a persistent browser c
 - Preserve the established blue/lavender gradient, navy panels, colored logos, Manrope, and Wa Lone.
 - Keep current product/plan publication flags unless the owner asks to change them. Do not invent prices or delivery promises.
 - Preserve the red Myanmar checkout guidance and the extra unpriced-selection sentence.
-- Checkout prepares a Telegram draft; customers send it. Do not describe it as automatic messaging or payment processing.
+- Hostinger checkout creates a pending order for the signed-in customer. Admin approval publishes dates and access details to that customer. The Sites target uses Telegram drafts. Payments are arranged manually.
 - Keep `.openai/hosting.json` bound to the existing Site for updates. GitHub pushes and Sites publication are separate actions.
 
 ## Commands

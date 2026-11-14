@@ -93,6 +93,8 @@ node --env-file=.env.test.local tests/hostinger.integration.mjs
 
 The test supplies its own owner settings, intercepts Resend delivery locally, imports the schema, runs the packaged server, saves a product and a logo, restarts the server, and verifies both records and admin sign-out. It leaves the disposable database available for inspection. Create a fresh empty database for another run. If the test variables are already exported, `npm run test:hostinger` runs the same check.
 
+The account and order integration suite also starts a packaged server and requires its own empty loopback database. Point the same test environment keys at that database and an unused local app port, then run `npm run test:commerce` or `node --env-file=.env.test.local tests/commerce.integration.mjs`. It covers account isolation, concurrent checkout retries, snapshot pricing, manual approval, date validation and encrypted delivery details.
+
 For the Sites integration tests, leave the initialized Sites dev server running in another terminal and set its exact port. The tests' fallback ports differ, so use `TEST_BASE_URL` explicitly.
 
 macOS or Git Bash:

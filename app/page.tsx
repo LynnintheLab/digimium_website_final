@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { cookies, headers } from 'next/headers';
+import { commerceEnabled } from '../lib/commerce-enabled';
 import Storefront from './storefront';
 import { getPublicCatalog } from '../lib/catalog-store';
 
@@ -23,7 +24,7 @@ async function storefrontOrigin() {
 export async function generateMetadata(): Promise<Metadata> {
   const origin = await storefrontOrigin();
   const title = 'digimium. — Digital subscriptions';
-  const description = 'Find plans for ChatGPT, Canva, Spotify and more. Browse in English or Myanmar and order through Telegram.';
+  const description = commerceEnabled ? 'Browse digital subscriptions in English or Myanmar, order online and manage your plans in your Digimium account.' : 'Find plans for ChatGPT, Canva, Spotify and more. Browse in English or Myanmar and order through Telegram.';
   const image = {
     url: new URL('/assets/digimium-share.png', origin).href,
     width: 1200,

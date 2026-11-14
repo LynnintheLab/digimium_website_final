@@ -2,7 +2,11 @@
 
 Updated: **2026-11-14** (Asia/Bangkok). This document is the starting point for continuing the existing website in another Codex/ChatGPT chat.
 
-## 1. State at handoff
+## Current customer checkout
+
+The Hostinger shop supports customer registration, account sign-in, website checkout and order history. An order enters the admin queue when checkout succeeds. The admin supplies start and expiration dates for every line and may enter delivery details when approving or later. The customer can read these in their own account. See [Hostinger setup and recovery](docs/HOSTINGER.md) for schema and key management. The sections below also record the earlier showcase and Sites releases.
+
+## 1. State at the earlier showcase handoff
 
 The current Best Seller / Promotion / Discount request is **implemented, pushed, and observed on both Hostinger sites**. Do not rebuild the website or replace its current catalog.
 
@@ -46,7 +50,7 @@ Other older website folders are reference copies, not alternative remotes for th
 
 ## 3. Product scope and established design
 
-Digimium sells access to digital subscriptions and services. The current flow is **browse → choose a published plan → Add to Cart or Check Out → Telegram order draft**. Customer browsing requires no login. Admin login is for the configured owner only.
+Digimium sells access to digital subscriptions and services. On Hostinger, customers browse, choose a plan, sign in and place their order online. Customer browsing requires no login. Admin login is for the configured owner only.
 
 Preserve these established choices:
 
@@ -121,7 +125,7 @@ Ten decorative service tiles float at staggered positions on the top, right, bot
 
 Refresh an open storefront to receive saved catalog edits. Promotions, best-seller flags and discounts remain active until the owner changes them.
 
-## 5. Cart and Telegram order behavior
+## 5. Legacy Sites cart and Telegram order behavior
 
 - Cart state lives in browser local storage under `digimium:shopping-cart:v1`, using product/plan IDs and quantities.
 - Current public catalog data resolves prices; stale hidden/unavailable selections are removed on restoration.
@@ -133,7 +137,7 @@ Refresh an open storefront to receive saved catalog edits. Promotions, best-sell
 - Unknown prices remain enquiries. A mixed-price order requests confirmation instead of presenting a misleading complete total.
 - **The customer must press Send in Telegram.** The application does not send a message automatically.
 
-Not implemented: online payment collection, order database/history, customer accounts, fulfillment automation, or stock integration. The owner expressed interest in a later online-checkout upgrade; it is a future phase requiring a separate design and implementation.
+Hostinger uses the customer checkout described above. Payment arrangements and approval are manual.
 
 ## 6. Runtime, data, authentication, and environment
 
@@ -326,4 +330,4 @@ Do not assume that a remembered environment filename is current or that an old S
 
 ## 11. Paste-ready continuation brief
 
-> Continue the existing Digimium website. Read HANDOFF.md, NOTES.md, AGENTS.md, README.md, and docs/HOSTINGER.md first. Use the repo LynnintheLab/digimium_website_final, working branch testing; production serves buywith-digimium.store and testing serves test.buywith-digimium.store. Pull before edits. Release 4eee1ff already implements independent product/plan Best Seller flags, gifts and discounted prices, and an automatic seven-second showcase with category fallback. Both sites were checked after deployment. Preserve the established design, bilingual copy, current plan visibility/prices, original favicon, and Telegram draft checkout behavior. Live catalog edits and uploaded logos belong to each MySQL database, not the Git seed. Never reset live data or commit secrets. Read the stated verification limits before claiming live OTP/device checks. At session end update NOTES, commit intended files, and push; exclude unrelated iCloud “ 2” duplicates. Ask the owner for the next requested change rather than rebuilding completed work.
+> Continue the existing Digimium website. Read HANDOFF.md, NOTES.md, AGENTS.md, README.md, and docs/HOSTINGER.md first. Use the repo LynnintheLab/digimium_website_final, working branch testing; production serves buywith-digimium.store and testing serves test.buywith-digimium.store. Pull before edits. Release 4eee1ff already implements independent product/plan Best Seller flags, gifts and discounted prices, and an automatic seven-second showcase with category fallback. Both sites were checked after deployment. Preserve the established design, bilingual copy, current plan visibility/prices, original favicon, Hostinger account checkout and the separate Sites Telegram draft behavior. Live catalog edits and uploaded logos belong to each MySQL database, not the Git seed. Never reset live data or commit secrets. Read the stated verification limits before claiming live OTP/device checks. At session end update NOTES, commit intended files, and push; exclude unrelated iCloud “ 2” duplicates. Ask the owner for the next requested change rather than rebuilding completed work.

@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, ArrowUpRight, ChevronDown, Clapperboard, Globe2, LayoutGrid, Mail, Menu, PenTool, Search, ShoppingBag, Sparkles, X } from "lucide-react";
+import { ArrowRight, ArrowUpRight, ChevronDown, Clapperboard, Globe2, LayoutGrid, Mail, Menu, PenTool, Search, ShoppingBag, Sparkles, UserRound, X } from "lucide-react";
 import { categories, type Catalog, type ProductPlan } from "../lib/catalog";
 import { categoryName, durationDetail, durationText, planName, productDescription } from "../lib/shop-language";
 import { Mark } from "./product-mark";
 import { CollectionShowcase } from "./collection-showcase";
+import { commerceEnabled } from "../lib/commerce-enabled";
 import { resolveTelegramContact } from "../lib/telegram-contact";
 import { ShopOrder, type ShopOrderHandle } from "./shop-order";
 import { OfferPrice } from "./offer-price";
@@ -110,12 +111,13 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
     },
     {
       title: t('Send your order.', 'Order တင်မယ်'),
-      detail: <p>{t('Checkout opens your full order in our Telegram chat. Tap Send and we’ll confirm availability and payment details.', 'Check Out ကိုနှိပ်တဲ့အခါမှာ Order အပြည့်အစုံ နဲ့ Telegram Chat ပွင့်လာပါမယ်။ Send ကိုနှိပ်ပြီး Order ပို့ပါ။ ကြာချိန်၊ အာမခံ နှင့် Payment အသေးစိတ်ကိုပါ တစ်ခါတည်း မေးမြန်းလို့ရပါတယ်ခင်ဗျ။')}</p>,
+      detail: commerceEnabled ? <p>{t('Sign in and place your order. Once Digimium approves it, open your account to see your plan dates and access details.', 'အကောင့်ဝင်ပြီး အော်ဒါတင်ပါ။ Digimium က အတည်ပြုပေးတဲ့အခါ သင့်အကောင့်ထဲမှာ Plan ရဲ့ စတင်ရက်၊ ကုန်ဆုံးရက်နဲ့ အသုံးပြုပုံတွေကို ကြည့်နိုင်ပါတယ်။')}</p> : <p>{t('Checkout opens your full order in our Telegram chat. Tap Send and we’ll confirm availability and payment details.', 'Check Out ကိုနှိပ်တဲ့အခါမှာ Order အပြည့်အစုံ နဲ့ Telegram Chat ပွင့်လာပါမယ်။ Send ကိုနှိပ်ပြီး Order ပို့ပါ။ ကြာချိန်၊ အာမခံ နှင့် Payment အသေးစိတ်ကိုပါ တစ်ခါတည်း မေးမြန်းလို့ရပါတယ်ခင်ဗျ။')}</p>,
     },
   ];
   const faqs = [
     [t('Can I order several services together?', 'ဝန်ဆောင်မှု အများအပြားကို တစ်ခါတည်း မှာလို့ရပါသလား။'), t('Yes. Choose a plan, add it to your cart and keep browsing. Checkout includes every item in your cart.', 'ရပါတယ်။ အစီအစဉ်ကို ရွေးပြီး ဈေးခြင်းထဲ ထည့်ပါ။ မှာယူတဲ့အခါ ဈေးခြင်းထဲက ပစ္စည်းအားလုံး အမှာစာထဲမှာ ပါဝင်ပါမယ်။')],
     [t('What does “Price on enquiry” mean?', '“ဈေးနှုန်း မေးရန်” ဆိုတာ ဘာကို ဆိုလိုပါသလဲ။'), t('You can add the plan to your order. Digimium will confirm its current price before you pay.', 'အဲဒီအစီအစဉ်ကိုလည်း ဈေးခြင်းထဲ ထည့်လို့ရပါတယ်။ ငွေမပေးချေမီ လက်ရှိဈေးနှုန်းကို Digimium က ပြောပြပါမယ်။')],
+    commerceEnabled ? [t('Where can I check my order?', 'ကျွန်တော့်အော်ဒါကို ဘယ်မှာကြည့်ရမလဲ။'), t('Open your account to see pending orders. Approved purchases appear in your order history with their dates and any account details supplied by Digimium.', 'သင့်အကောင့်ထဲမှာ အတည်ပြုချက် စောင့်နေတဲ့ အော်ဒါတွေကို ကြည့်နိုင်ပါတယ်။ အတည်ပြုပြီးရင် ဝယ်ယူမှုမှတ်တမ်းထဲမှာ သက်တမ်းနဲ့ Digimium က ဖြည့်ပေးထားတဲ့ အကောင့်အချက်အလက်တွေကို တွေ့ရပါမယ်။')] :
     [t('When do I pay?', 'ဘယ်အချိန်မှာ ငွေပေးချေရမလဲ။'), t('Digimium will confirm your plan, price and payment options in Telegram after you send the order.', 'အမှာစာ ပို့ပြီးမှ ရွေးထားတဲ့ အစီအစဉ်၊ ဈေးနှုန်းနဲ့ ငွေပေးချေနိုင်တဲ့ နည်းလမ်းတွေကို Telegram မှာ အတည်ပြုပေးပါမယ်။')],
   ];
 
@@ -135,6 +137,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
           <button type="button" aria-label="English" aria-pressed={lang === 'en'} onClick={() => switchLanguage('en')} lang="en">EN</button>
           <button type="button" aria-label="မြန်မာ" aria-pressed={lang === 'my'} onClick={() => switchLanguage('my')} lang="my">မြန်မာ</button>
         </div>
+        {commerceEnabled && <a className="shop-account-link" href="/account" aria-label={t('My account', 'ကျွန်ုပ်၏ အကောင့်')} title={t('My account', 'ကျွန်ုပ်၏ အကောင့်')}><UserRound size={19} aria-hidden="true"/><span className="shop-cart-word">{t('Account', 'အကောင့်')}</span></a>}
         <button type="button" className="shop-cart-button" aria-label={cartLabel + ' (' + cartCount + ')'} onClick={() => { setMenu(false); shop.current?.openCart(); }}>
           <ShoppingBag size={18} /><span className="shop-cart-word">{cartLabel}</span><span className="shop-cart-count">{cartCount}</span>
         </button>
@@ -145,7 +148,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
       <section className="hero wrap" aria-labelledby="hero-title">
         <div className="hero-copy">
           <h1 id="hero-title">{t('Your digital life.', 'သင့်နေစဥ်ဘဝ အတွက်')}<br /><span>{t('A little more', 'စိတ်လှုပ်ရှားစရာ')}</span><br /><span className="blue">{t('premium.', 'Digital ခံစားမှုများ')}</span></h1>
-          <p className="hero-description">{t('Discover subscriptions for work, creativity, and entertainment. Choose a plan and order through Digimium on Telegram.', 'အလုပ်အတွက်၊ ကျောင်းအတွက်၊ အပန်းဖြေဖို့အတွက် သင့်တော်တဲ့ ဝန်ဆောင်မှုတွေကို စိတ်ကြိုက်ရွေးချယ်ဝယ်ယူနိုင်ပါသည်။')}</p>
+          <p className="hero-description">{t(commerceEnabled ? 'Discover subscriptions for work, creativity, and entertainment. Choose a plan and order from your Digimium account.' : 'Discover subscriptions for work, creativity, and entertainment. Choose a plan and order through Digimium on Telegram.', 'အလုပ်အတွက်၊ ကျောင်းအတွက်၊ အပန်းဖြေဖို့အတွက် သင့်တော်တဲ့ ဝန်ဆောင်မှုတွေကို စိတ်ကြိုက်ရွေးချယ်ဝယ်ယူနိုင်ပါသည်။')}</p>
           <div className="hero-actions"><a className="button primary" href="#services">{t('Explore services', 'ပစ္စည်းများ ကြည့်ရန်')} <ArrowUpRight size={18} /></a><a className="text-link" href="#how-it-works">{t('How to order', 'ဘယ်လိုဝယ်ယူရမလဲ')} <ArrowRight size={17} /></a></div>
         </div>
         <CollectionShowcase products={products} lang={lang} motionPaused={motionPaused} onCategory={showCategory}
