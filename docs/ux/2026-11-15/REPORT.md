@@ -1,6 +1,6 @@
 # Digimium UX report — အတိုချုပ်
 
-**15 November 2026 · ရွေးထားသော wireframe အတိုင်း website UI ပြင်ပြီးပါပြီ။**
+**15 November 2026 · ရွေးထားသော wireframe အတိုင်း website UI ပြင်ပြီး testing/live နှစ်ခုလုံးမှာ တင်ပြီးပါပြီ။**
 
 - ဖုန်းမှာ floating menu ကို **ပစ္စည်းများ · ဈေးခြင်း · အကောင့် · မှတ်တမ်း · အကူအညီ** ဟုထားပြီး အလယ်က **အကောင့်** ကို မြှင့်ထားပါတယ်။ Account box က စတိုးပေါ်မှာပဲ ဖွင့်ပါတယ်။
 - ပစ္စည်းဝယ်ခလုတ်က **“ဝယ်ယူမည်”** ဖြစ်ပါတယ်။ မဝင်ရသေးသူမှာ **“အကောင့်ဖွင့်မည်” / “Telegram မှဝယ်ယူမည်”**၊ ဝင်ပြီးသားသူမှာ **“Order တင်မည်”** တစ်ခုပဲ ပြပါတယ်။
@@ -10,7 +10,7 @@
 
 ## စမ်းသပ်ထားမှု
 
-Node 24 unit test **၅၃ ခု**၊ commerce integration၊ Hostinger/Sites build နဲ့ type check အောင်ပါတယ်။ Local Chrome မှာ မြန်မာ/English၊ 320/390px ဖုန်းအရွယ်နဲ့ desktop ကို စစ်ထားပါတယ်။ Signed-in/out ခလုတ်၊ guest warning၊ pending order၊ Telegram ကနေ website ပြန်လာခြင်း၊ receipt reload၊ အကောင့်ထွက်ပြီး private receipt ဖျောက်ခြင်းနဲ့ သက်တမ်းအခြေအနေများကို စမ်းထားပါတယ်။ Production မှာ စမ်းသပ်အော်ဒါ မတင်ပါ။
+Node 24 unit test **၅၃ ခု**၊ commerce integration၊ Hostinger/Sites build နဲ့ type check အောင်ပါတယ်။ Local Chrome မှာ မြန်မာ/English၊ 320/390px ဖုန်းအရွယ်နဲ့ desktop ကို စစ်ထားပါတယ်။ Signed-in/out ခလုတ်၊ guest warning၊ pending order၊ Telegram ကနေ website ပြန်လာခြင်း၊ receipt reload၊ အကောင့်ထွက်ပြီး private receipt ဖျောက်ခြင်းနဲ့ သက်တမ်းအခြေအနေများကို စမ်းထားပါတယ်။ Hostinger မှာ source `22e376b` Completed/Current ဖြစ်တာကို နှစ်ခုလုံး စစ်ထားပါတယ်။ Live မှာ UI၊ product ၅၄ ခု၊ payment ပုံတွေနဲ့ login capability ကိုသာ စစ်ပြီး စမ်းသပ်အော်ဒါ မတင်ပါ။
 
 Receipt သည် မူလ tab ထဲမှာ ၂၄ နာရီအထိ ပြန်ကြည့်နိုင်ပြီး account receipt ကို မူလအကောင့်ဖြင့်သာ ပြပါတယ်။ Guest က website purchase history မရပါ။
 
