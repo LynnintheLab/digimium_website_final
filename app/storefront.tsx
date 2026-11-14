@@ -8,12 +8,14 @@ import { Mark } from "./product-mark";
 import { CollectionShowcase } from "./collection-showcase";
 import { commerceEnabled } from "../lib/commerce-enabled";
 import { resolveTelegramContact } from "../lib/telegram-contact";
-import { AccountMenu } from "./account-menu";
+import { AccountMenu, type AccountMenuHandle } from "./account-menu";
 import { ShopOrder, type ShopOrderHandle } from "./shop-order";
 import { OfferPrice } from "./offer-price";
 import { BestSellerBadge } from "./best-seller-badge";
 import { CursorLight } from "./cursor-light";
 import { ScrollRail } from "./scroll-rail";
+import { MobileDock } from "./mobile-dock";
+import { PaymentMethods } from "./payment-methods";
 import "./storefront-order.css";
 import "./contact-links.css";
 import "./order-guide.css";
@@ -42,8 +44,12 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my' }: {
   const menuButton = useRef<HTMLButtonElement>(null);
   const header = useRef<HTMLElement>(null);
   const [cartCount, setCartCount] = useState(0);
+  const [orderOpen, setOrderOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [dockSection, setDockSection] = useState<'services' | 'help'>('services');
   const [motionPaused, setMotionPaused] = useState(false);
   const shop = useRef<ShopOrderHandle>(null);
+  const account = useRef<AccountMenuHandle>(null);
   const { products, settings } = initialCatalog;
   const hideShortDescriptions = settings.hideShortDescriptions === true;
   const telegram = resolveTelegramContact(settings);
@@ -65,6 +71,24 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my' }: {
     document.documentElement.lang = lang;
     return () => { document.documentElement.lang = 'en'; };
   }, [lang]);
+
+  useEffect(() => {
+    const readHash = () => setDockSection(window.location.hash === '#contact' ? 'help' : 'services');
+    const initialUrl = new URL(window.location.href);
+    const wantsAccount = commerceEnabled && initialUrl.searchParams.get('account') === '1';
+    const wantsCheckout = initialUrl.searchParams.get('checkout') === '1';
+    const frame = requestAnimationFrame(() => {
+      readHash();
+      if (!wantsAccount) return;
+      // Read the current URL so the checkout component can independently consume its query.
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.delete('account');
+      window.history.replaceState(window.history.state, '', currentUrl.pathname + currentUrl.search + currentUrl.hash);
+      if (!wantsCheckout) account.current?.open();
+    });
+    window.addEventListener('hashchange', readHash);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener('hashchange', readHash); };
+  }, []);
 
   useEffect(() => {
     if (!menu) return;
@@ -106,19 +130,19 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my' }: {
       title: t('Choose your plan.', 'Plan ရွေးချယ်ပါ'),
       detail: lang === 'my' ? <>
         <p>ဝယ်ယူလိုသော Product ကိုနှိပ်ပြီး စိတ်ကြိုက် Plan ကိုရွေးချယ်ပါ။</p>
-        <p>ပြီးလျှင် “Add to Cart” လုပ်ပြီး နောက်ထပ် လိုချင်တာကိုရှာပါ (သို့မဟုတ်) “Check Out” နှိပ်ပြီး Order တင်ပါ။</p>
+        <p>“ဈေးခြင်းထဲ ထည့်မယ်” ကိုနှိပ်ပြီး ဆက်ရွေးနိုင်သလို “ဝယ်ယူမည်” ကိုနှိပ်ပြီး အော်ဒါကို စစ်နိုင်ပါတယ်။</p>
         <p className="step-enquiry">ကိုယ်ဝယ်ယူလိုသော Plan (သို့မဟုတ်) Product အကြောင်း အသေးစိတ်မေးမြန်းချင်တာပဲဖြစ်ဖြစ် သိချင်တာပဲဖြစ်ဖြစ် “<a href="#contact">ဆက်သွယ်ရန်</a>” ကိုနှိပ်ပြီး Telegram မှတစ်ဆင့် စိတ်ကြိုက်မေးမြန်းလို့ရပါတယ်ခင်ဗျ။</p>
-      </> : <p>Add it to your cart to keep browsing, or choose Checkout to order.</p>,
+      </> : <p>Add it to your cart to keep browsing, or choose Buy to review your order.</p>,
     },
     {
       title: t('Send your order.', 'Order တင်မယ်'),
-      detail: commerceEnabled ? <p>{t('Buy with an account to keep your purchase history, or buy directly on Telegram. Send the prepared message in Telegram to arrange payment and service delivery.', 'အကောင့်ဖြင့် ဝယ်ယူပြီး မှတ်တမ်းသိမ်းနိုင်သလို Telegram မှာ တိုက်ရိုက်ဝယ်ယူနိုင်ပါတယ်။ ပြင်ဆင်ပေးထားတဲ့ စာကို Telegram မှာ ပို့ပြီး ငွေပေးချေမှုနဲ့ service အကောင့်ရယူမှုကို ဆက်လုပ်ပါ။')}</p> : <p>{t('Checkout opens your full order in our Telegram chat. Tap Send and we’ll confirm availability and payment details.', 'Check Out ကိုနှိပ်တဲ့အခါမှာ Order အပြည့်အစုံ နဲ့ Telegram Chat ပွင့်လာပါမယ်။ Send ကိုနှိပ်ပြီး Order ပို့ပါ။ ကြာချိန်၊ အာမခံ နှင့် Payment အသေးစိတ်ကိုပါ တစ်ခါတည်း မေးမြန်းလို့ရပါတယ်ခင်ဗျ။')}</p>,
+      detail: commerceEnabled ? <p>{t('Signed in? Choose Place order. Otherwise choose Create account or Buy on Telegram. We save the order and open Telegram; tap Send, then arrange payment and wait for the shop to confirm.', 'အကောင့်ဝင်ထားရင် “Order တင်မည်” ကို နှိပ်ပါ။ မဝင်ရသေးရင် “အကောင့်ဖွင့်မည်” သို့မဟုတ် “Telegram မှဝယ်ယူမည်” ကို ရွေးပါ။ အော်ဒါသိမ်းပြီး Telegram ပွင့်လာရင် စာပို့ကာ ဆိုင်နဲ့ ဆက်လုပ်ပါ။')}</p> : <p>{t('Buy opens your full order in our Telegram chat. Tap Send and we’ll confirm availability and payment details.', 'ဝယ်ယူမည် ကိုနှိပ်တဲ့အခါ Order အပြည့်အစုံနဲ့ Telegram ပွင့်လာပါမယ်။ Send ကိုနှိပ်ပြီး ဆိုင်နဲ့ ဈေးနှုန်းနဲ့ ငွေပေးချေမှုကို ဆက်ပြောပါ။')}</p>,
     },
   ];
   const faqs = [
     [t('Can I order several services together?', 'ဝန်ဆောင်မှု အများအပြားကို တစ်ခါတည်း မှာလို့ရပါသလား။'), t('Yes. Choose a plan, add it to your cart and keep browsing. Checkout includes every item in your cart.', 'ရပါတယ်။ အစီအစဉ်ကို ရွေးပြီး ဈေးခြင်းထဲ ထည့်ပါ။ မှာယူတဲ့အခါ ဈေးခြင်းထဲက ပစ္စည်းအားလုံး အမှာစာထဲမှာ ပါဝင်ပါမယ်။')],
     [t('What does “Price on enquiry” mean?', '“ဈေးနှုန်း မေးရန်” ဆိုတာ ဘာကို ဆိုလိုပါသလဲ။'), t('You can add the plan to your order. Digimium will confirm its current price before you pay.', 'အဲဒီအစီအစဉ်ကိုလည်း ဈေးခြင်းထဲ ထည့်လို့ရပါတယ်။ ငွေမပေးချေမီ လက်ရှိဈေးနှုန်းကို Digimium က ပြောပြပါမယ်။')],
-    commerceEnabled ? [t('Where can I check my order?', 'ကျွန်တော့်အော်ဒါကို ဘယ်မှာကြည့်ရမလဲ။'), t('If you ordered while signed in, open Account for pending orders or Order history for confirmed purchases and subscription dates. If you ordered without an account, use your Telegram order message.', 'အကောင့်ဝင်ပြီး ဝယ်ထားရင် စောင့်ဆိုင်းဆဲအော်ဒါကို Account မှာ၊ အတည်ပြုပြီး ဝယ်ယူမှုနဲ့ သက်တမ်းကို ဝယ်ယူမှု မှတ်တမ်းမှာ ကြည့်ပါ။ အကောင့်မရှိဘဲ ဝယ်ထားရင် Telegram က အော်ဒါစာမှာ ပြန်ကြည့်နိုင်ပါတယ်။')] :
+    commerceEnabled ? [t('Where can I check my order?', 'ကျွန်တော့်အော်ဒါကို ဘယ်မှာကြည့်ရမလဲ။'), t('For account purchases, open Order history to see pending orders, confirmed purchases and subscription dates. Account shows a short overview. For a purchase without an account, keep your Telegram order message.', 'အကောင့်နဲ့ ဝယ်ထားရင် “ဝယ်ယူမှု မှတ်တမ်း” မှာ စောင့်ဆိုင်းဆဲ၊ ဝယ်ယူပြီးနဲ့ သက်တမ်းရက်စွဲတွေကို ကြည့်နိုင်ပါတယ်။ “အကောင့်” မှာ အတိုချုပ်ပြထားပါတယ်။ အကောင့်မရှိဘဲ ဝယ်ထားရင် Telegram က အော်ဒါစာကို သိမ်းထားပါ။')] :
     [t('When do I pay?', 'ဘယ်အချိန်မှာ ငွေပေးချေရမလဲ။'), t('Digimium will confirm your plan, price and payment options in Telegram after you send the order.', 'အမှာစာ ပို့ပြီးမှ ရွေးထားတဲ့ အစီအစဉ်၊ ဈေးနှုန်းနဲ့ ငွေပေးချေနိုင်တဲ့ နည်းလမ်းတွေကို Telegram မှာ အတည်ပြုပေးပါမယ်။')],
   ];
 
@@ -139,13 +163,14 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my' }: {
           <button type="button" aria-label="English" aria-pressed={lang === 'en'} onClick={() => switchLanguage('en')} lang="en">EN</button>
           <button type="button" aria-label="မြန်မာ" aria-pressed={lang === 'my'} onClick={() => switchLanguage('my')} lang="my">မြန်မာ</button>
         </div>
-        {commerceEnabled && <AccountMenu lang={lang} onOpen={() => setMenu(false)} />}
+        {commerceEnabled && <AccountMenu ref={account} lang={lang} onOpen={() => setMenu(false)} onOpenChange={setAccountOpen} />}
         <button type="button" className="shop-cart-button" aria-label={cartLabel + ' (' + cartCount + ')'} onClick={() => { setMenu(false); shop.current?.openCart(); }}>
           <ShoppingBag size={18} /><span className="shop-cart-word">{cartLabel}</span><span className="shop-cart-count">{cartCount}</span>
         </button>
       </div>
       <button ref={menuButton} type="button" className="menu-button" aria-controls="shop-nav" aria-label={menu ? t('Close menu', 'မီနူး ပိတ်ရန်') : t('Open menu', 'မီနူး ဖွင့်ရန်')} aria-expanded={menu} onClick={() => setMenu(!menu)}>{menu ? <X /> : <Menu />}</button>
     </header>
+    <div className="store-payment-strip wrap"><PaymentMethods lang={lang}/></div>
     <main>
       <section className="hero wrap" aria-labelledby="hero-title">
         <div className="hero-copy">
@@ -229,6 +254,9 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my' }: {
         {motionPaused ? t('Resume motion', 'လှုပ်ရှားမှု ပြန်ဖွင့်ရန်') : t('Pause motion', 'လှုပ်ရှားမှု ရပ်ရန်')}
       </button>
       <a className="admin-link" href="/admin">{t('Manage catalog', 'စာရင်း စီမံရန်')}</a><span>© {new Date().getFullYear()} Digimium</span></div></footer>
-    <ShopOrder ref={shop} products={products} lang={lang} telegram={telegram} hideShortDescriptions={hideShortDescriptions} onCountChange={setCartCount} />
+    <MobileDock lang={lang} active={dockSection} cartCount={cartCount} hidden={menu || accountOpen || orderOpen}
+      onCart={() => { setMenu(false); shop.current?.openCart(); }}
+      onAccount={commerceEnabled ? () => account.current?.open() : undefined}/>
+    <ShopOrder ref={shop} products={products} lang={lang} telegram={telegram} hideShortDescriptions={hideShortDescriptions} onCountChange={setCartCount} onOpenChange={setOrderOpen} />
   </div>;
 }

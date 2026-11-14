@@ -12,6 +12,7 @@ import { durationText, priceText } from "@/lib/shop-language";
 import { AuthForm } from "./auth-form";
 export { CheckoutAuth } from "./auth-form";
 import { SubscriptionTerm } from "./subscription-term";
+import { MobileDock } from "../mobile-dock";
 
 type AccountProps = { lang: ShopLanguage; checkout?: boolean; embedded?: boolean; history?: boolean; resumeGoogle?: boolean; googleReturnTo?: "checkout" | "account" | "history"; onClose?: () => void };
 type Translate = (en: string, my: string) => string;
@@ -166,6 +167,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
   const [loggingOut, setLoggingOut] = useState(false);
   const [failed, setFailed] = useState(false);
   const [reload, setReload] = useState(0);
+  const [historyFilter, setHistoryFilter] = useState<"approved" | "pending" | null>(null);
 
   useEffect(() => {
     if (embedded) return;
@@ -252,6 +254,9 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
 
   const pending = orders?.filter(order => order.status === "pending") ?? [];
   const approved = orders?.filter(order => order.status === "approved") ?? [];
+  const selectedHistory = historyFilter ?? (approved.length > 0 || pending.length === 0 ? "approved" : "pending");
+  const historyOrders = selectedHistory === "approved" ? approved : pending;
+  const count = (value: number) => new Intl.NumberFormat(lang === "my" ? "my-MM" : "en-GB").format(value);
   return <Container className={"customer-page" + (embedded ? " customer-embedded" : "") + (history ? " customer-history-page" : "")} lang={lang}>
     {!embedded && <header className="customer-header">
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- The storefront and account use separate documents. */}
@@ -261,7 +266,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
     </header>}
     <div className="customer-main">
       {history && <div className="customer-history-heading"><h1>{t("Order history", "အော်ဒါမှတ်တမ်း")}</h1>
-        <p>{t("Your approved orders and subscription dates, in one place.", "အတည်ပြုပြီးသော အော်ဒါတွေနဲ့ ဝန်ဆောင်မှုသက်တမ်းတွေကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>
+        <p>{t("Your purchases, subscription dates and orders awaiting approval.", "ဝယ်ထားတာ၊ သက်တမ်းနဲ့ စောင့်ဆိုင်းဆဲ အော်ဒါကို ဒီမှာ ကြည့်ပါ။")}</p>
       </div>}
       {failed && <div className="customer-alert" role="alert">{t("Couldn’t update your account. Try again.", "အကောင့်ကို ပြန်လည်ဖော်ပြ၍ မရပါ။ ပြန်ကြိုးစားပါ။")}
         <button type="button" onClick={refresh}>{t("Retry", "ပြန်ကြိုးစားရန်")}</button>
@@ -285,21 +290,30 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
             <div className="customer-heading"><h2 id="pending-orders">{t("Pending orders", "စောင့်ဆိုင်းဆဲ အော်ဒါများ")} <span className="customer-section-count" data-pending>{pending.length}</span></h2>
               <button type="button" className="customer-refresh" onClick={refresh} disabled={loading}><RefreshCw size={15} aria-hidden />{t("Refresh", "ပြန်ကြည့်ရန်")}</button>
             </div>
-            {pending.length > 0 && <p className="customer-section-help">{t("Send your saved order in Telegram to confirm payment and receive access.", "ငွေပေးချေပြီး ဝယ်ထားတဲ့အကောင့် ရယူဖို့ သိမ်းထားတဲ့ အော်ဒါစာကို Telegram မှာ ပို့ပေးပါ။")}</p>}
+            {pending.length > 0 && <p className="customer-section-help">{t("Send your order in Telegram and wait for shop approval.", "အော်ဒါစာကို Telegram မှာ ပို့ပြီး ဆိုင်အတည်ပြုချက်ကို စောင့်ပါ။")}</p>}
             {pending.length ? pending.map(order => <OrderCard key={order.id} order={order} customer={customer} telegram={telegram} lang={lang} t={t} embedded={embedded} onClose={onClose} />)
               : <p className="customer-empty">{t("No orders are awaiting approval.", "အတည်ပြုရန် စောင့်ဆိုင်းနေသော အော်ဒါ မရှိပါ။")}</p>}
           </section>}
-          {history && <section className="customer-section" aria-labelledby="approved-orders">
-            <div className="customer-heading"><h2 id="approved-orders">{t("Approved orders", "အတည်ပြုပြီးသော အော်ဒါများ")}</h2>
+          {history && <section className="customer-section customer-history-orders" aria-labelledby="customer-history-list-title">
+            <div className="customer-history-toolbar">
+              <div className="customer-history-filters" role="group" aria-label={t("Order status", "အော်ဒါ အခြေအနေ ရွေးရန်")}>
+                <button type="button" aria-pressed={selectedHistory === "approved"} aria-controls="customer-history-list" onClick={() => setHistoryFilter("approved")}>{t("Purchased", "ဝယ်ယူပြီး")} <span>{count(approved.length)}</span></button>
+                <button type="button" aria-pressed={selectedHistory === "pending"} aria-controls="customer-history-list" onClick={() => setHistoryFilter("pending")}>{t("Pending", "စောင့်ဆိုင်းဆဲ")} <span>{count(pending.length)}</span></button>
+              </div>
               <button type="button" className="customer-refresh" onClick={refresh} disabled={loading}><RefreshCw size={15} aria-hidden />{t("Refresh", "ပြန်ကြည့်ရန်")}</button>
             </div>
-            {approved.length ? approved.map(order => <OrderCard key={order.id} order={order} customer={customer} telegram={telegram} lang={lang} t={t} embedded={embedded} onClose={onClose} />)
-              : <p className="customer-empty">{t("Approved orders and subscription dates will appear here.", "အော်ဒါ အတည်ပြုပြီးရင် ဝယ်ယူမှုမှတ်တမ်းနဲ့ ဝန်ဆောင်မှုသက်တမ်းကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>}
-            <Link href="/account" className="customer-history-account">{t("View pending orders and account settings", "စောင့်ဆိုင်းဆဲ အော်ဒါများနှင့် အကောင့်အချက်အလက် ကြည့်ရန်")}<ArrowRight size={16} aria-hidden /></Link>
+            <div id="customer-history-list" aria-live="polite" aria-busy={loading}>
+              <h2 id="customer-history-list-title" className="customer-history-list-title">{selectedHistory === "approved" ? t("Purchased plans", "ဝယ်ယူထားသော အစီအစဉ်များ") : t("Awaiting shop approval", "ဆိုင်အတည်ပြုရန် စောင့်ဆိုင်းဆဲ")}</h2>
+              {selectedHistory === "pending" && pending.length > 0 && <p className="customer-section-help">{t("Send your order in Telegram and wait for shop approval.", "အော်ဒါစာကို Telegram မှာ ပို့ပြီး ဆိုင်အတည်ပြုချက်ကို စောင့်ပါ။")}</p>}
+              {historyOrders.length ? historyOrders.map(order => <OrderCard key={order.id} order={order} customer={customer} telegram={telegram} lang={lang} t={t} embedded={embedded} onClose={onClose} />)
+                : <p className="customer-empty">{selectedHistory === "pending" ? t("No orders are awaiting approval.", "အတည်ပြုရန် စောင့်ဆိုင်းနေသော အော်ဒါ မရှိပါ။") : t("Approved orders and subscription dates will appear here.", "အော်ဒါ အတည်ပြုပြီးရင် ဝယ်ယူမှုမှတ်တမ်းနဲ့ ဝန်ဆောင်မှုသက်တမ်းကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>}
+            </div>
+            <Link href="/account" className="customer-history-account">{t("Account settings", "အကောင့်အချက်အလက် ကြည့်ရန်")}<ArrowRight size={16} aria-hidden /></Link>
           </section>}
         </>}
       </div>}
     </div>
+    {!embedded && <MobileDock lang={lang} active={history ? "history" : "account"} />}
   </Container>;
 }
 

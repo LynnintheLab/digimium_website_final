@@ -256,3 +256,36 @@
 .customer-auth.customer-auth-progressive .customer-google-wait button { min-height: 40px; padding: 6px 0; border: 0; background: transparent; color: var(--blue); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .customer-google-error { margin-top: 12px; font-size: 13px; }
 .customer-google-connected { margin-block: 12px; color: #17684f; font-size: 13px; }
+
+/* Purchased plans and approval tracking share one readable history surface. */
+.customer-dashboard { font-size: 16px; }
+.customer-dashboard .customer-item-plan { font-size: 16px; line-height: 1.8; }
+.customer-dashboard .customer-item-title > span { font-size: 13px; }
+.customer-item-duration, .customer-item-meta { font-size: 14px; }
+.customer-unit-price small { font-size: 13px; }
+.customer-unit-price strong { font-size: 16px; }
+.customer-dashboard .customer-order-meta { font-size: 14px; }
+.customer-order-meta time, .customer-order-status { font-size: 13px; }
+.customer-dashboard .customer-empty, .customer-section-help { font-size: 14px; line-height: 1.85; }
+.customer-dashboard .customer-total { font-size: 14px; }
+.customer-dashboard .customer-telegram-link, .customer-dashboard .customer-telegram-actions > button { min-height: 44px; font-size: 14px; }
+.customer-history-link, .customer-history-account { font-size: 14px; }
+.customer-history-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
+.customer-history-filters { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; flex: 1; min-width: min(100%,260px); }
+.customer-history-filters button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-width: 0; min-height: 48px; padding: 9px 12px; border: 1px solid var(--brand-line-strong);
+  border-radius: 8px; background: #fff; color: var(--brand-navy); font: inherit; font-size: 16px;
+  font-weight: 600; line-height: 1.8; cursor: pointer;
+}
+.customer-history-filters button[aria-pressed="true"] { border-color: var(--brand-navy); background: var(--brand-navy); color: #fff; }
+.customer-history-filters button span { font-family: Manrope, Walone, sans-serif; font-variant-numeric: tabular-nums; }
+.customer-history-orders .customer-refresh { min-height: 44px; font-size: 14px; }
+.customer-dashboard .customer-history-list-title { margin: 20px 0 0; font-size: 18px; line-height: 1.8; }
+.customer-history-orders .customer-section-help { margin-block: 5px 0; }
+@media (max-width: 800px) {
+  .customer-page:not(.customer-embedded) { padding-bottom: calc(120px + env(safe-area-inset-bottom,0px)); }
+}
+@media (max-width: 400px) {
+  .customer-history-filters button { padding-inline: 8px; gap: 5px; }
+}

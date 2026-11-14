@@ -152,6 +152,7 @@ try {
   const [checkout, duplicate] = await Promise.all(submitted.map(r => json(r, r.status)));
   const { id } = checkout;
   assert.deepEqual(checkout, duplicate);
+  assert.equal(checkout.customerId, alice.id, 'Checkout receipts bind to the actual saved account owner');
   assert.equal(checkout.telegram, telegram);
   assert.deepEqual(checkout.customer, { name: first.name, email: first.email });
   assert.deepEqual(checkout.order, { id, totalMmk: null, lines: [
@@ -266,8 +267,9 @@ try {
   assert.ok(overview.some(order => order.id === priced.id && order.status === 'pending'));
   assert.ok(overview.every(order => order.lines.every(line => !line.accountInfo)), 'Account preview never returns historical credentials');
   const history = (await json(await get(customerOrders + '?view=history', activeCookie))).orders;
-  assert.ok(history.every(order => order.status === 'approved'));
-  assert.equal(history.flatMap(order => order.lines).length, 4);
+  assert.ok(history.some(order => order.id === priced.id && order.status === 'pending'), 'Full history includes pending orders for the status tabs');
+  assert.ok(history.filter(order => order.status === 'pending').every(order => order.lines.every(line => !line.accountInfo)), 'Pending history never returns delivery credentials');
+  assert.equal(history.filter(order => order.status === 'approved').flatMap(order => order.lines).length, 4);
   assert.equal(history.find(order => order.id === id).lines[0].accountInfo, privateDetails);
   assert.deepEqual((await json(await get(customerOrders + '?view=history&customerId=' + alice.id, bob.cookie))).orders, []);
 
@@ -302,6 +304,7 @@ try {
     assert.equal((await submit(malformed, bothCookies)).status, 400);
   }
   const directCheckout = await json(await submit(direct, bothCookies), 201);
+  assert.equal(directCheckout.customerId, null, 'Direct guest receipts never bind to a signed-in account');
   assert.deepEqual(directCheckout.customer, { name: null, email: null, guest: true });
   assert.deepEqual(await json(await submit(direct, guestCookie)), directCheckout, 'Signing out between guest attempts replays the same order');
   assert.equal((await submit({ ...guestBody, requestId: direct.requestId }, guestCookie)).status, 409,
@@ -317,6 +320,7 @@ try {
   const guestResults = await Promise.all(guestResponses.map(response => json(response, response.status)));
   assert.deepEqual(guestResults[0], guestResults[1]);
   const guestCheckout = guestResults[0];
+  assert.equal(guestCheckout.customerId, null, 'Legacy guest retries also retain guest ownership');
   assert.deepEqual(guestCheckout.customer, { name: 'ဒေါ်မြ', email: null, guest: true });
   assert.equal(guestCheckout.telegram, updatedContact);
   assert.equal((await submit({ ...guestBody, guestName: 'Different' }, guestCookie)).status, 409);

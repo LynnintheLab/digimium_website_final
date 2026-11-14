@@ -14,7 +14,8 @@ export async function GET(request: Request) {
     const [allOrders, telegram] = await Promise.all([customerOrders(customer.id), currentOrderContact().catch(() => '')]);
     const view = new URL(request.url).searchParams.get('view');
     let remaining = 3;
-    const orders = view === 'history' ? allOrders.filter(order => order.status === 'approved') : view === 'overview'
+    const orders = view === 'history' ? allOrders.map(order => order.status === 'pending'
+      ? {...order, lines: order.lines.map(line => ({...line, accountInfo: ''}))} : order) : view === 'overview'
       ? allOrders.flatMap(order => {
           if (order.status === 'pending') return [{...order, lines: order.lines.map(line => ({...line, accountInfo: ''}))}];
           const lines = order.lines.slice(0, remaining).map(line => ({...line, accountInfo: ''}));
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
       }
       const { submitGuestOrder } = await import('../../../../hostinger/orders');
       const result = await submitGuestOrder(guestKey, body, request);
-      return commerceJson({ id: result.order.id, order: result.order, telegram: result.telegram,
+      return commerceJson({ id: result.order.id, customerId: result.customerId, order: result.order, telegram: result.telegram,
         customer: { name: result.guestName, email: null, guest: true } }, result.created ? 201 : 200);
     }
     const { submitOrder } = await import('../../../../hostinger/orders');
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
       body = Object.fromEntries(Object.entries(fields).filter(([field]) => field !== 'guestName'));
     }
     const result = await submitOrder(customer.id, body);
-    return commerceJson({ id: result.order.id, order: result.order, telegram: result.telegram,
+    return commerceJson({ id: result.order.id, customerId: result.customerId, order: result.order, telegram: result.telegram,
       customer: { name: customer.name, email: customer.email, ...(customer.telegram ? { telegram: customer.telegram } : {}) } }, result.created ? 201 : 200);
   } catch (error) {
     return commerceErrorResponse(error);

@@ -1,0 +1,21 @@
+.customer-auth.customer-auth-progressive input:not(:focus) {
+  border-color: color-mix(in srgb, var(--brand-navy) 56%, white);
+}
+.customer-password-field { display: grid; gap: 6px; min-width: 0; }
+.customer-password-entry { display: flex; align-items: stretch; gap: 8px; min-width: 0; }
+.customer-password-entry input { flex: 1; min-width: 0; width: 0; }
+.customer-password-entry button {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: 76px; min-height: 48px; padding: 8px 10px; border: 1px solid var(--brand-line-strong);
+  border-radius: 8px; background: var(--brand-surface); color: var(--brand-navy); font: inherit; font-size: 14px;
+}
+.customer-password-entry button:hover { background: var(--soft); }
+.customer-password-entry button svg { flex: none; }
+.customer-password-assistance { min-width: 0; }
+.customer-password-help-toggle {
+  min-height: 44px; padding: 6px 0; border: 0; background: transparent; color: var(--blue);
+  font: inherit; font-size: 14px; text-align: start; text-decoration: underline; text-underline-offset: 4px;
+}
+.customer-password-help { margin-top: 4px; padding: 12px 14px; border-radius: 9px; background: var(--soft); font-size: 14px; }
+.customer-password-help p { margin: 0 0 8px; }
+.customer-password-help a { display: inline-flex; min-height: 44px; align-items: center; gap: 6px; color: var(--blue); }

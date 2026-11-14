@@ -1,6 +1,6 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
+import { useSyncExternalStore, type CSSProperties } from 'react';
 import type { ShopLanguage } from '../../lib/shop-language';
 import { getSubscriptionTerm, todayInMyanmar } from '../../lib/subscription-term';
 import './subscription-term.css';
@@ -63,27 +63,33 @@ export function SubscriptionTerm({ startDate, endDate, lang, compact = false }: 
     detail = my ? `${number(term.daysRemaining)} ရက် ကျန်` : `${number(term.daysRemaining)} ${term.daysRemaining === 1 ? 'day' : 'days'} left`;
   } else if (term.status === 'upcoming' && term.daysUntilStart !== null) {
     detail = my ? `${number(term.daysUntilStart)} ရက်အကြာ စတင်မည်` : `Starts in ${number(term.daysUntilStart)} ${term.daysUntilStart === 1 ? 'day' : 'days'}`;
-  } else if (compact && term.endDate && (term.status === 'expired' || term.status === 'ends-today')) {
-    detail = date(term.endDate);
   }
   const urgent = term.status === 'ends-today' || (term.status === 'active' && (term.daysRemaining ?? Infinity) <= 7);
   const meterLabel = my ? 'ကျန်ရှိသော သက်တမ်း' : 'Subscription time remaining';
   const pendingDate = my ? 'သတ်မှတ်ရန် ကျန်' : 'To be confirmed';
+  const value = term.status === 'upcoming' ? term.daysUntilStart : term.daysRemaining;
+  const digits = value === null ? 0 : String(value).length;
+  const unit = term.status === 'upcoming' ? (my ? compact ? 'ရက်အကြာ' : 'ရက်အကြာ စမည်' : compact ? 'days' : value === 1 ? 'day to start' : 'days to start')
+    : term.status === 'unknown' ? (my ? compact ? 'ရက်စွဲ' : 'ရက်စွဲစောင့်ဆိုင်း' : compact ? 'Dates' : 'Dates pending')
+    : (my ? 'ရက်ကျန်' : value === 1 ? 'day left' : 'days left');
+  const meterText = [status, detail, term.endDate ? `${my ? 'သက်တမ်းကုန်ရက်' : 'Ends'} ${date(term.endDate)}` : ''].filter(Boolean).join(', ');
+  const percent = term.remainingPercent === null ? null : Math.max(0, Math.min(100, term.remainingPercent));
+  const ringStyle = { '--term-progress': `${percent ?? 0}%` } as CSSProperties;
 
   return (
     <div className={`subscription-term${compact ? ' subscription-term-compact' : ''}`} data-status={term.status} data-urgent={urgent || undefined}>
-      <div className="subscription-term-status">
-        <span className="subscription-term-label">{status}</span>
-        {detail && <span className="subscription-term-detail">{detail}</span>}
-      </div>
-      {term.remainingPercent === null ? (
-        <div className="subscription-term-track" aria-hidden="true" />
-      ) : (
-        <div className="subscription-term-track" role="meter" aria-label={meterLabel} aria-valuemin={0} aria-valuemax={100}
-          aria-valuenow={Math.round(term.remainingPercent)} aria-valuetext={`${status}${detail ? `, ${detail}` : ''}`}>
-          <span className="subscription-term-fill" style={{ width: `${term.remainingPercent}%` }} />
+      <div className="subscription-term-visual">
+        <div className="subscription-term-ring" style={ringStyle} data-long={digits > 3 || undefined} data-extra-long={digits > 5 || undefined}
+          role={percent === null ? undefined : 'meter'} aria-label={percent === null ? undefined : meterLabel}
+          aria-valuemin={percent === null ? undefined : 0} aria-valuemax={percent === null ? undefined : 100}
+          aria-valuenow={percent === null ? undefined : Math.round(percent)} aria-valuetext={percent === null ? undefined : meterText}>
+          <span className="subscription-term-core" aria-hidden="true"><strong>{value === null ? '—' : new Intl.NumberFormat(my ? 'my-MM' : 'en-GB', {useGrouping: false}).format(value)}</strong><span>{unit}</span></span>
         </div>
-      )}
+        <div className="subscription-term-status">
+          <span className="subscription-term-label">{status}</span>
+          {compact && term.endDate && <span className="subscription-term-expiry">{my ? 'ကုန်ရက်' : 'Ends'} <time dateTime={term.endDate}>{date(term.endDate)}</time></span>}
+        </div>
+      </div>
       {!compact && <dl className="subscription-term-dates">
         <div><dt>{my ? 'စတင်ရက်' : 'Start date'}</dt><dd>{term.startDate ? <time dateTime={term.startDate}>{date(term.startDate)}</time> : pendingDate}</dd></div>
         <div><dt>{my ? 'သက်တမ်းကုန်ရက်' : 'End date'}</dt><dd>{term.endDate ? <time dateTime={term.endDate}>{date(term.endDate)}</time> : pendingDate}</dd></div>

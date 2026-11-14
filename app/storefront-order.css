@@ -149,3 +149,33 @@ html:has(.storefront-shell) {
 .shop-account-link { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; color: var(--ink); font-size: 14px; }
 .shop-account-link:hover { color: var(--blue); }
 @media (max-width: 900px) { .shop-account-link { min-width: 40px; } }
+
+.store-payment-strip { padding-block: 13px 15px; border-bottom: 1px solid var(--line); }
+@media (max-width: 800px) {
+  .storefront-shell { padding-bottom: calc(124px + env(safe-area-inset-bottom)); }
+  .shop-header-tools > .shop-cart-button, .shop-header-tools .shop-account-link { display: none; }
+  .shop-language button { min-width: 44px; min-height: 44px; }
+  .store-payment-strip { padding-block: 11px 13px; }
+  .catalog-grid { grid-template-columns: minmax(0,1fr); gap: 14px; }
+  .catalog-grid .product {
+    display: grid; grid-template-columns: 48px minmax(0,1fr); column-gap: 13px; row-gap: 0;
+    align-items: start; padding: 18px; text-align: start;
+  }
+  .product-top { display: contents; }
+  .product-top > :is(.service-mark,.letter-mark) { grid-column: 1; grid-row: 1 / span 3; width: 44px; height: 44px; margin: 2px 0 0; object-fit: contain; }
+  .product-top > .service-mark img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .product-top > .best-seller-badge { grid-column: 2; margin: 0 0 6px; justify-self: start; }
+  .product-top > svg { display: none; }
+  .product h3, .product-category, .product > p, .product > .catalog-plan, .product-price, .product > .availability { grid-column: 2; }
+  .product h3 { font-size: 22px; line-height: 1.5; }
+  .product-category { margin-top: 3px; min-height: 0; font-size: 14px; line-height: 1.85; }
+  .product > p { margin-top: 8px; font-size: 16px; line-height: 1.85; }
+  .product .catalog-plan { margin-top: 11px; padding-top: 10px; font-size: 16px; line-height: 1.85; gap: 4px; }
+  .product .catalog-plan-name { display: block; -webkit-line-clamp: unset; overflow: visible; }
+  .product .catalog-plan strong, .product-price { font-size: 20px; line-height: 1.5; font-weight: 700; }
+  .product .catalog-plan small { font-size: 14px; line-height: 1.85; }
+  .product-action { grid-column: 1 / -1; justify-content: space-between; min-height: 44px; font-size: 15px; padding-top: 13px; }
+  .product .availability { font-size: 14px; }
+  .filters button { font-size: 14px; min-height: 44px; }
+  .hero-description, .steps p, .faq summary, .faq details p { font-size: 16px; }
+}

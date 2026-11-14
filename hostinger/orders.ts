@@ -179,12 +179,12 @@ export async function currentOrderContact() {
 
 async function existingCheckout(owner: CheckoutOwner, requestId: string, hash: Buffer) {
   const [rows] = await getPool().execute<RowDataPacket[]>(
-    'SELECT id, request_hash, snapshot FROM digimium_orders WHERE ' + (owner.customerId ? 'customer_id' : 'guest_key') + ' = ? AND request_id = ?',
+    'SELECT id, customer_id, request_hash, snapshot FROM digimium_orders WHERE ' + (owner.customerId ? 'customer_id' : 'guest_key') + ' = ? AND request_id = ?',
     [owner.customerId ?? owner.guestKey, requestId],
   );
   if (!rows.length) return null;
   if (!hash.equals(rows[0].request_hash)) throw new CommerceError(409, 'This checkout was already submitted with different items.');
-  return { order: telegramOrder(rows[0].id, JSON.parse(rows[0].snapshot)), telegram: await currentOrderContact(), created: false };
+  return { order: telegramOrder(rows[0].id, JSON.parse(rows[0].snapshot)), customerId: rows[0].customer_id as string | null, telegram: await currentOrderContact(), created: false };
 }
 
 export async function submitOrder(customerId: string, body: unknown) {
@@ -227,7 +227,7 @@ async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSc
       [id, owner.customerId, owner.guestKey ?? null, owner.guestName ?? null, requestId, hash, new Date().toISOString(), JSON.stringify(snapshot)],
     );
     await connection.commit();
-    return { order: telegramOrder(id, snapshot), telegram, created: true };
+    return { order: telegramOrder(id, snapshot), customerId: owner.customerId, telegram, created: true };
   } catch (error) {
     await connection.rollback();
     if (!(error instanceof Error && 'code' in error && error.code === 'ER_DUP_ENTRY')) throw error;

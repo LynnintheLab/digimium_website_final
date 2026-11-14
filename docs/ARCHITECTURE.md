@@ -14,6 +14,11 @@ The retained Vinext/Vite target builds a Cloudflare Worker for Sites. Its storag
 | --- | --- |
 | `app/page.tsx` | Server catalog load and language cookie. |
 | `app/storefront.tsx` | Browse/search/filter UI, navigation, language, and cart entry point. |
+| `app/mobile-dock.tsx` / `app/mobile-dock.css` | Shared floating mobile navigation with a raised center Account entry and cart count. |
+| `app/account-menu.tsx` / `app/account-menu.css` | Inline storefront account panel, including the imperative mobile dock entry and focus restoration. |
+| `app/payment-methods.tsx` / `app/payment-methods.css` | Shared informational strip with five verified local payment logos. |
+| `app/account/account.tsx` | Account overview, three-plan preview, and full pending/approved history filters. |
+| `app/account/subscription-term.tsx` / `app/account/subscription-term.css` | Circular subscription-time meters, status and calendar dates in compact and full views. |
 | `app/collection-showcase.tsx` / `app/collection-showcase.css` | Rotating offers and category collections, swipe and arrow navigation, position indicators, and reduced-motion handling. |
 | `lib/showcase.ts` | Published offer selection, best-seller/promotion/discount grouping, and category fallback. |
 | `app/best-seller-badge.tsx` / `app/product-mark.tsx` | Shared best-seller label and product logo rendering. |
@@ -25,6 +30,7 @@ The retained Vinext/Vite target builds a Cloudflare Worker for Sites. Its storag
 | `lib/catalog-validation.ts` | Input schemas and limits. |
 | `lib/initial-catalog.ts` | Merge original catalog with imported plans/services. |
 | `lib/cart-order.ts` | Cart validation, deduplication, totals, message splitting, and Telegram links. |
+| `lib/order-receipt.ts` | Bounded tab-local receipt validation, expiry and customer/contact ownership checks. |
 | `lib/shop-language.ts` | Bilingual product, plan, duration, and price presentation. |
 | `lib/duration.ts` / `lib/pricing.ts` | Paid/gift duration parsing and validated regular/sale MMK price calculations. |
 | `app/offer-price.tsx` | Consistent regular and discounted price presentation. |
@@ -66,13 +72,21 @@ Public reads omit unpublished products/plans. With the description setting enabl
 
 `digimium:shopping-cart:v1` in browser local storage holds product/plan references and quantities, not trusted price snapshots. Restoration resolves against the current public catalog and removes hidden, unavailable, invalid, or missing entries.
 
-**Add to cart** increments an existing selection. **Checkout** includes the current selection without duplicating an already-present line. Known MMK amounts can be totaled; unknown prices require confirmation. Order text includes product, plan, duration, price, and quantity.
+**Add to cart** increments an existing selection. **Buy / ဝယ်ယူမည်** includes the current selection in checkout without duplicating an already-present line. Known MMK amounts can be totaled; unknown prices require confirmation. Order text includes product, plan, duration, price, and quantity.
 
-Hostinger checkout saves an order snapshot before opening the store’s Telegram DM. Signed-in orders include the customer name and email; Telegram-only checkout uses an explicit guest mode with no name or email, including when a customer is already signed in. Older name-based guest clients remain compatible. A signed HttpOnly guest cookie is established before writing an order, and a hashed guest identity plus request key makes retries idempotent without creating customer accounts. Guest records have nullable customer ownership and remain visible only to admin. Drafts include the order reference and selected plans, plus customer identity for account purchases. The checkout sign-in/register form is shared with Account and runs in the same dialog; successful authentication returns to cart review without placing an order automatically. The customer sends the message and arranges payment and service delivery in Telegram. Pending orders can reopen the draft. Admin records dates and approves the purchase. Account history contains only that customer’s approved orders. The overview response includes pending orders plus at most three approved subscription lines with historical access details stripped; the full history response includes all approved orders. Both display time remaining based on Myanmar calendar dates, with the end date labeled Ends today and expiry beginning the next day. Guest order dates stay in the admin record; guests refer to Telegram. The legacy Sites deployment opens its Telegram draft from the cart. Both targets split long drafts into numbered parts.
+Signed-out Hostinger checkout offers **Create account / အကောင့်ဖွင့်မည်** and **Buy on Telegram / Telegram မှဝယ်ယူမည်**. The sign-in/register form is shared with Account and runs in the same dialog; success returns to cart review without placing an order automatically. Signed-in checkout shows only **Place order / Order တင်မည်**. Telegram-only checkout uses an explicit guest mode with no name or email. Older name-based guest clients remain compatible. A signed HttpOnly guest cookie is established before writing an order, and a hashed guest identity plus request key makes retries idempotent without creating customer accounts. Guest records have nullable customer ownership and remain visible only to admin.
+
+Checkout saves a pending order snapshot before opening the store’s Telegram DM in the same tab. Drafts contain the order reference and selected plans, plus the customer’s verified name/email when available. The customer sends the message and arranges payment and service delivery in Telegram. The website keeps an order-placed receipt with Telegram-open and copy fallbacks; this is a pending record, not payment confirmation or approval. A validated copy in `sessionStorage` under `digimium:last-order-receipt:v1` expires after 24 hours. Account receipts require the original server-verified customer; receipts also check the configured Telegram contact. Restoration does not launch Telegram again or clear a new cart. The stored projection excludes delivered account credentials and customer/session credentials.
+
+Admin records dates and approves the purchase. Customer history contains only that customer’s orders: the overview response includes pending orders plus at most three approved subscription lines with historical access details stripped; full history includes pending and approved orders with separate filters, and pending fulfillment details remain stripped. Pending orders can reopen their Telegram draft. Approved purchases use circular remaining-time meters in both preview and full history, with text status and dates based on the Myanmar calendar. The end date is labeled Ends today and expiry begins the next day. Guest order dates stay in the admin record; guests refer to Telegram. The legacy Sites deployment opens its Telegram draft from the cart. Both targets split long drafts into numbered parts.
+
+At mobile widths, a floating five-target dock provides Products, Cart with count, raised center Account, History and Help. Account opens the existing inline panel; standalone account/history pages link back through `/?account=1` or `/?checkout=1`. The storefront consumes and removes those entry parameters. The dock yields to menus, account/order overlays and the keyboard, and pages reserve bottom safe-area space. The commerce-disabled Sites target uses only working catalog/cart/help targets. A shared informational KBZPay, Wave, AYA Pay, UABpay and Binance logo strip appears near the top and compactly in checkout; payment still takes place in Telegram.
 
 ## Authorization
 
 On Hostinger, Resend delivers one-time codes only to the configured owner email. The server binds a code to the browser that requested it and consumes it once. A successful verification creates a server-side session and a persistent HttpOnly cookie for that browser profile, valid for up to 180 days. The app uses server-verified sessions for both admin pages and protected APIs. Customer browsing requires no sign-in.
+
+Customer Google and Telegram identities remain separate unless already explicitly linked by a supported flow. Google-to-Telegram account linking is deferred; Telegram bot history uses the customer mapped to the verified Telegram sender ID and does not claim guest orders or match purchases by email.
 
 On Sites, hosted identity comes from the Sites platform. Admin access requires an email in server-side `ADMIN_EMAILS`; an empty allowlist grants nobody access. Mutations also require same-origin requests. Local dev strips client-supplied identity headers and permits its mock identity only on loopback.
 

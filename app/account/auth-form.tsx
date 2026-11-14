@@ -1,13 +1,14 @@
 'use client';
 
 import Image from 'next/image';
-import { ArrowLeft, ArrowRight, ArrowUpRight, Phone } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, Eye, EyeOff, Phone } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { CommerceCustomer } from '../../lib/commerce-types';
 import { useGoogleLogin } from './use-google-login';
 import { useTelegramLogin } from './use-telegram-login';
 import { TelegramLogin } from './telegram-login';
 import type { ShopLanguage } from '../../lib/shop-language';
+import './auth-form.css';
 
 type Translate = (en: string, my: string) => string;
 type AuthFormProps = {
@@ -36,7 +37,9 @@ export function CheckoutAuth({ lang, ...props }: Omit<AuthFormProps, 't' | 'chec
 }
 
 export function AuthForm({ checkout, embedded, history, resumeGoogle = false, t, onSuccess, onGuest, onBusyChange }: AuthFormProps) {
-  const [step, setStep] = useState<Step>('email');
+  const [step, setStepValue] = useState<Step>('email');
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [passwordHelp, setPasswordHelp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailBusy, setBusy] = useState(false);
@@ -45,12 +48,16 @@ export function AuthForm({ checkout, embedded, history, resumeGoogle = false, t,
   const heading = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
   const hintId = useId();
+  const passwordId = useId();
+  const passwordHelpId = useId();
+  function setStep(next: Step) { setPasswordVisible(false); setPasswordHelp(false); setStepValue(next); }
+  function signedIn(customer: CommerceCustomer) { setPasswordVisible(false); setPasswordHelp(false); onSuccess(customer); }
   const google = useGoogleLogin(checkout ? 'checkout' : history ? 'history' : 'account', {
-    onSuccess,
+    onSuccess: signedIn,
     onBusyChange,
     onPending: (kind, address) => { setPassword(''); setError(''); if (address) setEmail(address); setStep(kind === 'link' ? 'google-link' : 'google-name'); },
   });
-  const telegram = useTelegramLogin(checkout ? 'checkout' : history ? 'history' : 'account', {onSuccess, onBusyChange}, {autoResume: !resumeGoogle});
+  const telegram = useTelegramLogin(checkout ? 'checkout' : history ? 'history' : 'account', {onSuccess: signedIn, onBusyChange}, {autoResume: !resumeGoogle});
   const busy = emailBusy || google.busy || telegram.busy;
   const googleErrors: Record<string,string> = {
     popup_blocked: t('Allow the Google sign-in window, then try again.', 'Google အကောင့်ဝင်တဲ့ window ဖွင့်ခွင့်ပေးပြီး ပြန်ကြိုးစားပါ။'),
@@ -117,7 +124,7 @@ export function AuthForm({ checkout, embedded, history, resumeGoogle = false, t,
           setStep(data.next === 'password' ? 'password' : 'new-password');
           return;
         }
-        if (!lookup && data.customer) { setPassword(''); onSuccess(data.customer); return; }
+        if (!lookup && data.customer) { setPassword(''); signedIn(data.customer); return; }
       }
       const messages: Record<string, string> = {
         credentials: t('The password is incorrect. Try again.', 'စကားဝှက် မှားနေပါတယ်။ ပြန်ကြိုးစားပါ။'),
@@ -152,16 +159,17 @@ export function AuthForm({ checkout, embedded, history, resumeGoogle = false, t,
       {step === 'email' && <label>{t('Email address', 'အီးမေးလ်')}<input name="email" type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="username" autoCapitalize="none" maxLength={254} required disabled={busy}/></label>}
       {(step === 'password' || step === 'new-password' || step === 'google-link') && <>
         <input type="hidden" name="email" autoComplete="username" value={email}/>
-        <label>{step !== 'new-password' ? t('Password', 'စကားဝှက်') : t('Create a password', 'စကားဝှက်အသစ်')}<input name="password" type="password" autoComplete={step === 'new-password' ? 'new-password' : 'current-password'} minLength={step === 'new-password' ? 10 : undefined} maxLength={256} required disabled={busy} aria-describedby={step === 'new-password' ? hintId : undefined}/></label>
+        <div className="customer-password-field"><label htmlFor={passwordId}>{step !== 'new-password' ? t('Password', 'စကားဝှက်') : t('Create a password', 'စကားဝှက်အသစ်')}</label><div className="customer-password-entry"><input id={passwordId} name="password" type={passwordVisible ? 'text' : 'password'} autoComplete={step === 'new-password' ? 'new-password' : 'current-password'} minLength={step === 'new-password' ? 10 : undefined} maxLength={256} required disabled={busy} aria-describedby={step === 'new-password' ? hintId : undefined}/><button type="button" disabled={busy} aria-controls={passwordId} aria-pressed={passwordVisible} aria-label={passwordVisible ? t('Hide password', 'စကားဝှက် ဖျောက်ရန်') : t('Show password', 'စကားဝှက် ပြရန်')} onClick={() => setPasswordVisible(!passwordVisible)}>{passwordVisible ? <EyeOff size={17} aria-hidden/> : <Eye size={17} aria-hidden/>}<span>{passwordVisible ? t('Hide', 'ဖျောက်မယ်') : t('Show', 'ပြမယ်')}</span></button></div></div>
         {step === 'new-password' && <small id={hintId}>{t('Use at least 10 characters.', 'အနည်းဆုံး စာလုံး ၁၀ လုံး သုံးပါ။')}</small>}
+        {step !== 'new-password' && <div className="customer-password-assistance"><button type="button" className="customer-password-help-toggle" disabled={busy} aria-expanded={passwordHelp} aria-controls={passwordHelpId} onClick={() => setPasswordHelp(!passwordHelp)}>{t('Need help with your password?', 'စကားဝှက်အတွက် အကူအညီလိုပါသလား?')}</button>{passwordHelp && <div className="customer-password-help" id={passwordHelpId}><p>{t('If you don’t remember your password, contact Digimium for help verifying your account.', 'စကားဝှက် မမှတ်မိပါက သင့်အကောင့်ကို အတည်ပြုပြီး အကူအညီရယူရန် Digimium ကို ဆက်သွယ်ပါ။')}</p><a href="/#contact" target="_blank" rel="noopener noreferrer" aria-label={t('Contact Digimium for password help — opens a new tab', 'စကားဝှက်အကူအညီအတွက် Digimium ကို ဆက်သွယ်ရန် — tab အသစ်တွင် ဖွင့်မည်')}>{t('Contact Digimium', 'Digimium ကို ဆက်သွယ်မယ်')}<ArrowUpRight size={16} aria-hidden/></a></div>}</div>}
       </>}
       {(step === 'name' || step === 'google-name') && <label>{t('Your name', 'သင့်နာမည်')}<input name="name" autoComplete="name" maxLength={100} required disabled={busy}/></label>}
       {error && <p role="alert" className="customer-error">{error}</p>}
       <button type="submit" className="customer-primary" disabled={busy}>{busy ? t('Please wait…', 'ခဏစောင့်ပါ…') : (step === 'name' || step === 'google-name') ? t('Create account', 'အကောင့်ဖွင့်မယ်') : step === 'google-link' ? t('Connect Google', 'Google နဲ့ ချိတ်ဆက်မယ်') : step === 'password' ? t('Log in', 'အကောင့်ဝင်မယ်') : t('Continue', 'ဆက်လုပ်မယ်')}<ArrowRight size={17} aria-hidden/></button>
     </form>
     </>}
-    {checkout && <div className="customer-auth-alternative">{onGuest ? <button type="button" className="customer-guest-link" disabled={busy} onClick={() => { google.cancel(); telegram.cancel(); onGuest(); }}>{t('Buy on Telegram instead', 'Telegram မှာ တိုက်ရိုက်ဝယ်မယ်')}<ArrowUpRight size={16} aria-hidden/></button>
+    {checkout && <div className="customer-auth-alternative">{onGuest ? <button type="button" className="customer-guest-link" disabled={busy} onClick={() => { google.cancel(); telegram.cancel(); onGuest(); }}>{t('Buy on Telegram', 'Telegram မှဝယ်ယူမည်')}<ArrowUpRight size={16} aria-hidden/></button>
       // eslint-disable-next-line @next/next/no-html-link-for-pages -- Restore the checkout in a fresh storefront document.
-      : <a className="customer-guest-link" href="/?checkout=1">{t('Buy on Telegram instead', 'Telegram မှာ တိုက်ရိုက်ဝယ်မယ်')}<ArrowUpRight size={16} aria-hidden/></a>}</div>}
+      : <a className="customer-guest-link" href="/?checkout=1">{t('Buy on Telegram', 'Telegram မှဝယ်ယူမည်')}<ArrowUpRight size={16} aria-hidden/></a>}</div>}
   </section>;
 }

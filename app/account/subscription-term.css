@@ -1,88 +1,57 @@
 .subscription-term {
-  --term-color: #17684f;
-  --term-tint: #edf7f2;
-  --term-track: #dcebe4;
+  --term-color: #1f45b8;
+  --term-tint: #edf1fc;
+  --term-track: #e1e6f1;
   margin-top: 16px;
   font-variant-numeric: tabular-nums;
 }
-.subscription-term-status {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 7px 12px;
-  margin-bottom: 9px;
-  line-height: 1.65;
+.subscription-term-visual { display: grid; justify-items: center; gap: 12px; }
+.subscription-term-ring {
+  display: grid; place-items: center; width: 154px; height: 154px; flex: none;
+  border-radius: 50%; background: conic-gradient(var(--term-color) var(--term-progress), var(--term-track) 0);
 }
+.subscription-term-core {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 132px; height: 132px; padding: 8px; border-radius: 50%; background: #fff;
+  color: var(--brand-navy); text-align: center;
+}
+.subscription-term-core strong { max-width: 100%; font: 700 44px/1.25 Manrope, Walone, sans-serif; }
+.subscription-term-core > span { max-width: 100%; font-size: 16px; line-height: 1.65; }
+.subscription-term-ring[data-long] .subscription-term-core strong { font-size: 32px; }
+.subscription-term-ring[data-extra-long] .subscription-term-core strong { font-size: 24px; }
+.subscription-term-status { display: grid; justify-items: center; gap: 6px; min-width: 0; line-height: 1.7; }
 .subscription-term-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  padding: 3px 8px;
-  border-radius: 5px;
-  background: var(--term-tint);
-  color: var(--term-color);
-  font-size: 12px;
-  font-weight: 650;
+  display: inline-flex; align-items: center; gap: 7px; max-width: 100%; padding: 4px 9px;
+  border-radius: 6px; background: var(--term-tint); color: var(--term-color); font-size: 14px; font-weight: 650;
 }
-.subscription-term-label::before {
-  content: '';
-  width: 5px;
-  height: 5px;
-  flex: none;
-  border-radius: 50%;
-  background: currentColor;
-}
-.subscription-term-detail {
-  margin-inline-start: auto;
-  color: var(--term-color);
-  font-family: Manrope, Walone, sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-}
-.subscription-term-track {
-  height: 6px;
-  overflow: hidden;
-  border-radius: 4px;
-  background: var(--term-track);
-}
-.subscription-term-fill { display: block; height: 100%; border-radius: inherit; background: var(--term-color); }
-.subscription-term[data-status="upcoming"] {
-  --term-color: #2447a2;
-  --term-tint: #edf1ff;
-  --term-track: #dfe5f4;
-}
-.subscription-term[data-status="unknown"] {
-  --term-color: #536078;
-  --term-tint: #eef1f6;
-  --term-track: #dfe3eb;
-}
-.subscription-term[data-status="expired"] {
-  --term-color: #9b4250;
-  --term-tint: #fbedef;
-  --term-track: #e9dfe2;
-}
-.subscription-term[data-urgent] {
-  --term-color: #87550b;
-  --term-tint: #fff4dd;
-  --term-track: #eedfc4;
-}
-.subscription-term-dates {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px 24px;
-  margin: 13px 0 0;
-}
+.subscription-term-label::before { content: ''; width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor; }
+.subscription-term-expiry { color: var(--muted); font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.subscription-term-expiry time { color: var(--brand-navy); font-weight: 600; }
+.subscription-term[data-status="upcoming"] { --term-color: #2447a2; --term-tint: #edf1ff; --term-track: #dfe5f4; }
+.subscription-term[data-status="unknown"] { --term-color: #536078; --term-tint: #eef1f6; --term-track: #e1e5ec; }
+.subscription-term[data-status="expired"] { --term-color: #9b4250; --term-tint: #fbedef; --term-track: #e9dfe2; }
+.subscription-term[data-urgent] { --term-color: #87550b; --term-tint: #fff4dd; --term-track: #eedfc4; }
+.subscription-term-dates { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 18px; margin: 16px 0 0; }
 .subscription-term-dates > div { min-width: 0; }
-.subscription-term-dates > div:last-child { text-align: right; margin-inline-start: auto; }
-.subscription-term-dates dt { color: var(--muted); font-size: 12px; line-height: 1.7; }
-.subscription-term-dates dd { margin: 3px 0 0; color: var(--brand-navy); font-size: 14px; font-weight: 600; line-height: 1.65; overflow-wrap: anywhere; }
+.subscription-term-dates > div:last-child { text-align: right; }
+.subscription-term-dates dt { color: var(--muted); font-size: 14px; line-height: 1.7; }
+.subscription-term-dates dd { margin: 4px 0 0; color: var(--brand-navy); font-size: 16px; font-weight: 650; line-height: 1.65; overflow-wrap: anywhere; }
 .subscription-term-compact { margin-top: 12px; }
-.subscription-term-compact .subscription-term-track { height: 5px; }
+.subscription-term-compact .subscription-term-visual { display: flex; align-items: center; justify-content: flex-start; gap: 14px; }
+.subscription-term-compact .subscription-term-ring { width: 88px; height: 88px; }
+.subscription-term-compact .subscription-term-core { width: 72px; height: 72px; padding: 4px; }
+.subscription-term-compact .subscription-term-core strong { font-size: 28px; }
+.subscription-term-compact .subscription-term-core > span { font-size: 12px; line-height: 1.55; }
+.subscription-term-compact .subscription-term-ring[data-long] .subscription-term-core strong { font-size: 20px; }
+.subscription-term-compact .subscription-term-ring[data-extra-long] .subscription-term-core strong { font-size: 15px; }
+.subscription-term-compact .subscription-term-status { justify-items: start; }
+@media (max-width: 370px) {
+  .subscription-term-compact .subscription-term-visual { gap: 10px; }
+  .subscription-term-compact .subscription-term-label { font-size: 13px; padding-inline: 7px; }
+  .subscription-term-compact .subscription-term-expiry { font-size: 13px; }
+  .subscription-term-dates { gap: 12px; }
+}
 @media (forced-colors: active) {
-  .subscription-term-label { border: 1px solid CanvasText; }
-  .subscription-term-track { border: 1px solid CanvasText; }
-  .subscription-term-fill { background: Highlight; forced-color-adjust: none; }
+  .subscription-term-ring, .subscription-term-label, .subscription-term-core { border: 1px solid CanvasText; }
+  .subscription-term-ring { background: Canvas; }
 }
