@@ -45,6 +45,6 @@ export type TelegramOrder = Pick<CommerceOrder, 'id' | 'totalMmk'> & {
 export type TelegramCheckout = {
   id: string;
   order: TelegramOrder;
-  customer: { name: string; email: string | null; guest?: boolean };
+  customer: { name: string; email: string; guest?: false } | { name: string | null; email: null; guest: true };
   telegram: string;
 };

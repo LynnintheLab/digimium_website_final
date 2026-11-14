@@ -127,7 +127,11 @@ test('guest Telegram drafts identify the nickname without an invented email or a
   for (const lang of ['en', 'my']) {
     const [message] = orderTelegramMessages(order, guest, lang);
     assert.ok(message.includes(guest.name) && message.includes(order.id.toUpperCase()));
-    assert.ok(message.includes(lang === 'my' ? 'အကောင့်မရှိဘဲ မှာယူခြင်း' : 'Guest order'));
+    assert.ok(message.includes(lang === 'my' ? 'အကောင့်မသုံးဘဲ မှာယူခြင်း' : 'Guest order'));
     assert.ok(!message.includes('null') && !message.includes('Email') && !message.includes('အီးမေးလ်'));
+    const [anonymous] = orderTelegramMessages(order, { ...guest, name: null }, lang);
+    assert.ok(anonymous.includes(order.id.toUpperCase()) && anonymous.includes('Canva'));
+    assert.ok(anonymous.includes(lang === 'my' ? 'အကောင့်မသုံးဘဲ မှာယူခြင်း' : 'Guest order'));
+    assert.doesNotMatch(anonymous, /နာမည်|အီးမေးလ်|Name|Email|null/i);
   }
 });

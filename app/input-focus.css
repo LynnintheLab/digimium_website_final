@@ -1,0 +1,19 @@
+/* A single fine border for pointer focus, with an aligned keyboard indicator. */
+.customer-auth input:focus,
+.customer-password input:focus,
+.shop-order textarea:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: none;
+  caret-color: var(--blue);
+}
+.customer-page .customer-auth input:focus-visible,
+.customer-page .customer-password input:focus-visible,
+.shop-account-panel .customer-auth input:focus-visible,
+.shop-account-panel .customer-password input:focus-visible,
+.shop-order .customer-auth input:focus-visible,
+.shop-order textarea:focus-visible {
+  outline: 1px solid var(--blue);
+  outline-offset: -1px;
+}
+.storefront-shell .search:focus-within { outline: 1px solid var(--blue); outline-offset: 2px; }

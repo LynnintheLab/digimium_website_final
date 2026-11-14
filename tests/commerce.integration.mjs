@@ -277,6 +277,23 @@ try {
     assert.equal((await submit({ ...guestBody, guestName }, guestCookie)).status, 400);
   }
   assert.equal((await submit({ ...guestBody, customerId: alice.id }, guestCookie)).status, 400);
+  const direct = { items: [custom], requestId: randomUUID(), checkoutMode: 'guest' };
+  const bothCookies = bob.cookie + '; ' + guestCookie;
+  assert.equal((await submit(direct, bob.cookie)).status, 401, 'Telegram-only checkout needs its own guest cookie');
+  for (const malformed of [{ ...direct, checkoutMode: 'unknown' }, { ...direct, guestName: 'Unexpected' }, { ...direct, customerId: bob.id }]) {
+    assert.equal((await submit(malformed, bothCookies)).status, 400);
+  }
+  const directCheckout = await json(await submit(direct, bothCookies), 201);
+  assert.deepEqual(directCheckout.customer, { name: null, email: null, guest: true });
+  assert.deepEqual(await json(await submit(direct, guestCookie)), directCheckout, 'Signing out between guest attempts replays the same order');
+  assert.equal((await submit({ ...guestBody, requestId: direct.requestId }, guestCookie)).status, 409,
+    'A previously stored anonymous order cannot gain a nickname through a retry');
+  const directRow = (await json(await get(adminCommerce, owner))).orders.find(row => row.id === directCheckout.id);
+  assert.equal(directRow.customerId, null);
+  assert.equal(directRow.guestName, undefined);
+  assert.ok(!(await json(await get(customerOrders, bob.cookie))).orders.some(order => order.id === directCheckout.id));
+  const signedOutDirect = await json(await submit({ ...direct, requestId: randomUUID() }, guestCookie), 201);
+  assert.deepEqual(signedOutDirect.customer, directCheckout.customer);
   const guestResponses = await Promise.all([submit(guestBody, guestCookie), submit(guestBody, guestCookie)]);
   assert.deepEqual(guestResponses.map(response => response.status).sort(), [200, 201]);
   const guestResults = await Promise.all(guestResponses.map(response => json(response, response.status)));

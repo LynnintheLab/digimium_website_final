@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, lazy, Suspense, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight, Check, Copy, Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
 import type { Product } from '../lib/catalog';
 import { CART_KEY, orderMessages, resolveOrder, restoreCart, sameItem, telegramDraft, totalMmk, withSelection, type CartItem, type OrderLine } from '../lib/cart-order';
@@ -14,10 +14,12 @@ import { OfferPrice } from './offer-price';
 import { BestSellerBadge } from './best-seller-badge';
 import './shop-order.css';
 
+const CheckoutAuth = lazy(() => import('./account/account').then(module => ({default: module.CheckoutAuth})));
+
 type Locale = 'en' | 'my';
 export type ShopOrderHandle = { openProduct(product: Product, planId?: string): void; openCart(): void };
 type Props = { products: Product[]; lang: Locale; telegram: string; hideShortDescriptions?: boolean; onCountChange: (count: number) => void };
-type Screen = 'product' | 'cart' | 'guest' | 'handoff' | null;
+type Screen = 'product' | 'cart' | 'auth' | 'guest' | 'handoff' | null;
 
 function orderDescription({product, plan}: OrderLine, lang: Locale) {
   const name = plan ? planName(plan, lang) : lang === 'my' ? 'အစီအစဉ် စုံစမ်းရန်' : 'Plan enquiry';
@@ -34,8 +36,8 @@ function Logo({product}: {product: Product}) {
 
 function CheckoutNote({askAboutPrice, lang}: {askAboutPrice: boolean; lang: Locale}) {
   if (commerceEnabled) return <p className="order-checkout-note">{lang === 'my'
-    ? 'အကောင့်မရှိလည်း နာမည်တစ်ခုထည့်ပြီး ဝယ်လို့ရပါတယ်။ ငွေပေးချေမှုနဲ့ ဝယ်ထားတဲ့ service အကောင့်ရယူဖို့ Telegram မှာ ဆက်သွယ်ပါ။'
-    : 'No account needed. Use a name or nickname, then arrange payment and service delivery in Telegram.'}
+    ? 'အကောင့်ဖြင့် ဝယ်ယူပြီး မှတ်တမ်းသိမ်းနိုင်သလို Telegram မှာ တိုက်ရိုက်ဝယ်ယူနိုင်ပါတယ်။ ငွေပေးချေမှုနဲ့ service အကောင့်ရယူမှုကို Telegram မှာ ဆက်လုပ်ပါ။'
+    : 'Buy with an account to keep your history, or buy directly on Telegram. Arrange payment and service delivery in the chat.'}
     {askAboutPrice && <><br/>{lang === 'my' ? 'ဈေးနှုန်း မဖော်ပြထားသော အစီအစဉ်အတွက် Admin က ဈေးနှုန်း အတည်ပြုပေးပါမယ်။' : 'Digimium will confirm the price of any plan marked “Price on enquiry”.'}</>}
   </p>;
   return <p lang="my" className="order-checkout-note">
@@ -61,9 +63,11 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   const [handoffContact, setHandoffContact] = useState(telegram);
   const [submitting, setSubmitting] = useState(false);
   const [orderError, setOrderError] = useState('');
-  const [guestName, setGuestName] = useState('');
   const [guestOrder, setGuestOrder] = useState(false);
-  const guestInput = useRef<HTMLInputElement>(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [accountNotice, setAccountNotice] = useState(false);
+  const authInFlight = useRef(false);
+  const screenTitle = useRef<HTMLHeadingElement>(null);
   const inFlight = useRef(false);
   const attempt = useRef<{basket: string; requestId: string} | null>(null);
   const copyAttempt = useRef(0);
@@ -120,7 +124,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   }, [products]);
   useEffect(() => { onCountChange(count); }, [count, onCountChange]);
   useEffect(() => {
-    if (screen === 'guest') guestInput.current?.focus();
+    if (screen && screen !== 'product') screenTitle.current?.focus({preventScroll: true});
   }, [screen]);
   useEffect(() => {
     if (!lastAdded) return;
@@ -142,7 +146,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
 
   function begin(next: Exclude<Screen, null>) {
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    if (inFlight.current) return;
+    if (inFlight.current || authInFlight.current) return;
     setOrderError('');
     setLastAdded('');
     setCopyStatus('idle');
@@ -195,13 +199,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   async function placeOrder(asGuest = false) {
     if (inFlight.current || !checkoutRows.length) return;
     const items = checkoutRows.map(({productId, planId, quantity}) => ({productId, planId, quantity}));
-    const name = guestName.trim();
-    if (asGuest && !name) {
-      setOrderError(t('Enter a name or nickname to continue.', 'ဆက်ဝယ်ရန် နာမည် သို့မဟုတ် အမည်ပြောင်တစ်ခု ထည့်ပါ။'));
-      guestInput.current?.focus();
-      return;
-    }
-    const basket = JSON.stringify({items, guestName: asGuest ? name : null});
+    const basket = JSON.stringify({items, mode: asGuest ? 'guest' : 'account'});
     const key = 'digimium-checkout-attempt';
     inFlight.current = true;
     setSubmitting(true);
@@ -212,7 +210,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
         if (!session.ok) throw new Error(t('We couldn’t check your account. Please try again.', 'အကောင့်ကို စစ်ဆေးမရသေးပါ။ ပြန်ကြိုးစားပါ။'));
         const identity = await session.json() as {customer: {id: string} | null};
         // Keep a guest's saved retry key intact when reopening checkout after a lost response.
-        if (!identity.customer) { setScreen('guest'); return; }
+        if (!identity.customer) { setScreen('auth'); return; }
       }
       if (asGuest) {
         const guestSession = await fetch('/api/customer/guest-session', {method: 'POST'});
@@ -227,10 +225,10 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       try { sessionStorage.setItem(key, JSON.stringify(attempt.current)); } catch { /* Retain the in-memory key for retries. */ }
       const response = await fetch('/api/customer/orders', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({items, requestId: attempt.current.requestId, ...(asGuest ? {guestName: name} : {})}),
+        body: JSON.stringify({items, requestId: attempt.current.requestId, ...(asGuest ? {checkoutMode: 'guest'} : {})}),
       });
       if (response.status === 401) {
-        setScreen('guest');
+        setScreen(asGuest ? 'guest' : 'auth');
         if (asGuest) setOrderError(t('Please try again to continue without an account.', 'အကောင့်မရှိဘဲ ဆက်ဝယ်ရန် ပြန်ကြိုးစားပါ။'));
         return;
       }
@@ -280,17 +278,17 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     </div>}</div>
     <dialog ref={dialog} className="shop-order" lang={lang} aria-labelledby="shop-order-title"
       aria-describedby={screen === 'product' && product?.bestSeller ? 'shop-product-badge' : undefined}
-      onCancel={event => { event.preventDefault(); if (!inFlight.current) setScreen(null); }}
-      onClick={event => { if (event.target === event.currentTarget && !inFlight.current) setScreen(null); }}>
+      onCancel={event => { event.preventDefault(); if (!inFlight.current && !authInFlight.current) setScreen(null); }}
+      onClick={event => { if (event.target === event.currentTarget && !inFlight.current && !authInFlight.current) setScreen(null); }}>
       <div className="order-surface">
         <header className="order-heading">
           {screen === 'product' && hideShortDescriptions && product && <Logo product={product}/>}
           <div className="order-heading-title">
-            <h2 id="shop-order-title">{screen === 'product' ? product?.name : screen === 'handoff' ?
-              t('Your Telegram order', 'သင့် Telegram အော်ဒါ') : screen === 'guest' ? t('What should we call you?', 'ဘယ်နာမည်နဲ့ မှာယူမလဲ?') : t('Your cart', 'သင့်ဈေးခြင်း')}</h2>
+            <h2 ref={screenTitle} id="shop-order-title" tabIndex={-1}>{screen === 'product' ? product?.name : screen === 'handoff' ?
+              t('Your Telegram order', 'သင့် Telegram အော်ဒါ') : screen === 'guest' ? t('Buy on Telegram', 'Telegram တွင် ဝယ်ယူမယ်') : screen === 'auth' ? t('Buy with an account', 'အကောင့်ဖြင့် ဝယ်ယူမယ်') : t('Your cart', 'သင့်ဈေးခြင်း')}</h2>
             {screen === 'product' && product?.bestSeller && <BestSellerBadge lang={lang} id="shop-product-badge" />}
           </div>
-          <button type="button" disabled={submitting} className="order-icon" aria-label={t('Close', 'ပိတ်ရန်')} onClick={() => setScreen(null)}><X size={20}/></button>
+          <button type="button" disabled={submitting || authBusy} className="order-icon" aria-label={t('Close', 'ပိတ်ရန်')} onClick={() => setScreen(null)}><X size={20}/></button>
         </header>
         {screen === 'product' && product && <>
           <div className="order-scroll">
@@ -344,28 +342,36 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
           </div>
           <footer className="order-footer">
             {orderError && <p className="order-checkout-note" role="alert">{orderError}</p>}
-            <div className="order-actions"><button type="button" disabled={submitting} className="order-action order-secondary" onClick={() => setScreen(null)}>{t('Keep browsing', 'ဆက်လက် ရွေးချယ်ရန်')}</button>{checkoutControl}</div>
+            {accountNotice && <p className="order-account-notice" role="status">{t('You’re signed in. Review your cart and choose Buy with an account to continue.', 'အကောင့်ဝင်ပြီးပါပြီ။ ဈေးခြင်းကို စစ်ပြီး အကောင့်ဖြင့် ဝယ်ယူမယ် ကို နှိပ်ပါ။')}</p>}
+            {commerceEnabled ? <div className="order-actions order-purchase-options">
+              <button type="button" className="order-action order-secondary" disabled={!checkoutAllowed || submitting} onClick={() => void placeOrder()}>{submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Buy with an account', 'အကောင့်ဖြင့် ဝယ်ယူမယ်')}</button>
+              <button type="button" className="order-action order-primary" disabled={!checkoutAllowed || submitting} onClick={() => { setOrderError(''); setScreen('guest'); }}>{t('Buy on Telegram', 'Telegram တွင် ဝယ်ယူမယ်')}<ArrowUpRight size={17}/></button>
+            </div> : <div className="order-actions"><button type="button" className="order-action order-secondary" onClick={() => setScreen(null)}>{t('Keep browsing', 'ဆက်လက် ရွေးချယ်ရန်')}</button>{checkoutControl}</div>}
           </footer>
         </> : <div className="order-empty"><ShoppingBag size={30}/><p>{t('Your cart is empty. Choose a product and add a plan.', 'ဈေးခြင်းထဲမှာ ပစ္စည်း မရှိသေးပါ။ ဝန်ဆောင်မှုတစ်ခု ရွေးပြီး အစီအစဉ်ကို ထည့်လိုက်ပါ။')}</p><button className="order-action order-secondary" onClick={() => setScreen(null)}>{t('Browse products', 'ပစ္စည်းများ ကြည့်ရန်')}</button></div>)}
-        {screen === 'guest' && <form className="order-guest" onSubmit={event => { event.preventDefault(); void placeOrder(true); }}>
+        {screen === 'auth' && <>
+          <div className="order-scroll order-checkout-auth">
+            <Suspense fallback={<p role="status">{t('Loading account…', 'အကောင့် ဖွင့်နေသည်…')}</p>}>
+              <CheckoutAuth lang={lang} onBusyChange={busy => { authInFlight.current = busy; setAuthBusy(busy); }}
+                onSuccess={() => { authInFlight.current = false; setAuthBusy(false); setOrderError(''); setAccountNotice(true); setScreen('cart'); }}
+                onGuest={() => { setOrderError(''); setScreen('guest'); }} />
+            </Suspense>
+          </div>
+          <footer className="order-footer order-auth-footer"><button type="button" className="order-guest-back" disabled={authBusy} onClick={() => setScreen('cart')}>{t('Back to cart', 'ဈေးခြင်းသို့ ပြန်ရန်')}</button></footer>
+        </>}
+        {screen === 'guest' && <>
           <div className="order-scroll order-content">
-            <p className="order-guest-intro">{t('A name or nickname is all you need to order.', 'နာမည် သို့မဟုတ် မှတ်မိလွယ်တဲ့ အမည်တစ်ခု ထည့်ရုံပါပဲ။')}</p>
-            <label className="order-guest-label" htmlFor="order-guest-name">{t('Name or nickname', 'နာမည် / အမည်ပြောင်')}</label>
-            <input ref={guestInput} id="order-guest-name" className="order-guest-input" name="guestName" autoComplete="nickname" required maxLength={100}
-              value={guestName} onChange={event => setGuestName(event.target.value)} disabled={submitting} aria-describedby="order-guest-help order-guest-notice" />
-            <p id="order-guest-help" className="order-guest-help">{t('This name will appear in your Telegram order.', 'Telegram အော်ဒါစာထဲမှာ ဒီနာမည်ကို ထည့်ပေးပါမယ်။')}</p>
             <div id="order-guest-notice" className="order-guest-notice">
-              <strong>{t('Buying without an account', 'အကောင့်မရှိဘဲ ဝယ်ယူခြင်း')}</strong>
-              <p>{t('You won’t be able to view this order or its expiry date in a website account. Keep the order message in Telegram.', 'ဒီအော်ဒါနဲ့ သက်တမ်းကုန်ရက်ကို website အကောင့်မှာ ပြန်ကြည့်လို့မရပါ။ Telegram က အော်ဒါစာကို သိမ်းထားပေးပါ။')}</p>
+              <strong>{t('Your order history stays in Telegram', 'အော်ဒါမှတ်တမ်းကို Telegram မှာ သိမ်းထားပါ')}</strong>
+              <p>{t('You’ll buy directly with the Digimium admin in Telegram. This purchase and its expiry date won’t appear in your website account history.', 'Telegram မှာ Admin နဲ့ တိုက်ရိုက်ဆက်သွယ်ပြီး ဝယ်ယူရမှာပါ။ ဒီဝယ်ယူမှုနဲ့ သက်တမ်းကုန်ရက်ကို website ရဲ့ အော်ဒါမှတ်တမ်းမှာ ပြန်ကြည့်လို့ရမှာ မဟုတ်ပါ။')}</p>
             </div>
-            <a className="order-guest-signin" href="/account?checkout=1" aria-disabled={submitting || undefined} onClick={event => { if (submitting) event.preventDefault(); }}>{t('Have an account? Sign in', 'အကောင့်ရှိပြီးသားလား? အကောင့်ဝင်ရန်')}</a>
           </div>
           <footer className="order-footer order-guest-footer">
             {orderError && <p className="order-checkout-note" role="alert">{orderError}</p>}
-            <button type="submit" className="order-action order-primary" disabled={submitting || !checkoutAllowed}>{submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Continue without an account', 'အကောင့်မရှိဘဲ ဆက်ဝယ်မယ်')}<ArrowUpRight size={17}/></button>
+            <button type="button" className="order-action order-primary" aria-describedby="order-guest-notice" disabled={submitting || !checkoutAllowed} onClick={() => void placeOrder(true)}>{submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Continue to Telegram', 'Telegram တွင် ဆက်ဝယ်မယ်')}<ArrowUpRight size={17}/></button>
             <button type="button" className="order-guest-back" disabled={submitting} onClick={() => { setOrderError(''); setScreen('cart'); }}>{t('Back to cart', 'ဈေးခြင်းသို့ ပြန်ရန်')}</button>
           </footer>
-        </form>}
+        </>}
         {screen === 'handoff' && <div className="order-content order-handoff">
           {commerceEnabled && orderId && <p>{guestOrder
             ? t('Your guest order is recorded. Send this message in Telegram to arrange payment and receive your service account. Keep the message for your records.', 'အကောင့်မရှိဘဲ တင်ထားတဲ့ အော်ဒါကို မှတ်ထားပြီးပါပြီ။ ငွေပေးချေမှုနဲ့ ဝယ်ထားတဲ့ service အကောင့်ရယူဖို့ Telegram မှာ ဒီစာကို ပို့ပြီး သိမ်းထားပေးပါ။')

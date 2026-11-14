@@ -2,6 +2,10 @@ import type { Product, ProductPlan } from './catalog';
 
 export type ShopLanguage = 'en' | 'my';
 
+export function preferredShopLanguage(preference?: string): ShopLanguage {
+  return preference === 'en' ? 'en' : 'my';
+}
+
 const categoryLabels = [
   ['All services', 'ဝန်ဆောင်မှုအားလုံး'],
   ['AI & productivity', 'AI နှင့် Tools များ'],

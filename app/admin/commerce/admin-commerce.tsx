@@ -89,7 +89,7 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
   const shownOrders = scopedOrders.filter(order => {
     if (filter !== 'all' && order.status !== filter) return false;
     const customer = order.customerId ? customersById.get(order.customerId) : undefined;
-    return [order.id, orderReference(order.id), customer?.name, customer?.email, order.guestName, order.guestName ? 'Guest' : '',
+    return [order.id, orderReference(order.id), customer?.name, customer?.email, order.guestName, order.customerId === null ? 'Telegram guest' : '',
       ...order.lines.flatMap(line => [line.productName, line.planName])]
       .some(value => value?.toLowerCase().includes(term));
   });
@@ -162,7 +162,7 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
           requestAnimationFrame(() => document.getElementById('commerce-order-title')?.focus());
         }}>
           <span className="commerce-row-main"><strong>{orderReference(order.id)} <span className="commerce-status" data-status={order.status}>{order.status === 'pending' ? 'Pending' : 'Approved'}</span></strong>
-            <span>{customer?.name ?? order.guestName ?? 'Customer'}{customer ? ' · ' + customer.email : order.guestName ? ' · Guest' : ''}</span>
+            <span>{customer ? customer.name + ' · ' + customer.email : order.guestName ? order.guestName + ' · Guest' : order.customerId === null ? 'Telegram guest' : 'Customer'}</span>
             <span>{order.lines.map(line => line.productName + (line.planName ? ' · ' + line.planName : '')).join(', ')}</span>
           </span>
           <span className="commerce-row-end"><strong>{orderTotal(order)}</strong>

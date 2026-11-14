@@ -32,7 +32,7 @@ function PlanSummary({ plan, bestSeller, id, lang }: { plan: ProductPlan; bestSe
   </div>;
 }
 
-export default function Storefront({ initialCatalog, initialLanguage = 'en' }: { initialCatalog: Catalog; initialLanguage?: Language }) {
+export default function Storefront({ initialCatalog, initialLanguage = 'my' }: { initialCatalog: Catalog; initialLanguage?: Language }) {
   const [lang, setLang] = useState<Language>(initialLanguage);
   const t = (en: string, my: string) => lang === 'my' ? my : en;
   const [category, setCategory] = useState(0);
@@ -112,7 +112,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
     },
     {
       title: t('Send your order.', 'Order တင်မယ်'),
-      detail: commerceEnabled ? <p>{t('Continue with a name or nickname, or sign in to save your purchase history. Send the prepared message in Telegram to arrange payment and service delivery.', 'နာမည်တစ်ခုထည့်ပြီး ဆက်ဝယ်နိုင်ပါတယ်။ ဝယ်ယူမှုမှတ်တမ်း သိမ်းချင်ရင် အကောင့်ဝင်ပါ။ ပြင်ဆင်ပေးထားတဲ့ စာကို Telegram မှာ ပို့ပြီး ငွေပေးချေမှုနဲ့ service အကောင့်ရယူမှုကို ဆက်လုပ်ပါ။')}</p> : <p>{t('Checkout opens your full order in our Telegram chat. Tap Send and we’ll confirm availability and payment details.', 'Check Out ကိုနှိပ်တဲ့အခါမှာ Order အပြည့်အစုံ နဲ့ Telegram Chat ပွင့်လာပါမယ်။ Send ကိုနှိပ်ပြီး Order ပို့ပါ။ ကြာချိန်၊ အာမခံ နှင့် Payment အသေးစိတ်ကိုပါ တစ်ခါတည်း မေးမြန်းလို့ရပါတယ်ခင်ဗျ။')}</p>,
+      detail: commerceEnabled ? <p>{t('Buy with an account to keep your purchase history, or buy directly on Telegram. Send the prepared message in Telegram to arrange payment and service delivery.', 'အကောင့်ဖြင့် ဝယ်ယူပြီး မှတ်တမ်းသိမ်းနိုင်သလို Telegram မှာ တိုက်ရိုက်ဝယ်ယူနိုင်ပါတယ်။ ပြင်ဆင်ပေးထားတဲ့ စာကို Telegram မှာ ပို့ပြီး ငွေပေးချေမှုနဲ့ service အကောင့်ရယူမှုကို ဆက်လုပ်ပါ။')}</p> : <p>{t('Checkout opens your full order in our Telegram chat. Tap Send and we’ll confirm availability and payment details.', 'Check Out ကိုနှိပ်တဲ့အခါမှာ Order အပြည့်အစုံ နဲ့ Telegram Chat ပွင့်လာပါမယ်။ Send ကိုနှိပ်ပြီး Order ပို့ပါ။ ကြာချိန်၊ အာမခံ နှင့် Payment အသေးစိတ်ကိုပါ တစ်ခါတည်း မေးမြန်းလို့ရပါတယ်ခင်ဗျ။')}</p>,
     },
   ];
   const faqs = [

@@ -155,6 +155,12 @@
 .customer-history-page .customer-summary p { margin-top: 0; }
 .customer-history-account { margin-top: 20px; }
 .customer-guest-link { margin-top: 10px; }
+.customer-checkout-auth { width: 100%; max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.customer-checkout-auth h2 { font-size: 1.2rem; line-height: 1.6; }
+.customer-checkout-auth form { margin-top: 14px; }
+.customer-checkout-auth .customer-primary { min-height: 48px; }
+.customer-checkout-auth :is(.customer-switch button, .customer-guest-link) { min-height: 44px; padding: 4px 0; border: 0; background: transparent; font-family: inherit; }
+.customer-checkout-auth .customer-guest-link { margin-top: 2px; }
 .customer-page :is(a, button, input, summary):focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 @media (max-width: 400px) {
   .customer-summary, .customer-heading { flex-wrap: wrap; gap: 4px 10px; }

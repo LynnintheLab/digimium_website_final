@@ -2,7 +2,9 @@
 
 ## Current status
 
-Hostinger checkout accepts a guest name/nickname without email, password or registration. A dismissible-by-continuing notice explains that guest purchases are tracked in admin and Telegram, without website account history. Signed-in checkout retains name/email and private purchase history. Customers send the prepared Telegram message and arrange payment and service access there; admin confirms dates and approves the matching order. Guest rows are labeled Guest and do not create customer accounts. See [the deployment guide](docs/HOSTINGER.md) for first-use order migration (ALTER privilege), backups and the fulfillment encryption key.
+The storefront, Account and Order history default to Myanmar. An explicit English language selection persists. The initial HTML language matches that preference; the English admin subtree is marked separately.
+
+Hostinger checkout offers Buy with an account or Buy on Telegram. Account login/registration stays inside the order popup and returns to the unchanged cart for review. Telegram-only checkout asks for no name or email and first explains that the purchase and expiry date will not appear in website history. That choice stays outside account history even if the browser is signed in. Both paths save an admin tracking record before opening a prepared Telegram message; customers send it and arrange payment and service access in the chat. Admin matches direct orders by reference and records dates. Older named guest orders and clients remain compatible. See [the deployment guide](docs/HOSTINGER.md) for schema permissions and backups.
 
 Account opens inline and shows profile/password settings, a maximum of three recent approved subscription lines, and pending Telegram drafts. View all orders and the Order history navigation link beside Contact open `/order-history`. Both brief and full history show remaining days and a remaining-time bar. Calendar dates follow Myanmar time: an end date is Ends today until the next day, with separate upcoming, expired and unknown-date states. Historical access details are returned only by the full signed-in order view.
 
@@ -29,6 +31,10 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Made Myanmar the default and preserved explicit English across reloads and account/history routes. Replaced the guest-name step with a Telegram notice and two purchase choices in the cart. Reused login/register within the same native checkout dialog, with busy guards and a return to cart review. Text field focus uses a single fine border with an aligned keyboard outline. Narrow phones stack purchase buttons for readable Myanmar labels.
+
+Verified the Node 24 standalone build, Sites build, types, 23 unit tests and expanded disposable-MariaDB commerce suite. Chromium desktop and WebKit 320px tested invalid-login recovery, sign-in/register, cart quantity preservation, no page navigation, busy Escape/close guards, and no order submission until explicit purchase. Actual guest API browser checks in Myanmar at 1280/320px and English at 390px verified no name fields, history notice, successful retries after a lost response and page reload, correct Telegram reference, and language persistence. The final 320px and 1280px review confirmed a single aligned 1px focus border, readable stacked purchase actions at 320px, and reachable submit controls at a short 450px viewport height. All external message navigation was intercepted; no real message was sent.
 
 Added name-only guest checkout, admin guest identification, safe retry identity, and optional sign-in. Split account history into a three-plan preview and a dedicated full history page with subscription duration visuals. Node 24 standalone build, types, 23 unit tests, focused ESLint (existing image warnings only), and the expanded MariaDB commerce integration suite passed. Integration covers an existing-schema migration, customer/guest isolation, concurrent retries, rate limits, admin approval and history response scoping. Chromium at 390px and WebKit at 320px verified English/Myanmar guest forms, Telegram identity without invented email, lost-response retry and repeat checkout. The guest retry also retained its original order after a page reload. History fixtures covered desktop 1440px, English 390px, Myanmar WebKit 320px, and header layout at 900/1024/1280px in both languages. Telegram navigation was intercepted; no real message was sent.
 
@@ -98,7 +104,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-Check the name-only guest form on a physical phone with its software keyboard and Telegram app. Guests refer to the Telegram order message; there is no automatic later account linking. Keep ALTER privilege on the order table for the first deployment migration and retain database backups.
+Check the checkout choices and account popup on a physical phone with its software keyboard and Telegram app. Guests refer to the Telegram order message; there is no automatic later account linking. Keep ALTER privilege on the order table for the first deployment migration and retain database backups.
 
 Match the Telegram order reference with **Admin → Orders → Pending**, complete payment and account delivery in Telegram, then confirm subscription dates and approve its tracking record. Use **Customers** to look up the customer and their orders.
 

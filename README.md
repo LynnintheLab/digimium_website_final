@@ -1,6 +1,6 @@
 # Digimium website
 
-Digimium is a bilingual digital subscription catalog for browsing products, choosing a plan, and ordering through Telegram with purchase records in a customer account. The storefront uses a soft blue/lavender gradient, navy sections, colored brand marks, Manrope for English, and Wa Lone for Myanmar.
+Digimium is a bilingual digital subscription catalog for browsing products in Myanmar by default, choosing a plan, and ordering through Telegram with purchase records in a customer account. The storefront uses a soft blue/lavender gradient, navy sections, colored brand marks, Manrope for English, and Wa Lone for Myanmar.
 
 - Host on Hostinger: [hPanel and GitHub deployment steps](docs/HOSTINGER.md)
 - Earlier Sites deployment: [Digimium](https://digimium-minimal.aungnyeinchantun23.chatgpt.site)
@@ -29,7 +29,7 @@ The Hostinger build protects `/admin` with a one-time code sent to the owner’s
 
 The starting catalog contains **54 products and 104 plan records**, with **50 plans selected for public display**. Admin edits can alter these counts. Keep the current plan visibility unless the owner explicitly changes it. Source and pricing decisions are documented in [data/IMPORT-SOURCES.md](data/IMPORT-SOURCES.md).
 
-Checkout accepts a guest name or nickname without registration, or uses the signed-in customer’s name and email. Guest orders appear in admin with a Guest label and are not linked to a website account. Checkout opens a Telegram draft with the order reference and that identity. Customers send the message themselves. Payment and service-account delivery happen in Telegram, followed by manual website approval. MySQL stores customer records and order snapshots separately from the editable catalog.
+Checkout offers Buy with an account or Buy on Telegram. Account sign-in and registration stay inside the order popup, then return to the cart for review. Telegram-only checkout asks for no name or email and explains that the purchase will not appear in website history; account checkout uses the signed-in customer’s name and email. Telegram-only orders appear in admin with a Guest label and reference and are not linked to a website account. Checkout opens a Telegram draft with the order reference and that identity. Customers send the message themselves. Payment and service-account delivery happen in Telegram, followed by manual website approval. MySQL stores customer records and order snapshots separately from the editable catalog.
 
 ## Quick start
 

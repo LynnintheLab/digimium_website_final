@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { commerceEnabled } from "@/lib/commerce-enabled";
+import { preferredShopLanguage } from "@/lib/shop-language";
 import Account from "./account";
 import "./account.css";
 
@@ -16,5 +17,5 @@ export default async function AccountPage({ searchParams }: {
 }) {
   if (!commerceEnabled) notFound();
   const [preferences, query] = await Promise.all([cookies(), searchParams]);
-  return <Account lang={preferences.get("digimium-language")?.value === "my" ? "my" : "en"} checkout={query.checkout === "1"} />;
+  return <Account lang={preferredShopLanguage(preferences.get("digimium-language")?.value)} checkout={query.checkout === "1"} />;
 }

@@ -3,6 +3,7 @@ import { cookies, headers } from 'next/headers';
 import { commerceEnabled } from '../lib/commerce-enabled';
 import Storefront from './storefront';
 import { getPublicCatalog } from '../lib/catalog-store';
+import { preferredShopLanguage } from '../lib/shop-language';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +43,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Home() {
   const [catalog, preferences] = await Promise.all([getPublicCatalog(), cookies()]);
-  const language = preferences.get('digimium-language')?.value === 'my' ? 'my' : 'en';
+  const language = preferredShopLanguage(preferences.get('digimium-language')?.value);
   return (
     <>
       <script async src="https://www.googletagmanager.com/gtm.js?id=GTM-M7S62K8J" />

@@ -24,11 +24,12 @@ const itemSchema = z.object({
 const checkoutSchema = z.object({
   requestId: z.string().uuid(), items: z.array(itemSchema).min(1).max(3000),
 }).strict();
-const guestCheckoutSchema = checkoutSchema.extend({
-  guestName: z.string().trim().min(1).max(100).refine(value => !/\p{Cc}/u.test(value)),
-});
+const guestCheckoutSchema = z.union([
+  checkoutSchema.extend({ checkoutMode: z.literal('guest') }),
+  checkoutSchema.extend({ guestName: z.string().trim().min(1).max(100).refine(value => !/\p{Cc}/u.test(value)) }),
+]);
 type CheckoutOwner = { customerId: string; guestKey?: never; guestName?: never } |
-  { customerId: null; guestKey: Buffer; guestName: string };
+  { customerId: null; guestKey: Buffer; guestName: string | null };
 
 function validDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000')) return false;
@@ -180,14 +181,17 @@ export async function submitOrder(customerId: string, body: unknown) {
 
 export async function submitGuestOrder(guestKey: Buffer, body: unknown, request: Request) {
   const input = guestCheckoutSchema.safeParse(body);
-  if (!input.success) throw new CommerceError(400, 'Enter a name of up to 100 characters and select valid items.');
-  return storeOrder({ customerId: null, guestKey, guestName: input.data.guestName }, input.data, request);
+  if (!input.success) throw new CommerceError(400, 'Check the checkout details and selected items.');
+  const guestName = 'guestName' in input.data ? input.data.guestName : null;
+  const result = await storeOrder({ customerId: null, guestKey, guestName }, input.data, request);
+  return { ...result, guestName };
 }
 
 async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSchema>, request?: Request) {
   const { items, requestId } = input;
   const canonical = JSON.stringify(items.map(item => [item.productId, item.planId, item.quantity]));
-  const hash = createHash('sha256').update(owner.customerId ? canonical : owner.guestName + '\n' + canonical).digest();
+  // Legacy named guests retain their original retry hashes. Anonymous guests have an empty name prefix.
+  const hash = createHash('sha256').update(owner.customerId ? canonical : (owner.guestName ?? '') + '\n' + canonical).digest();
   await ensureOrders();
   const existing = await existingCheckout(owner, requestId, hash);
   if (existing) return existing;

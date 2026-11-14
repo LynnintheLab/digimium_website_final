@@ -72,7 +72,7 @@ The website prepares and copies an order; it does not send the customer's messag
 
 ## Guest and account orders
 
-Orders includes both registered customers and guests. A guest row shows the supplied nickname with **Guest** and has no email or customer account. Search by the name or order reference, match it to the customer’s Telegram message, and confirm payment and deliver access there. Approve the plan dates in admin afterward. Guest dates stay in the admin record; signed-in purchases appear in that customer’s Order history with time remaining. The customer’s Account panel previews three recent plans and links to the full history.
+Orders includes both registered customers and guests. A Telegram-only row shows **Telegram guest** and has no email or customer account; older named guest orders keep their supplied nickname. Search by the order reference, match it to the customer’s Telegram message, and confirm payment and deliver access there. Approve the plan dates in admin afterward. Guest dates stay in the admin record; signed-in purchases appear in that customer’s Order history with time remaining. The customer’s Account panel previews three recent plans and links to the full history.
 
 ## Data and recovery
 

@@ -32,27 +32,29 @@ export async function POST(request: Request) {
   try {
     const { customerMutationAllowed, currentCustomer } = await import('../../../../hostinger/customer-auth');
     if (!customerMutationAllowed(request)) return commerceJson({ error: 'Submit orders from this website.' }, 403);
-    const customer = await currentCustomer(request);
+    let body = await readCommerceJson(request, 768 * 1024);
+    const fields = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+    const explicitGuest = fields.checkoutMode === 'guest';
+    if (Object.hasOwn(fields, 'checkoutMode') && !explicitGuest) {
+      return commerceJson({ error: 'Choose a valid checkout method.' }, 400);
+    }
+    // The Telegram-only option stays outside account history, including when the browser is signed in.
+    const customer = explicitGuest ? null : await currentCustomer(request);
     if (!customer) {
       const { currentGuest } = await import('../../../../hostinger/guest-checkout');
       const guestKey = currentGuest(request);
-      if (!guestKey) return commerceJson({ error: 'Choose guest checkout or sign in before submitting your order.' }, 401);
-      const body = await readCommerceJson(request, 768 * 1024);
-      if (!body || typeof body !== 'object' || !Object.hasOwn(body, 'guestName')) {
+      if (!guestKey || (!explicitGuest && !Object.hasOwn(fields, 'guestName'))) {
         return commerceJson({ error: 'Choose guest checkout or sign in before submitting your order.' }, 401);
       }
       const { submitGuestOrder } = await import('../../../../hostinger/orders');
       const result = await submitGuestOrder(guestKey, body, request);
-      // submitGuestOrder has validated and normalized this name before saving the order.
-      const name = (body as { guestName: string }).guestName.trim();
       return commerceJson({ id: result.order.id, order: result.order, telegram: result.telegram,
-        customer: { name, email: null, guest: true } }, result.created ? 201 : 200);
+        customer: { name: result.guestName, email: null, guest: true } }, result.created ? 201 : 200);
     }
     const { submitOrder } = await import('../../../../hostinger/orders');
-    let body = await readCommerceJson(request, 768 * 1024);
-    if (body && typeof body === 'object' && !Array.isArray(body) && Object.hasOwn(body, 'guestName')) {
-      // Another tab may have signed in while the guest form was open. The verified account wins.
-      body = Object.fromEntries(Object.entries(body).filter(([field]) => field !== 'guestName'));
+    if (Object.hasOwn(fields, 'guestName')) {
+      // Older name-based clients may have signed in from a second tab before submitting.
+      body = Object.fromEntries(Object.entries(fields).filter(([field]) => field !== 'guestName'));
     }
     const result = await submitOrder(customer.id, body);
     return commerceJson({ id: result.order.id, order: result.order, telegram: result.telegram,
