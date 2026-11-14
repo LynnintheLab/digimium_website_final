@@ -25,11 +25,3 @@ export function ServiceTiles() {
     </span>)}
   </div>;
 }
-
-export function OfferSculpture({ gift }: { gift: boolean }) {
-  return <span className="offer-sculpture" data-gift={gift} aria-hidden="true">
-    <img className="sculpture-portal" src="/assets/showcase/portal.webp" alt="" draggable={false} />
-    {gift && <img className="sculpture-gift" src="/assets/showcase/gift.webp" alt="" draggable={false} />}
-    <img className="sculpture-spark" src="/assets/showcase/spark.webp" alt="" draggable={false} />
-  </span>;
-}

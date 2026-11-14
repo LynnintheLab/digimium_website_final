@@ -52,22 +52,6 @@
   transform: perspective(180px) rotateZ(var(--angle)) rotateX(12deg) rotateY(-9deg) scale(var(--scale));
 }
 .service-tile img { width: 68%; height: 68%; object-fit: contain; }
-.offer-sculpture {
-  position: absolute;
-  top: 10px;
-  right: 34px;
-  width: 110px;
-  height: 86px;
-  pointer-events: none;
-  user-select: none;
-}
-.offer-sculpture img { position: absolute; object-fit: contain; }
-.sculpture-portal { width: 67%; height: 82%; right: 8%; top: 0; }
-.sculpture-spark { width: 16%; height: 23%; left: 7%; bottom: 6%; }
-.offer-sculpture[data-gift="true"] .sculpture-portal { width: 36%; height: 46%; top: -2%; right: 1%; }
-.sculpture-gift { width: 72%; height: 91%; left: 5%; bottom: 0; }
-.offer-sculpture[data-gift="true"] .sculpture-spark { left: auto; right: 1%; bottom: 3%; }
-
 .showcase .showcase-top {
   gap: 6px 12px;
   flex-wrap: wrap;
@@ -78,6 +62,7 @@
 .showcase-label, .showcase-controls { display: inline-flex; align-items: center; }
 .showcase-label { gap: 8px; font-size: 13px; font-weight: 600; }
 .showcase-label img { width: 20px; height: 20px; }
+.showcase-top .best-seller-badge { font-size: 13px; padding: 5px 10px; }
 .showcase-controls { margin-inline-start: auto; gap: 2px; }
 .showcase-controls button {
   display: grid;
@@ -200,7 +185,6 @@
   .showcase .showcase-offer { min-height: 240px; padding: 24px 32px; }
   .showcase-controls { gap: 0; }
   .showcase-label { gap: 6px; }
-  .offer-sculpture { width: 87px; height: 62px; top: 10px; right: 30px; }
 }
 @media (max-width: 700px) {
   .hero > .showcase { --tile-size: 35px; margin: 29px 23px 26px 16px; }
@@ -209,13 +193,12 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .service-float { animation: service-drift var(--duration) ease-in-out var(--delay) infinite; }
-  .offer-sculpture { animation: sculpture-float 7.8s ease-in-out -3.3s infinite alternate; }
   .showcase-backdrop::before { animation: showcase-glow 6s ease-in-out infinite alternate; }
   .showcase-slide:not([data-direction="0"]) .showcase-copy {
     animation: showcase-enter .36s cubic-bezier(.16, 1, .3, 1);
   }
   .showcase-pages button::after { transition: transform .22s ease-out, opacity .22s ease-out; }
-  .showcase[data-motion-paused="true"] :is(.service-float, .offer-sculpture),
+  .showcase[data-motion-paused="true"] .service-float,
   .showcase[data-motion-paused="true"] .showcase-backdrop::before { animation-play-state: paused; }
   .showcase[data-motion-paused="true"] .showcase-copy { animation: none; }
   .showcase[data-motion-paused="true"] .showcase-pages button::after { transition: none; }
@@ -227,10 +210,6 @@
   0%, 100% { transform: translate3d(0, 0, 0) rotate(0); }
   32% { transform: translate3d(var(--dx), calc(var(--dy) * .3), 0) rotate(var(--sway)); }
   68% { transform: translate3d(calc(var(--dx) * -.3), var(--dy), 0) rotate(calc(var(--sway) * -.65)); }
-}
-@keyframes sculpture-float {
-  from { transform: translate(2px, 2px) rotate(-2deg); }
-  to { transform: translate(-2px, -3px) rotate(2deg); }
 }
 @keyframes showcase-glow {
   from { opacity: .28; transform: translate(5%, 4%) scale(.95); }

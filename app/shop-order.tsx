@@ -198,7 +198,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
                 {plans.length ? plans.map(plan => {
                   const name = planName(plan, lang);
                   const duration = durationDetail(plan.duration, name, lang);
-                  return <label className="order-option" key={plan.id}>
+                  return <label className="order-option" data-best-seller={plan.bestSeller || undefined} key={plan.id}>
                     <input type="radio" name="shop-plan" checked={plan.id === planId} onChange={() => setPlanId(plan.id)}/>
                     <span className="order-option-name">{name}{plan.bestSeller && <BestSellerBadge lang={lang} />}{duration && <small>{duration}</small>}</span>
                     <OfferPrice offer={plan} lang={lang}/>

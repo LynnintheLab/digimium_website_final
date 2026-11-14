@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent } from 'react';
-import { ArrowRight, ArrowUpRight, AudioLines, ChevronLeft, ChevronRight, Gift, LayoutGrid, PenTool, Sparkles, Star, Tag } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, AudioLines, ChevronLeft, ChevronRight, Gift, LayoutGrid, PenTool, Sparkles, Tag } from 'lucide-react';
 import type { Product } from '../lib/catalog';
 import { categoryName, durationText, planName, type ShopLanguage } from '../lib/shop-language';
 import { showcaseSlides } from '../lib/showcase';
 import { Mark } from './product-mark';
 import { OfferPrice } from './offer-price';
-import { OfferSculpture, ServiceTiles } from './showcase-artwork';
+import { ServiceTiles } from './showcase-artwork';
+import { BestSellerBadge } from './best-seller-badge';
 import './collection-showcase.css';
 
 const collections = [
@@ -75,7 +76,7 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
   const label = collection ? t('Explore a collection', 'အမျိုးအစားအလိုက် ရွေးချယ်ပါ')
     : slide.kind === 'best' ? t('Best Seller', 'အရောင်းရဆုံး')
     : slide.kind === 'promotion' ? t('Promotion', 'ပရိုမိုးရှင်း') : t('Discount', 'လျှော့ဈေး');
-  const Icon = slide.kind === 'best' ? Star : slide.kind === 'promotion' ? Gift : Tag;
+  const Icon = slide.kind === 'promotion' ? Gift : Tag;
   const viewPlan = plan ? t('View plan', 'Plan ကြည့်ရန်') : t('View plans', 'Plan များ ကြည့်ရန်');
   const slideLabel = (i: number) => t(`Slide ${i + 1} of ${count}`, `ပြကွက် ${i + 1} / ${count}`);
 
@@ -136,7 +137,8 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
     <ServiceTiles />
     <div className="showcase-surface">
       <div className="showcase-top">
-        <span className="showcase-label">{collection ? <img src="/assets/symbol-white.png" alt="" /> : <Icon size={18} aria-hidden="true" />}{label}</span>
+        {slide.kind === 'best' ? <BestSellerBadge lang={lang} /> :
+          <span className="showcase-label">{collection ? <img src="/assets/symbol-white.png" alt="" /> : <Icon size={18} aria-hidden="true" />}{label}</span>}
         {count > 1 && <div className="showcase-controls">
           <button type="button" aria-label={t('Previous slide', 'ရှေ့ပြကွက်')} onClick={() => step(-1)}><ChevronLeft size={18} /></button>
           <button type="button" aria-label={t('Next slide', 'နောက်ပြကွက်')} onClick={() => step(1)}><ChevronRight size={18} /></button>
@@ -154,7 +156,6 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
         </div>
         <div aria-live={rotating ? 'off' : 'polite'} aria-atomic="true">
           <div className={collection ? 'collection-art' : 'collection-art showcase-offer'}>
-            {!collection && <OfferSculpture gift={slide.kind === 'promotion'} />}
             <div key={current} className="showcase-copy">
               {collection ? <>
                 <h2>{t(collection.enTitle, collection.myTitle)}</h2>

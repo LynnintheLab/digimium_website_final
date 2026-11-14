@@ -94,8 +94,8 @@ Regular MMK parsing accepts recognized MMK/Ks/ကျပ် amounts, including My
 
 ### Best Seller
 
-- Product checkbox: shows a Best Seller badge on the product card and product dialog.
-- Plan checkbox: highlights that published option in the plan picker.
+- The product checkbox adds a bright gold Best Seller badge with a filled star to the product card and dialog. Best Seller showcase slides use the same gold treatment.
+- The plan checkbox gives that published option a pale gold gradient, amber border and Best Seller badge in the plan picker. A blue outline and checked radio identify the visitor's selected option.
 - Card summary also names the first marked published plan in saved order, even if its price differs from the first/default plan.
 - Product and plan flags are independent of one another and of Featured/publication.
 - Best Seller is a manual owner designation; there is no sales-ranking calculation.
@@ -117,7 +117,7 @@ If **no promotion or discount qualifies**, the existing Think/Create/Unwind cate
 
 With multiple slides, the showcase advances every **7 seconds**. Use the arrows, tap a short dash, or swipe left for the next slide and right for the previous slide on a phone. The longer, brighter dash marks the current slide. Hover, focus, touch contact and a background browser tab suspend rotation. Selecting the current dash or opening an offer holds the slide until the visitor navigates to another one.
 
-Ten decorative service tiles float at staggered positions on the top, right, bottom and left edges. Offer slides include a dimensional Digimium mark and a gold sparkle. Gift-period promotion slides also include a ribboned gift box. The interior watermark and text stay still. Visitors can pause and resume decorative motion and autoplay from the storefront footer. A hidden tab suspends both, and reduced motion displays the stationary artwork with manual slide navigation.
+Ten decorative service tiles float at staggered positions on the top, right, bottom and left edges. The interior watermark and text stay still. Visitors can pause and resume decorative motion and autoplay from the storefront footer. A hidden tab suspends both, and reduced motion displays the stationary artwork with manual slide navigation.
 
 Refresh an open storefront to receive saved catalog edits. Promotions, best-seller flags and discounts remain active until the owner changes them.
 

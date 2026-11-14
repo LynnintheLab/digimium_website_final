@@ -132,8 +132,8 @@
       },
       {
         "name": "showcase-backdrop",
-        "value": "4.7–8.7s tile loops, 7.8s sculpture drift, 6s glow",
-        "purpose": "Service tiles and the small dimensional objects float independently of the stationary brand watermark and offer text."
+        "value": "4.7–8.7s tile loops, 6s glow",
+        "purpose": "Service tiles float independently of the stationary brand watermark and offer text."
       },
       {
         "name": "reduced-motion",

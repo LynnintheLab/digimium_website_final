@@ -5,5 +5,3 @@ fonts/manrope-400.ttf through manrope-700.ttf: Manrope from Google Fonts (fonts.
 fonts/walone-regular.ttf, fonts/walone-bold.ttf: supplied Fonts/ZinBoFonts22/Z06-Walone files.
 
 fonts/*.woff2: full-glyph WOFF2 encodings of the supplied TTF files. Shaping tables and glyph coverage are preserved; TTF files remain as fallbacks. Combined font transfer size is 198,000 bytes (TTF originals: 502,696 bytes).
-
-The transparent WebP illustrations in `showcase/` were rendered for the storefront. The dimensional portal follows the vector silhouette from the supplied Digimium Illustrator master. The ribboned gift and four-point charm are original 3D artwork.
