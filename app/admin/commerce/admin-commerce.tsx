@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ChevronRight, RefreshCw, Search, X } from 'lucide-react';
 import type { CommerceCustomer, CommerceOrder } from '@/lib/commerce-types';
+import { customerContact } from '@/lib/customer-identity';
 import OrderEditor, { orderReference, orderTotal } from './order-editor';
 import './commerce.css';
 
@@ -89,11 +90,11 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
   const shownOrders = scopedOrders.filter(order => {
     if (filter !== 'all' && order.status !== filter) return false;
     const customer = order.customerId ? customersById.get(order.customerId) : undefined;
-    return [order.id, orderReference(order.id), customer?.name, customer?.email, order.guestName, order.customerId === null ? 'Telegram guest' : '',
+    return [order.id, orderReference(order.id), customer?.name, customer && customerContact(customer), order.guestName, order.customerId === null ? 'Telegram guest' : '',
       ...order.lines.flatMap(line => [line.productName, line.planName])]
       .some(value => value?.toLowerCase().includes(term));
   });
-  const shownCustomers = customers.filter(customer => (customer.name + ' ' + customer.email).toLowerCase().includes(term));
+  const shownCustomers = customers.filter(customer => (customer.name + ' ' + customerContact(customer)).toLowerCase().includes(term));
 
   function backToList() {
     setSelectedId(null);
@@ -127,13 +128,13 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
             <RefreshCw size={15} className={refreshing ? 'admin-spinner' : undefined} />Refresh
           </button>
         </div>
-        {scopedCustomer && <div className="commerce-heading-line"><p>{scopedCustomer.email}</p>
+        {scopedCustomer && <div className="commerce-heading-line"><p>{customerContact(scopedCustomer)}</p>
           <button type="button" className="admin-text-button" onClick={clearCustomer}>View all customers’ orders</button>
         </div>}
         <div className="admin-search commerce-search">
           <Search size={17} aria-hidden="true" />
           <input id="commerce-search" type="search" aria-label={view === 'orders' ? 'Search orders' : 'Search customers'}
-            placeholder={view === 'orders' ? 'Search orders, services or customers…' : 'Search name or email…'}
+            placeholder={view === 'orders' ? 'Search orders, services or customers…' : 'Search name, email or Telegram…'}
             value={search} onChange={event => setSearch(event.target.value)} />
           {search && <button type="button" aria-label="Clear search" onClick={() => setSearch('')}><X size={15} /></button>}
         </div>
@@ -147,8 +148,8 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
       </div>
       {view === 'customers' ? shownCustomers.length ? <ul className="commerce-rows">{shownCustomers.map(customer =>
         <li key={customer.id}><button type="button" className="commerce-row" onClick={() => showCustomerOrders(customer.id)}
-          aria-label={'View orders for ' + customer.name + ', ' + customer.email}>
-          <span className="commerce-row-main"><strong>{customer.name}</strong><span>{customer.email}</span></span>
+          aria-label={'View orders for ' + customer.name + ', ' + customerContact(customer)}>
+          <span className="commerce-row-main"><strong>{customer.name}</strong><span>{customerContact(customer)}</span></span>
           <span className="commerce-row-end"><strong>{counts.get(customer.id) ?? 0} {(counts.get(customer.id) ?? 0) === 1 ? 'order' : 'orders'}</strong>
             <span>Joined {dateFormat.format(new Date(customer.createdAt))}</span></span>
           <ChevronRight size={18} aria-hidden="true" />
@@ -162,7 +163,7 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
           requestAnimationFrame(() => document.getElementById('commerce-order-title')?.focus());
         }}>
           <span className="commerce-row-main"><strong>{orderReference(order.id)} <span className="commerce-status" data-status={order.status}>{order.status === 'pending' ? 'Pending' : 'Approved'}</span></strong>
-            <span>{customer ? customer.name + ' · ' + customer.email : order.guestName ? order.guestName + ' · Guest' : order.customerId === null ? 'Telegram guest' : 'Customer'}</span>
+            <span>{customer ? customer.name + ' · ' + customerContact(customer) : order.guestName ? order.guestName + ' · Guest' : order.customerId === null ? 'Telegram guest' : 'Customer'}</span>
             <span>{order.lines.map(line => line.productName + (line.planName ? ' · ' + line.planName : '')).join(', ')}</span>
           </span>
           <span className="commerce-row-end"><strong>{orderTotal(order)}</strong>

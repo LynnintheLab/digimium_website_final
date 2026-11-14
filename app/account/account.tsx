@@ -269,15 +269,15 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
       {!customer && loading && <p role="status">{t("Loading your account…", "အကောင့်ကို ဖော်ပြနေပါတယ်…")}</p>}
       {!customer && !loading && !failed && <>
         {history && <p className="customer-history-signin">{t("Sign in to see orders placed with your account. If you ordered without an account, check your Telegram conversation with Digimium.", "အကောင့်နဲ့ ဝယ်ထားတဲ့ အော်ဒါတွေကို ကြည့်ဖို့ အကောင့်ဝင်ပါ။ အကောင့်မရှိဘဲ ဝယ်ထားရင် Digimium နဲ့ ပြောထားတဲ့ Telegram chat မှာ ပြန်ကြည့်နိုင်ပါတယ်။")}</p>}
-        <AuthForm t={t} checkout={checkout} embedded={embedded} history={history} onSuccess={signedIn} />
+        <AuthForm t={t} checkout={checkout} embedded={embedded} history={history} resumeGoogle={resumeGoogle} onSuccess={signedIn} />
       </>}
       {customer && <div className="customer-dashboard">
         <div className="customer-summary">
-          <div>{!embedded && !history && <Title>{t("My account", "ကျွန်ုပ်၏အကောင့်")}</Title>}<p><strong className="customer-profile-name">{customer.name}</strong><span className="customer-profile-email">{customer.email}</span></p>{!history && <small className="customer-member-since">{t("Joined", "အကောင့်ဖွင့်သည့်နေ့")} <time dateTime={customer.createdAt}>{formatDate(customer.createdAt, lang)}</time></small>}</div>
+          <div>{!embedded && !history && <Title>{t("My account", "ကျွန်ုပ်၏အကောင့်")}</Title>}<p><strong className="customer-profile-name">{customer.name}</strong><span className="customer-profile-email">{customer.email || (customer.telegram?.username ? '@' + customer.telegram.username : 'Telegram')}</span></p>{!history && <small className="customer-member-since">{t("Joined", "အကောင့်ဖွင့်သည့်နေ့")} <time dateTime={customer.createdAt}>{formatDate(customer.createdAt, lang)}</time></small>}</div>
           <button type="button" onClick={logout} disabled={loggingOut}><LogOut size={16} aria-hidden />{t("Sign out", "အကောင့်ထွက်ရန်")}</button>
         </div>
         {!history && customer.passwordAvailable !== false && <PasswordForm t={t} onUpdated={setCustomer} onSignedOut={() => { setCustomer(null); setOrders(null); refresh(); }} />}
-        {!history && customer.passwordAvailable === false && <p className="customer-google-connected">{t("Signed in with Google", "Google ဖြင့် ဝင်ထားသည်")}</p>}
+        {!history && customer.passwordAvailable === false && <p className="customer-google-connected">{customer.telegram ? t("Signed in with Telegram", "Telegram ဖြင့် ဝင်ထားသည်") : t("Signed in with Google", "Google ဖြင့် ဝင်ထားသည်")}</p>}
         {!orders && !failed && <p role="status">{t("Loading orders…", "အော်ဒါများကို ဖော်ပြနေပါတယ်…")}</p>}
         {orders && <>
           {!history && <RecentOrders orders={approved} lang={lang} t={t} onClose={onClose} />}

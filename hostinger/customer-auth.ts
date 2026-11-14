@@ -7,7 +7,19 @@ import { isSameOriginMutation } from "../lib/admin-auth-policy";
 import { getPool } from "./mysql";
 import { CommerceError, readCommerceJson } from "../lib/commerce-http";
 
-export type Customer = { id: string; name: string; email: string; createdAt: string; passwordAvailable?: false };
+import type { TelegramIdentity } from "./telegram-identity";
+
+export type Customer = { id: string; name: string; email: string | null; createdAt: string; passwordAvailable?: false;
+  telegram?: { id: string; username: string | null } };
+export type CustomerIdentityRow = Customer & { password_available: number; telegram_id?: string | null; telegram_username?: string | null };
+
+/** Preserve legacy DTO keys while exposing a verified Telegram identity only when it exists. */
+export function presentCustomer(row: CustomerIdentityRow): Customer {
+  const customer: Customer = { id: row.id, name: row.name, email: row.email, createdAt: row.createdAt };
+  if (!row.password_available) customer.passwordAvailable = false;
+  if (row.telegram_id) customer.telegram = { id: row.telegram_id, username: row.telegram_username ?? null };
+  return customer;
+}
 const sessionSeconds = 30 * 24 * 60 * 60;
 let schema: Promise<void> | undefined;
 
@@ -16,14 +28,21 @@ export function ensureCustomerSchema(): Promise<void> {
     schema = (async () => {
       try {
         await getPool().query(`SELECT 1 FROM digimium_customers, digimium_customer_sessions, digimium_customer_auth_limits LIMIT 0`);
-        return;
       } catch (error) {
         if (!(error instanceof Error && "code" in error && error.code === "ER_NO_SUCH_TABLE")) throw error;
+        const sql = await readFile(join(process.cwd(), "hostinger", "customer-auth-schema.sql"), "utf8");
+        for (const statement of sql.split(";").filter(part => part.trim())) await getPool().query(statement);
       }
-      const sql = await readFile(join(process.cwd(), "hostinger", "customer-auth-schema.sql"), "utf8");
-      for (const statement of sql.split(";").filter(part => part.trim())) {
-        await getPool().query(statement);
+      // Telegram users have neither a synthetic email nor a synthetic password. Existing values stay intact.
+      const [columns] = await getPool().query<RowDataPacket[]>("SHOW COLUMNS FROM digimium_customers WHERE Field IN ('email', 'password_hash')");
+      if (columns.some(column => column.Field === 'email' && column.Null !== 'YES')) {
+        await getPool().query('ALTER TABLE digimium_customers MODIFY email VARCHAR(254) COLLATE utf8mb4_bin NULL');
       }
+      if (columns.some(column => column.Field === 'password_hash' && column.Null !== 'YES')) {
+        await getPool().query('ALTER TABLE digimium_customers MODIFY password_hash VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NULL');
+      }
+      const telegramSql = await readFile(join(process.cwd(), "hostinger", "telegram-identity-schema.sql"), "utf8");
+      for (const statement of telegramSql.split(";").filter(part => part.trim())) await getPool().query(statement);
     })().catch(error => { schema = undefined; throw error; });
   }
   return schema;
@@ -60,14 +79,15 @@ export async function currentCustomer(request: Request): Promise<Customer | null
   const token = config && sessionToken(request, config.cookie);
   if (!token) return null;
   await ensureCustomerSchema();
-  const [rows] = await getPool().execute<(Customer & RowDataPacket & { password_available: number })[]>(
-    `SELECT c.id, c.name, c.email, c.password_hash IS NOT NULL AS password_available, DATE_FORMAT(c.created_at, '%Y-%m-%dT%H:%i:%sZ') AS createdAt FROM digimium_customer_sessions s
+  const [rows] = await getPool().execute<(CustomerIdentityRow & RowDataPacket)[]>(
+    `SELECT c.id, c.name, c.email, c.password_hash IS NOT NULL AS password_available, t.telegram_id, t.username AS telegram_username,
+     DATE_FORMAT(c.created_at, '%Y-%m-%dT%H:%i:%sZ') AS createdAt FROM digimium_customer_sessions s
      JOIN digimium_customers c ON c.id = s.customer_id
+     LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id
      WHERE s.token_hash = ? AND s.expires_at > UTC_TIMESTAMP()`, [digest(token)],
   );
   if (!rows[0]) return null;
-  const { password_available, ...customer } = rows[0];
-  return password_available ? customer : { ...customer, passwordAvailable: false };
+  return presentCustomer(rows[0]);
 }
 
 type Input = { action: "login" | "register"; email: string; name: string; password: string };
@@ -159,13 +179,14 @@ export async function issueCustomerSession(request: Request, verifiedCustomer: C
       );
       if (!flows.length) throw new CommerceError(400, "expired");
     }
-    const [rows] = await connection.execute<(RowDataPacket & Customer & { password_available: number })[]>(
-      "SELECT id, name, email, DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%sZ') AS createdAt, password_hash IS NOT NULL AS password_available FROM digimium_customers WHERE id = ? FOR UPDATE",
+    const [rows] = await connection.execute<(RowDataPacket & CustomerIdentityRow)[]>(
+      `SELECT c.id, c.name, c.email, DATE_FORMAT(c.created_at, '%Y-%m-%dT%H:%i:%sZ') AS createdAt,
+       c.password_hash IS NOT NULL AS password_available, t.telegram_id, t.username AS telegram_username
+       FROM digimium_customers c LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id WHERE c.id = ? FOR UPDATE`,
       [verifiedCustomer.id],
     );
     if (!rows[0]) throw new CommerceError(401, "signed_out");
-    const { password_available, ...person } = rows[0];
-    customer = password_available ? person : { ...person, passwordAvailable: false };
+    customer = presentCustomer(rows[0]);
     const previous = sessionToken(request, config.cookie);
     if (previous) await connection.execute("DELETE FROM digimium_customer_sessions WHERE token_hash = ?", [digest(previous)]);
     await connection.execute(
@@ -181,9 +202,46 @@ export async function issueCustomerSession(request: Request, verifiedCustomer: C
   return reply({ customer }, 200, `${config.cookie}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${sessionSeconds}${config.secure ? "; Secure" : ""}`);
 }
 
+/** Consume an approved browser-bound Telegram challenge and resolve its user in the same transaction. */
+export async function issueTelegramCustomerSession(request: Request, identity: TelegramIdentity, flow: {
+  idHash: Buffer; browserHash: Buffer; stage: 'approved';
+}): Promise<Response> {
+  const config = site();
+  if (!config) throw new CommerceError(503, 'unavailable');
+  await ensureCustomerSchema();
+  const { resolveTelegramIdentity } = await import('./telegram-identity');
+  for (let attempt = 0; ; attempt++) {
+    const connection = await getPool().getConnection();
+    try {
+      await connection.beginTransaction();
+      const [flows] = await connection.execute<RowDataPacket[]>(
+        'SELECT 1 FROM digimium_telegram_auth_challenges WHERE id_hash = ? AND browser_hash = ? AND stage = ? AND expires_at > UTC_TIMESTAMP() FOR UPDATE',
+        [flow.idHash, flow.browserHash, flow.stage],
+      );
+      if (!flows.length) throw new CommerceError(400, 'expired');
+      const customer = await resolveTelegramIdentity(identity, connection);
+      const token = randomBytes(32).toString('base64url');
+      const previous = sessionToken(request, config.cookie);
+      if (previous) await connection.execute('DELETE FROM digimium_customer_sessions WHERE token_hash = ?', [digest(previous)]);
+      await connection.execute(
+        'INSERT INTO digimium_customer_sessions (token_hash, customer_id, expires_at) VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND))',
+        [digest(token), customer.id, sessionSeconds],
+      );
+      await connection.execute('DELETE FROM digimium_telegram_auth_challenges WHERE id_hash = ? AND browser_hash = ?', [flow.idHash, flow.browserHash]);
+      await connection.commit();
+      return reply({ customer }, 200, `${config.cookie}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${sessionSeconds}${config.secure ? '; Secure' : ''}`);
+    } catch (error) {
+      await connection.rollback();
+      const code = error instanceof Error && 'code' in error ? String(error.code) : '';
+      if (attempt >= 2 || !['ER_DUP_ENTRY', 'ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT'].includes(code)) throw error;
+      // A simultaneous browser may create this Telegram user's identity first. Retry the entire atomic consumption.
+    } finally { connection.release(); }
+  }
+}
+
 /** Preserve the existing password policy and limit expensive account-link password checks. */
 export async function proveCustomerPasswordForGoogle(request: Request, customer: Pick<Customer, "id" | "email">, password: string): Promise<string> {
-  if (typeof password !== "string" || !password.length || password.length > 256) throw new CommerceError(400, "invalid");
+  if (!customer.email || typeof password !== "string" || !password.length || password.length > 256) throw new CommerceError(400, "invalid");
   await ensureCustomerSchema();
   if (!await withinLimit(request, { action: "google-link", email: customer.email })) throw new CommerceError(429, "rate_limited");
   const [rows] = await getPool().execute<(RowDataPacket & { password_hash: string | null })[]>(
@@ -204,7 +262,7 @@ async function changePassword(request: Request, oldToken: string | null, cookie:
   if ((action !== undefined && action !== "password") || typeof currentPassword !== "string" ||
       !currentPassword.length || currentPassword.length > 256 || typeof newPassword !== "string" ||
       newPassword.length < 10 || newPassword.length > 256) return reply({ error: "invalid" }, 400);
-  if (!await withinLimit(request, { action: "password", email: customer.email })) return reply({ error: "rate_limited" }, 429);
+  if (!await withinLimit(request, { action: "password", email: customer.email ?? customer.id })) return reply({ error: "rate_limited" }, 429);
   const [rows] = await getPool().execute<(RowDataPacket & { password_hash: string })[]>(
     "SELECT password_hash FROM digimium_customers WHERE id = ?", [customer.id],
   );

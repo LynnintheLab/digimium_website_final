@@ -8,7 +8,7 @@ await cp('public', join(bundle, 'public'), { recursive: true });
 await cp('.next/static', join(bundle, '.next/static'), { recursive: true });
 
 await mkdir(join(bundle, 'hostinger'), { recursive: true });
-for (const schema of ['customer-auth-schema.sql', 'order-schema.sql', 'google-identity-schema.sql', 'google-auth-schema.sql']) {
+for (const schema of ['customer-auth-schema.sql', 'order-schema.sql', 'google-identity-schema.sql', 'google-auth-schema.sql', 'telegram-identity-schema.sql', 'telegram-auth-schema.sql']) {
   await cp(join('hostinger', schema), join(bundle, 'hostinger', schema));
 }
 

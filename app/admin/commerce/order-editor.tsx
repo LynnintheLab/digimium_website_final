@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowLeft, Check, LoaderCircle, Save } from 'lucide-react';
 import type { CommerceCustomer, CommerceOrder, CommerceOrderLine } from '@/lib/commerce-types';
+import { customerContact } from '@/lib/customer-identity';
 import { suggestedEndDate, todayInMyanmar } from './order-dates';
 
 export function orderReference(id: string) {
@@ -77,9 +78,9 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
         <h2 id="commerce-order-title" tabIndex={-1}>Order {orderReference(order.id)}</h2>
         <span className="commerce-status" data-status={order.status}>{pending ? 'Pending' : 'Approved'}</span>
       </div>
-      {customer && <div className="commerce-customer"><strong>{customer.name}</strong><span>{customer.email}</span></div>}
+      {customer && <div className="commerce-customer"><strong>{customer.name}</strong><span>{customerContact(customer)}</span></div>}
       {order.customerId === null && <div className="commerce-customer"><strong>{order.guestName ?? 'Telegram guest'}</strong><span>Guest order</span></div>}
-      {pending && <p>{order.customerId === null ? 'Match the order reference with the Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.' : 'Match the reference, name and email with the customer’s Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.'}</p>}
+      {pending && <p>{order.customerId === null ? 'Match the order reference with the Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.' : customer?.telegram ? 'Match the reference, name and Telegram ID with the customer’s message. Confirm payment and deliver access in that chat, then approve the dates here.' : 'Match the reference, name and email with the customer’s Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.'}</p>}
     </div>
     <form onSubmit={submit}>
       <fieldset disabled={busy} className="commerce-fieldset">

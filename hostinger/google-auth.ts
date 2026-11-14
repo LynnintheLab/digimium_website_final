@@ -271,7 +271,9 @@ export async function googlePending(request: Request) {
       return commerceJson({status:data.row.stage, ...(data.row.stage === 'link' ? {email:data.flow.identity?.email} : {})});
     }
     const receipt = readResultCookie(request);
-    const customer = receipt && (!expected || receipt.flowId === expected) ? await currentCustomer(request) : null;
+    const browser = binding(request);
+    const customer = receipt && (!expected || receipt.flowId === expected) && (!browser || browser.id === receipt.flowId)
+      ? await currentCustomer(request) : null;
     return commerceJson(customer && customer.id === receipt?.customerId ? {status:'success',customer} : {status:'none'});
   } catch { return commerceJson({error:'unavailable'},503); }
 }
@@ -320,9 +322,7 @@ export async function googleCancel(request: Request) {
       await ensureSchema();
       await getPool().execute("DELETE FROM digimium_google_auth_challenges WHERE id_hash = ? AND browser_hash = ?",[digest(browser.id),digest(browser.browser)]);
     }
-    const response = commerceJson({status:'none'});
-    response.headers.append('Set-Cookie',cookie('',0));
-    response.headers.append('Set-Cookie',clearResultCookie());
-    return response;
+    // Row revocation is authoritative. A delayed response must not erase a newer login's binding or receipt.
+    return commerceJson({status:'none'});
   } catch { return commerceJson({error:'unavailable'},503); }
 }

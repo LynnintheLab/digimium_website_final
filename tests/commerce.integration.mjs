@@ -57,6 +57,8 @@ try {
   await db.query(await readFile(new URL('hostinger/schema.sql', root), 'utf8'));
   // Exercise the upgrade from the deployed account-only order schema, as well as fresh installs.
   await db.query(await readFile(new URL('hostinger/customer-auth-schema.sql', root), 'utf8'));
+  // Exercise the Telegram upgrade from the previous required-email/password schema.
+  await db.query('ALTER TABLE digimium_customers MODIFY email VARCHAR(254) COLLATE utf8mb4_bin NOT NULL, MODIFY password_hash VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL');
   await db.query(`CREATE TABLE digimium_orders (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
     customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -368,6 +370,37 @@ try {
   await json(await mutate(customerSession, 'DELETE', {}, googleOnlyCookie));
   assert.equal((await json(await get(customerSession, googleOnlyCookie))).customer, null);
   await db.execute('DELETE FROM digimium_customers WHERE id = ?', [googleOnlyId]);
+
+  // Telegram customers retain real account ownership/history with no fabricated email or password.
+  const telegramId = randomUUID();
+  const telegramUser = { id: '9999000012345', username: 'commerce_buyer' };
+  const telegramToken = randomBytes(32).toString('base64url');
+  const telegramCookie = 'digimium_local_customer=' + telegramToken;
+  await db.execute('INSERT INTO digimium_customers (id, name, email, password_hash, created_at) VALUES (?, ?, NULL, NULL, UTC_TIMESTAMP())',
+    [telegramId, 'Telegram customer fixture']);
+  await db.execute('INSERT INTO digimium_telegram_identities (telegram_id, customer_id, username, created_at) VALUES (?, ?, ?, UTC_TIMESTAMP())',
+    [telegramUser.id, telegramId, telegramUser.username]);
+  await db.execute('INSERT INTO digimium_customer_sessions (token_hash, customer_id, expires_at) VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 HOUR))',
+    [createHash('sha256').update(telegramToken).digest(), telegramId]);
+  const telegramSession = (await json(await get(customerSession, telegramCookie))).customer;
+  assert.equal(telegramSession.id, telegramId);
+  assert.equal(telegramSession.email, null);
+  assert.equal(telegramSession.passwordAvailable, false);
+  assert.deepEqual(telegramSession.telegram, telegramUser);
+  assert.deepEqual(await json(await mutate(customerSession, 'PATCH', { currentPassword: 'not-a-password', newPassword: randomUUID() }, telegramCookie), 400),
+    { error: 'provider_password' });
+  const telegramCheckout = await json(await submit({ requestId: randomUUID(), items: [custom] }, telegramCookie), 201);
+  assert.deepEqual(telegramCheckout.customer, { name: telegramSession.name, email: null, telegram: telegramUser });
+  const telegramAdmin = await json(await get(adminCommerce, owner));
+  assert.deepEqual(telegramAdmin.customers.find(person => person.id === telegramId).telegram, telegramUser);
+  assert.equal(telegramAdmin.customers.find(person => person.id === telegramId).email, null);
+  const telegramOrder = telegramAdmin.orders.find(order => order.id === telegramCheckout.id);
+  const telegramApproved = (await json(await mutate(adminCommerce + '/' + telegramOrder.id, 'PATCH', {
+    revision: telegramOrder.revision, lines: telegramOrder.lines.map(line => ({ id: line.id, startDate: '2028-03-01', endDate: '2028-04-01' })),
+  }, owner))).order;
+  assert.deepEqual((await json(await get(customerOrders + '?view=history', telegramCookie))).orders, [telegramApproved]);
+  assert.ok(!(await json(await get(customerOrders + '?view=history', activeCookie))).orders.some(order => order.id === telegramOrder.id));
+  assert.ok(!(await json(await get(customerOrders + '?view=history', bob.cookie))).orders.some(order => order.id === telegramOrder.id));
 
   console.log('Commerce integration passed: account sessions, Telegram checkout, guest schema migration, isolated guests, exact retries, guest limits, date approvals, password rotation and owner-only history.');
 } finally {

@@ -43,7 +43,9 @@ try{
  await db.query(await readFile(new URL('hostinger/schema.sql',root),'utf8'));
  // Prove the Google migration upgrades existing password-only tables while preserving rows.
  const legacy=await readFile(new URL('hostinger/customer-auth-schema.sql',root),'utf8');
- await db.query(legacy.replace('password_hash VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NULL','password_hash VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL'));
+ await db.query(legacy.replace('password_hash VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NULL','password_hash VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL')
+   .replace('email VARCHAR(254) COLLATE utf8mb4_bin NULL','email VARCHAR(254) COLLATE utf8mb4_bin NOT NULL'));
+ const [[oldPasswordColumn]]=await db.query("SHOW COLUMNS FROM digimium_customers LIKE 'password_hash'");assert.equal(oldPasswordColumn.Null,'NO');
  server=spawn(process.execPath,['--import',new URL('tests/fixtures/google-fetch.mjs',root).href,fileURLToPath(new URL('.next/standalone/server.js',root))],{cwd:fileURLToPath(root),env:{...env,NODE_ENV:'production',HOSTNAME:base.hostname,PORT:base.port},stdio:['ignore','inherit','inherit']});
  for(let n=0;;n++){try{assert.equal((await get('/api/customer/google')).status,200);break;}catch(error){if(n>100||server.exitCode!==null)throw error;await delay(100);}}
  assert.deepEqual(await json(await get('/api/customer/google')),{enabled:true});
@@ -54,7 +56,8 @@ try{
  const localPassword=randomUUID();const localResponse=await mutate('/api/customer/session',{action:'register',email:'local@example.invalid',password:localPassword,name:'Local owner'});
  const local=await json(localResponse,201);const localCookie=cookie(localResponse,'digimium_local_customer');
  const [[beforeHash]]=await db.query('SELECT password_hash FROM digimium_customers WHERE id=?',[local.customer.id]);
- const [[legacyColumn]]=await db.query("SHOW COLUMNS FROM digimium_customers LIKE 'password_hash'");assert.equal(legacyColumn.Null,'NO');
+ // Shared provider bootstrap upgrades the old schema on first account use, before a Google flow starts.
+ const [providerColumns]=await db.query("SHOW COLUMNS FROM digimium_customers WHERE Field IN ('email','password_hash')");assert.ok(providerColumns.every(column=>column.Null==='YES'));
  const first=await begin('checkout');
  const valid=await finish(first);assert.equal(valid.result.status,'success');assert.equal(valid.result.customer.passwordAvailable,false);
  const customerCookie=cookie(valid.response,'digimium_local_customer');const googleCustomer=await session(customerCookie);assert.equal(googleCustomer.email,'google@example.invalid');
@@ -62,10 +65,18 @@ try{
  assert.equal((await session(localCookie)).id,local.customer.id,'Migration retains the existing local account and session');
  const receiptCookie=cookie(valid.response,'digimium_local_google_result');
  assert.equal((await json(await get('/api/customer/google/pending?flow='+first.state,customerCookie+'; '+receiptCookie))).status,'success');
+ assert.equal((await json(await get('/api/customer/google/pending?flow='+first.state,first.cookie+'; '+customerCookie+'; '+receiptCookie))).status,'success','The active originating binding accepts its own verified receipt');
  assert.deepEqual(await json(await get('/api/customer/google/pending?flow='+randomBytes(32).toString('base64url'),customerCookie+'; '+receiptCookie)),{status:'none'},'A receipt cannot complete a different OAuth attempt');
  assert.deepEqual(await json(await get('/api/customer/google/pending',localCookie+'; '+receiptCookie)),{status:'none'},'An unrelated remembered session cannot claim Google success');
  const resetReceipt=await begin('account',customerCookie+'; '+receiptCookie);assert.ok(resetReceipt.response.headers.getSetCookie().some(value=>value.startsWith('digimium_local_google_result=;')&&value.includes('Max-Age=0')));
- await json(await mutate('/api/customer/google/pending',{},resetReceipt.cookie,base.origin,'DELETE'));
+ const resetCancel=await mutate('/api/customer/google/pending',{},resetReceipt.cookie,base.origin,'DELETE');await json(resetCancel);
+ assert.deepEqual(resetCancel.headers.getSetCookie(),[],'A cancellation response cannot erase any newer browser binding or receipt if it arrives late');
+ const cancelledNewBinding=resetReceipt.cookie+'; '+customerCookie+'; '+receiptCookie;
+ assert.deepEqual(await json(await get('/api/customer/google/pending',cancelledNewBinding)),{status:'none'},'A cancelled newer binding cannot fall back to an older successful flow receipt');
+ assert.deepEqual(await json(await get('/api/customer/google/pending?flow='+first.state,cancelledNewBinding)),{status:'none'},'An old expected flow cannot bypass a different active browser binding');
+ const afterCancelled=await begin('account',cancelledNewBinding);
+ assert.deepEqual(resetCancel.headers.getSetCookie(),[],'Delivering the old cancellation after a new start has no cookie mutation to apply');
+ assert.equal((await finish(afterCancelled)).result.status,'success','A Google login started after cancellation retains its usable browser binding');
  assert.ok(valid.html.includes('/?checkout=1'));assert.ok(!Object.hasOwn(googleCustomer,'password_hash'));
  const replay=await finish(first);assert.equal(replay.result.status,'error');assert.equal(cookie(replay.response,'digimium_local_customer',false),'');
  const [[passwordRow]]=await db.query('SELECT password_hash FROM digimium_customers WHERE id=?',[googleCustomer.id]);assert.equal(passwordRow.password_hash,null);

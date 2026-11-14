@@ -2,7 +2,7 @@
 
 Use a **Node.js Web App** with a Hostinger MySQL database. The app serves the storefront, `/admin`, and the catalog and image APIs from the same HTTPS address. Hostinger can build it directly from the GitHub repository. You can complete these steps in hPanel without SSH.
 
-Both Hostinger apps use email-code login for the owner admin. Customers use email/password or Google when Google OAuth is configured. For an existing password-based deployment, keep its database connection, import the updated schema from step 2 into that database, then apply its own admin and Resend settings from step 3.
+Both Hostinger apps use email-code login for the owner admin. Customers use email/password, Google when Google OAuth is configured, or the Telegram code-choice bot when its private settings and webhook are configured. For an existing password-based deployment, keep its database connection, import the updated schema from step 2 into that database, then apply its own admin and Resend settings from step 3.
 
 ## 1. Create the web app
 
@@ -63,6 +63,9 @@ For an existing deployment, you can enter the same values directly in the web ap
 | `RESEND_FROM_EMAIL` | `onboarding@resend.dev` for the Resend account inbox, or an address on a verified sending domain |
 | `GOOGLE_CLIENT_ID` | Optional customer Google OAuth Web client ID for this app; configure with the matching secret |
 | `GOOGLE_CLIENT_SECRET` | Optional private Google OAuth client secret; both Google values are needed to enable customer Google sign-in |
+| `TELEGRAM_BOT_TOKEN` | Optional private token for this app’s dedicated Telegram login bot |
+| `TELEGRAM_BOT_USERNAME` | Matching public login bot username; a shared bot can serve only one active environment |
+| `TELEGRAM_WEBHOOK_SECRET` | Private 32–256-character Telegram webhook secret using letters, digits, `_` or `-`; all three Telegram settings are required |
 
 Store the effective order encryption secret in a private backup with the database recovery instructions. If orders were fulfilled using the fallback, set `ORDER_FULFILLMENT_SECRET` to the original admin secret before rotating `ADMIN_AUTH_SECRET`. Changing the effective encryption key requires re-encrypting existing fulfillment data.
 
@@ -78,14 +81,37 @@ Click **Apply changes** and **Restart** the running Node application. Use **Rede
 
 ### Enable customer Google sign-in
 
-Create a Google Cloud OAuth **Web application** client and configure the exact callback `APP_ORIGIN/api/customer/google/callback`. In production that is `https://buywith-digimium.store/api/customer/google/callback`; in staging it is `https://test.buywith-digimium.store/api/customer/google/callback`. Add the two Google variables to each app privately and restart/redeploy. Validate staging before public activation. The current app uses External / Testing and requests only `openid email profile`, which Google exempts from the test-user allowlist requirement; publishing solely to permit these sign-ins is not required. Additional scopes change that rule, and Google Workspace/account restrictions can still apply. See [Google’s audience rules](https://support.google.com/cloud/answer/15549945?hl=en). Until valid credentials are configured, Google is unavailable; Telegram and phone remain Coming soon.
+Create a Google Cloud OAuth **Web application** client and configure the exact callback `APP_ORIGIN/api/customer/google/callback`. In production that is `https://buywith-digimium.store/api/customer/google/callback`; in staging it is `https://test.buywith-digimium.store/api/customer/google/callback`. Add the two Google variables to each app privately and restart/redeploy. Validate staging before public activation. The current app uses External / Testing and requests only `openid email profile`, which Google exempts from the test-user allowlist requirement; publishing solely to permit these sign-ins is not required. Additional scopes change that rule, and Google Workspace/account restrictions can still apply. See [Google’s audience rules](https://support.google.com/cloud/answer/15549945?hl=en). Until valid credentials are configured, Google is unavailable. Telegram has its own setup below; phone remains Coming soon.
 
-The first Google identity flow adds the identity/challenge tables and makes customer `password_hash` nullable, preserving existing hashes and orders. It requires CREATE, REFERENCES and ALTER privileges, or the equivalent administrator-applied migration. Back up these tables with the customer/session/order data. Existing local accounts are linked only after their password is confirmed. See [Google setup and planned Telegram code approval](LOGIN-PROVIDERS.md) for full setup and verification steps.
+The first Google identity flow adds the identity/challenge tables and makes customer `password_hash` nullable, preserving existing hashes and orders. It requires CREATE, REFERENCES and ALTER privileges, or the equivalent administrator-applied migration. Back up these tables with the customer/session/order data. Existing local accounts are linked only after their password is confirmed. See [Google setup and Telegram code approval](LOGIN-PROVIDERS.md) for full setup and verification steps.
+
+### Enable customer Telegram sign-in
+
+The existing Hostinger app handles the login bot’s webhook at `APP_ORIGIN/api/customer/telegram/webhook`. No additional VPS or personal Telegram Web session is required. The approved **@digimium_login_bot** is tested on staging first, then deliberately moved to production. A bot has only one webhook, so only one environment can use it at a time; simultaneous staging/production login would require separate bots. Keep its token and webhook secret private, set the three Telegram environment variables above on the active app, and apply/redeploy.
+
+With Node 24, register the webhook from a private local environment file:
+
+```sh
+node scripts/configure-telegram.mjs --env path/to/private.env
+```
+
+The script validates the bot ID/username, refuses by default to replace a webhook for a different URL, sends the secret with only `message`/`callback_query` updates, then verifies Telegram’s saved configuration. It does not print credentials or raw provider responses. See [the full login setup guide](LOGIN-PROVIDERS.md#telegram-login-choose-the-website-code-in-the-bot) for environment-specific URLs and real staging checks. `GET /api/customer/telegram` confirms configuration presence only; verify delivery with a real staging code selection before public activation.
+
+After the real staging check, configure the production app and use its private environment file to perform the approved one-bot transfer:
+
+```sh
+node scripts/configure-telegram.mjs --env path/to/production.env --move-from https://test.buywith-digimium.store
+```
+
+The move is allowed only when the current webhook exactly matches that source origin’s Telegram webhook path; any other URL is left unchanged. After moving, remove the Telegram provider settings from staging and apply/redeploy. The bot’s order-history features remain future work; this release implements sign-in.
+
+Customer bootstrap creates the Telegram identity table and makes existing customer email/password columns nullable without changing saved values. Telegram-only accounts use a stable numeric Telegram ID, a name, optional username and no invented email/password. They do not merge automatically with existing email/Google accounts. The protocol creates its expiring challenge table on first use. The app needs CREATE, REFERENCES and ALTER privileges; back up these tables with customer/session/order records.
 
 ## 4. Verify the live store
 
 - In a private browser window, open `/` and search for a product. Select a plan and use **Add to cart**. Reopen the cart and check that **Continue to Telegram** offers account or Telegram checkout. The account form must stay in the order popup and return to the cart after success; Telegram checkout displays a history notice and asks for no identity fields. In a test environment, register a customer, save an order, inspect the Telegram draft with its name/email/reference, approve it in admin, then verify dates in the customer account. Verify guest ordering in a disposable test environment, including a repeated request, and check the Guest label in admin. Open the storefront account panel for its three-plan preview and password settings; open Order history for all approved purchases and remaining time.
 - If Google is configured, verify it using the separate staging checks in [the login guide](LOGIN-PROVIDERS.md): a new Google account, repeat sign-in, an existing-email password confirmation, cancellation, and checkout cart preservation. Do not use a live customer account for mutation tests.
+- If Telegram is configured, verify a real staging sign-in with the four-digit website code and matching bot button, including QR cross-device use, Reject, wrong choice, refresh, cancellation and cart preservation. Repeated sign-in must use the same stable Telegram identity; existing email/Google purchases remain separate. See [the login guide](LOGIN-PROVIDERS.md).
 - Open `/admin`. Enter the configured admin email, then enter the six-digit code from the inbox in the same browser within 10 minutes. Close and reopen the same normal browser profile to confirm it remembers you. A fresh private window should ask for its own code. Open a product and confirm that the plan details match what you expect. Test an edit on an unpublished service, upload a small logo, save it and reload. The edit and logo should persist after a restart.
 - Sign out. Opening `/admin` should ask you to sign in again. The customer storefront should still be accessible. A signed-out request to `/api/admin/catalog` should return `401`.
 

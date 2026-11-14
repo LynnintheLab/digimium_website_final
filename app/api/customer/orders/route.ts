@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     }
     const result = await submitOrder(customer.id, body);
     return commerceJson({ id: result.order.id, order: result.order, telegram: result.telegram,
-      customer: { name: customer.name, email: customer.email } }, result.created ? 201 : 200);
+      customer: { name: customer.name, email: customer.email, ...(customer.telegram ? { telegram: customer.telegram } : {}) } }, result.created ? 201 : 200);
   } catch (error) {
     return commerceErrorResponse(error);
   }

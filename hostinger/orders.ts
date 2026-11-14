@@ -7,13 +7,13 @@ import { resolveOrder, totalMmk, type CartItem } from '../lib/cart-order';
 import { decodeSnapshot, getCatalog } from '../lib/catalog-store';
 import type { Catalog } from '../lib/catalog';
 import { CommerceError } from '../lib/commerce-http';
-import type { CommerceCustomer, CommerceOrder, CommerceOrderLine, OrderFulfillment, TelegramOrder } from '../lib/commerce-types';
+import type { CommerceOrder, CommerceOrderLine, OrderFulfillment, TelegramOrder } from '../lib/commerce-types';
 import { initialCatalog } from '../lib/initial-catalog';
 import { effectivePrice, parseMmk } from '../lib/pricing';
 import { resolveTelegramContact } from '../lib/telegram-contact';
 import { priceOnEnquiry } from '../lib/shop-language';
 import type { CatalogSnapshot } from '../lib/storage-types';
-import { ensureCustomerSchema } from './customer-auth';
+import { ensureCustomerSchema, presentCustomer, type CustomerIdentityRow } from './customer-auth';
 import { limitGuestCheckout } from './guest-checkout';
 import { getPool } from './mysql';
 
@@ -240,12 +240,14 @@ export async function adminCommerce() {
   await ensureOrders();
   const pool = getPool();
   const [[customers], [orders]] = await Promise.all([
-    pool.query<(CommerceCustomer & RowDataPacket)[]>(
-      "SELECT id, name, email, DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS createdAt FROM digimium_customers ORDER BY created_at DESC, id",
+    pool.query<(CustomerIdentityRow & RowDataPacket)[]>(
+      `SELECT c.id, c.name, c.email, DATE_FORMAT(c.created_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS createdAt,
+       c.password_hash IS NOT NULL AS password_available, t.telegram_id, t.username AS telegram_username
+       FROM digimium_customers c LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id ORDER BY c.created_at DESC, c.id`,
     ),
     pool.query<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders ORDER BY created_at DESC, id'),
   ]);
-  return { customers, orders: orders.map(present) };
+  return { customers: customers.map(presentCustomer), orders: orders.map(present) };
 }
 
 export async function saveFulfillment(id: string, body: unknown) {

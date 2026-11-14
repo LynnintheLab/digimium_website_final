@@ -1,9 +1,10 @@
 export type CommerceCustomer = {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   createdAt: string;
   passwordAvailable?: false;
+  telegram?: { id: string; username: string | null };
 };
 
 export type CommerceOrderLine = {
@@ -46,6 +47,6 @@ export type TelegramOrder = Pick<CommerceOrder, 'id' | 'totalMmk'> & {
 export type TelegramCheckout = {
   id: string;
   order: TelegramOrder;
-  customer: { name: string; email: string; guest?: false } | { name: string | null; email: null; guest: true };
+  customer: { name: string; email: string | null; telegram?: CommerceCustomer['telegram']; guest?: false } | { name: string | null; email: null; guest: true };
   telegram: string;
 };

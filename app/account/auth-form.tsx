@@ -5,6 +5,8 @@ import { ArrowLeft, ArrowRight, ArrowUpRight, Phone } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { CommerceCustomer } from '../../lib/commerce-types';
 import { useGoogleLogin } from './use-google-login';
+import { useTelegramLogin } from './use-telegram-login';
+import { TelegramLogin } from './telegram-login';
 import type { ShopLanguage } from '../../lib/shop-language';
 
 type Translate = (en: string, my: string) => string;
@@ -12,6 +14,7 @@ type AuthFormProps = {
   checkout: boolean;
   embedded: boolean;
   history: boolean;
+  resumeGoogle?: boolean;
   t: Translate;
   onSuccess: (customer: CommerceCustomer) => void;
   onGuest?: () => void;
@@ -32,7 +35,7 @@ export function CheckoutAuth({ lang, ...props }: Omit<AuthFormProps, 't' | 'chec
   return <AuthForm {...props} checkout embedded history={false} t={(en, my) => lang === 'my' ? my : en} />;
 }
 
-export function AuthForm({ checkout, embedded, history, t, onSuccess, onGuest, onBusyChange }: AuthFormProps) {
+export function AuthForm({ checkout, embedded, history, resumeGoogle = false, t, onSuccess, onGuest, onBusyChange }: AuthFormProps) {
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,7 +50,8 @@ export function AuthForm({ checkout, embedded, history, t, onSuccess, onGuest, o
     onBusyChange,
     onPending: (kind, address) => { setPassword(''); setError(''); if (address) setEmail(address); setStep(kind === 'link' ? 'google-link' : 'google-name'); },
   });
-  const busy = emailBusy || google.busy;
+  const telegram = useTelegramLogin(checkout ? 'checkout' : history ? 'history' : 'account', {onSuccess, onBusyChange}, {autoResume: !resumeGoogle});
+  const busy = emailBusy || google.busy || telegram.busy;
   const googleErrors: Record<string,string> = {
     popup_blocked: t('Allow the Google sign-in window, then try again.', 'Google အကောင့်ဝင်တဲ့ window ဖွင့်ခွင့်ပေးပြီး ပြန်ကြိုးစားပါ။'),
     cancelled: t('Google sign-in was cancelled. You can try again.', 'Google အကောင့်ဝင်ခြင်းကို ပိတ်လိုက်ပါတယ်။ ပြန်ကြိုးစားနိုင်ပါတယ်။'),
@@ -58,15 +62,16 @@ export function AuthForm({ checkout, embedded, history, t, onSuccess, onGuest, o
   };
   const googleError = google.error ? googleErrors[google.error] || t('Google sign-in is unavailable. Try again or use email.', 'Google ဖြင့် ခေတ္တအကောင့်ဝင်မရပါ။ ပြန်ကြိုးစားပါ သို့မဟုတ် Email ဖြင့် ဝင်ပါ။') : '';
   const Title = embedded || history ? 'h2' : 'h1';
-  const title = step === 'google-link' ? t('Connect your existing account', 'ရှိပြီးသားအကောင့် ချိတ်ဆက်မယ်') : step === 'google-name' ? t('Your name', 'သင့်နာမည်') : step === 'email' ? t('Log in or sign up', 'အကောင့်ဝင် / ဖွင့်ရန်') : step === 'password' ? t('Enter your password', 'စကားဝှက် ထည့်ပါ') : step === 'new-password' ? t('Create your account', 'အကောင့်အသစ် ဖွင့်မယ်') : t('What should we call you?', 'နာမည် ထည့်ပါ');
+  const title = telegram.active ? t('Continue with Telegram', 'Telegram ဖြင့် ဝင်မယ်') : step === 'google-link' ? t('Connect your existing account', 'ရှိပြီးသားအကောင့် ချိတ်ဆက်မယ်') : step === 'google-name' ? t('Your name', 'သင့်နာမည်') : step === 'email' ? t('Log in or sign up', 'အကောင့်ဝင် / ဖွင့်ရန်') : step === 'password' ? t('Enter your password', 'စကားဝှက် ထည့်ပါ') : step === 'new-password' ? t('Create your account', 'အကောင့်အသစ် ဖွင့်မယ်') : t('What should we call you?', 'နာမည် ထည့်ပါ');
 
   useEffect(() => {
-    if (step !== 'email') heading.current?.focus({preventScroll: true});
-  }, [step]);
+    if (step !== 'email' || telegram.active) heading.current?.focus({preventScroll: true});
+  }, [step, telegram.active]);
 
   function back() {
     if (inFlight.current || busy) return;
     google.cancel();
+    telegram.cancel();
     setError('');
     setPassword('');
     setStep(step === 'name' ? 'new-password' : 'email');
@@ -74,9 +79,9 @@ export function AuthForm({ checkout, embedded, history, t, onSuccess, onGuest, o
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (inFlight.current || google.busy) return;
+    if (inFlight.current || google.busy || telegram.busy) return;
     const values = new FormData(event.currentTarget);
-    if (step === 'email') google.cancel();
+    if (step === 'email') { google.cancel(); telegram.cancel(); }
     google.clearError();
     if (step === 'google-link' || step === 'google-name') {
       await google.complete(step === 'google-link' ? {password:String(values.get('password') || '')} : {name:String(values.get('name') || '')});
@@ -128,11 +133,12 @@ export function AuthForm({ checkout, embedded, history, t, onSuccess, onGuest, o
 
   return <section className={'customer-auth customer-auth-progressive' + (onGuest ? ' customer-checkout-auth' : '')} aria-labelledby={titleId}>
     <Title ref={heading} tabIndex={-1} id={titleId}>{title}</Title>
+    {telegram.active ? <TelegramLogin login={telegram} t={t}/> : <>
     {step === 'email' ? <>
       <p className="customer-auth-intro">{t('Choose how you’d like to continue.', 'အကောင့်ဝင်ရန် နည်းလမ်းရွေးပါ။')}</p>
       <div className="customer-providers" aria-label={t('Sign-in methods', 'အကောင့်ဝင်ရန် နည်းလမ်းများ')}>
-        <button type="button" className="customer-provider" data-ready={google.enabled || undefined} disabled={busy || !google.enabled} onClick={() => { setError(''); void google.start(); }}><GoogleMark/><span>{t('Continue with Google', 'Google ဖြင့် ဝင်မယ်')}</span>{google.enabled === false && <small>Coming soon</small>}</button>
-        <button type="button" className="customer-provider" disabled><Image src="/assets/marks/telegram.svg" alt="" width={20} height={20} unoptimized /><span>{t('Continue with Telegram', 'Telegram ဖြင့် ဝင်မယ်')}</span><small>Coming soon</small></button>
+        <button type="button" className="customer-provider" data-ready={google.enabled || undefined} disabled={busy || !google.enabled} onClick={() => { telegram.cancel(); setError(''); void google.start(); }}><GoogleMark/><span>{t('Continue with Google', 'Google ဖြင့် ဝင်မယ်')}</span>{google.enabled === false && <small>Coming soon</small>}</button>
+        <button type="button" className="customer-provider" data-ready={telegram.enabled || undefined} disabled={busy || !telegram.enabled} onClick={() => { google.cancel(); setError(''); setPassword(''); setStep('email'); void telegram.start(); }}><Image src="/assets/marks/telegram.svg" alt="" width={20} height={20} unoptimized /><span>{t('Continue with Telegram', 'Telegram ဖြင့် ဝင်မယ်')}</span>{telegram.enabled === false && <small>Coming soon</small>}</button>
         <button type="button" className="customer-provider" disabled><Phone size={20} aria-hidden/><span>{t('Continue with phone', 'ဖုန်းနံပါတ်ဖြင့် ဝင်မယ်')}</span><small>Coming soon</small></button>
       </div>
       <div className="customer-auth-divider"><span>{t('or use email', 'သို့မဟုတ် email ဖြင့်')}</span></div>
@@ -153,7 +159,8 @@ export function AuthForm({ checkout, embedded, history, t, onSuccess, onGuest, o
       {error && <p role="alert" className="customer-error">{error}</p>}
       <button type="submit" className="customer-primary" disabled={busy}>{busy ? t('Please wait…', 'ခဏစောင့်ပါ…') : (step === 'name' || step === 'google-name') ? t('Create account', 'အကောင့်ဖွင့်မယ်') : step === 'google-link' ? t('Connect Google', 'Google နဲ့ ချိတ်ဆက်မယ်') : step === 'password' ? t('Log in', 'အကောင့်ဝင်မယ်') : t('Continue', 'ဆက်လုပ်မယ်')}<ArrowRight size={17} aria-hidden/></button>
     </form>
-    {checkout && <div className="customer-auth-alternative">{onGuest ? <button type="button" className="customer-guest-link" disabled={busy} onClick={() => { google.cancel(); onGuest(); }}>{t('Buy on Telegram instead', 'Telegram မှာ တိုက်ရိုက်ဝယ်မယ်')}<ArrowUpRight size={16} aria-hidden/></button>
+    </>}
+    {checkout && <div className="customer-auth-alternative">{onGuest ? <button type="button" className="customer-guest-link" disabled={busy} onClick={() => { google.cancel(); telegram.cancel(); onGuest(); }}>{t('Buy on Telegram instead', 'Telegram မှာ တိုက်ရိုက်ဝယ်မယ်')}<ArrowUpRight size={16} aria-hidden/></button>
       // eslint-disable-next-line @next/next/no-html-link-for-pages -- Restore the checkout in a fresh storefront document.
       : <a className="customer-guest-link" href="/?checkout=1">{t('Buy on Telegram instead', 'Telegram မှာ တိုက်ရိုက်ဝယ်မယ်')}<ArrowUpRight size={16} aria-hidden/></a>}</div>}
   </section>;

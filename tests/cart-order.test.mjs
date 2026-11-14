@@ -135,3 +135,17 @@ test('guest Telegram drafts identify the nickname without an invented email or a
     assert.doesNotMatch(anonymous, /နာမည်|အီးမေးလ်|Name|Email|null/i);
   }
 });
+
+test('Telegram account drafts identify the stable Telegram user without inventing an email', () => {
+  const order = { id: 'aa2d6549-fbd2-4602-a445-c6d99526afcb', totalMmk: 2000,
+    lines: [{ productName: 'Canva', planName: 'Monthly', duration: '1 month', price: '2,000 MMK', quantity: 1 }] };
+  const customer = { name: 'မောင်မြ', email: null, telegram: { id: '9999000012345', username: 'real_buyer' } };
+  for (const lang of ['en', 'my']) {
+    const [message] = orderTelegramMessages(order, customer, lang);
+    assert.ok(message.includes(customer.name) && message.includes('@real_buyer') && message.includes('ID 9999000012345'));
+    assert.doesNotMatch(message, /null|Email|အီးမေးလ်|Guest order|အကောင့်မသုံးဘဲ/);
+    const [withoutUsername] = orderTelegramMessages(order, { ...customer, telegram: { ...customer.telegram, username: null } }, lang);
+    assert.ok(withoutUsername.includes('Telegram — ID 9999000012345'));
+    assert.doesNotMatch(withoutUsername, /null|undefined|@/);
+  }
+});

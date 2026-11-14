@@ -74,7 +74,7 @@ async function resolveTransaction(identity: GoogleIdentity, completionName?: str
       if (existing.password_hash === null) throw new CommerceError(409, 'account_conflict');
       if (!proof) {
         await connection.commit();
-        return { status: 'link', email: existing.email };
+        return { status: 'link', email: identity.email };
       }
       if (proof.customerId !== existing.id || proof.hash !== existing.password_hash) throw new CommerceError(400, 'credentials');
       await connection.execute(

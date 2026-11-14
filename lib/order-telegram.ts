@@ -9,7 +9,8 @@ export function orderTelegramMessages(order: TelegramOrder, customer: TelegramCh
     (my ? 'အော်ဒါအမှတ်' : 'Order') + ' #' + order.id.toUpperCase(),
     customer.name && (customer.guest ? (my ? 'နာမည်' : 'Name') : (my ? 'အကောင့်နာမည်' : 'Account name')) + ' — ' + customer.name,
     customer.guest ? (my ? 'အကောင့်မသုံးဘဲ မှာယူခြင်း' : 'Guest order')
-      : (my ? 'အီးမေးလ်' : 'Email') + ' — ' + customer.email,
+      : customer.email ? (my ? 'အီးမေးလ်' : 'Email') + ' — ' + customer.email
+      : customer.telegram ? 'Telegram — ' + [customer.telegram.username && '@' + customer.telegram.username, 'ID ' + customer.telegram.id].filter(Boolean).join(' · ') : '',
   ].filter(Boolean).join('\n');
   const rows = order.lines.map(line => {
     const duration = durationDetail(line.duration, line.planName || '', lang);
