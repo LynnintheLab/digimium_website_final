@@ -85,7 +85,7 @@ The visible digits are for human comparison, not a bearer login secret. A strong
 
 The owner approved one dedicated bot, **@digimium_login_bot**. It is used for a real staging check first, then deliberately moved to production. Telegram permits only one webhook per bot, so **only one environment can use this bot at a time**. After the move, remove the three Telegram provider settings from staging and apply/redeploy so its Telegram choice becomes unavailable. Use separate bots only if both environments need simultaneous Telegram login in the future. Do not reuse an ordering, support or unrelated bot.
 
-The current bot handles sign-in. Future order-history commands or notifications are not part of this implementation.
+The same bot handles sign-in and on-demand order/plan checks described below. It sends purchase information only in the requesting customer’s private chat. Automatic expiry reminders and account linking/merging are separate features.
 
 | Private setting | Purpose |
 | --- | --- |
@@ -98,6 +98,34 @@ The current bot handles sign-in. Future order-history commands or notifications 
 A suitable webhook secret can be generated locally with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`. Keep completed environment files ignored by Git and restrict access to their contents. Import only this environment’s provider values into the corresponding Hostinger app, then apply/redeploy. Never paste bot tokens or webhook secrets into chat or source control.
 
 The existing Hostinger Node app receives webhook requests itself. **No separate VPS, continuously running desktop process, or personal Telegram Web sign-in is needed.** Customers use their own Telegram app; BotFather is needed only to manage the bot.
+
+### Order history and plan time in the bot
+
+Use the bot’s menu buttons or these commands:
+
+| Command / button | Behavior |
+| --- | --- |
+| `/start`, `/menu`, `/help` | Show the Myanmar menu and website link; a website login deep link still opens its four code choices |
+| `/history` · **📋 အော်ဒါမှတ်တမ်း** | Show this Telegram-linked account’s pending and approved orders, purchase snapshots and totals |
+| `/plans` · **⏳ Plan သက်တမ်း** | Show approved purchased plans with start/end dates, remaining days, status and a small remaining-time bar |
+
+Long results use **နောက်ထပ် →** pages. **↻ ပြန်စစ်မယ်** fetches current order/date information; **အစမှ** returns to the first page and **🏠 Menu** returns to the menu. The website history link opens the customer’s ordinary authenticated website view.
+
+The bot identifies the requester by the verified numeric Telegram sender ID and its existing website identity mapping on every read. It does not accept a customer ID, email, name or username as authority to view orders. Unmapped Telegram users receive website Telegram sign-in instructions; users without orders receive an empty state specific to this Telegram-linked account. Purchases made through a separate email/Google account remain with that original account. Neither command creates an account, merges identities, claims guest orders or approves an order.
+
+Pending orders are labelled as waiting for confirmation. The plan view contains approved purchases only. Dates and remaining days use the existing **Asia/Yangon calendar-date rules**, matching the website: future terms have an upcoming label, the end date remains **ends today** for that entire Myanmar date, and expiry begins the following day. Missing/invalid dates show an unknown state rather than an invented expiry or progress value. Expired plans remain visible as expired purchases.
+
+Bot messages contain purchase metadata and subscription dates only. Previously saved service-account passwords, delivery notes, encrypted fulfillment contents and customer contact fields are excluded. Stored term dates share the encrypted fulfillment record, so bounded server-side decryption extracts only line IDs and dates before creating the bot response. Messages are private-chat only, with protected content. Navigation callbacks are signed and bound to the requesting sender, private chat, original bot message and app origin; expired or mismatching buttons do not reveal purchase data. Refresh requests are rate limited.
+
+This feature uses the existing production webhook and provider settings. It needs no additional VPS, bot, environment variable or webhook transfer. Keep the single production bot on production while testing code with disposable databases and mocked Telegram requests. Use a separate test bot if a future live staging bot check is required.
+
+After deploying the bot menu/history routes, publish the private-chat slash menu once using the existing ignored production environment file:
+
+```sh
+node scripts/configure-telegram.mjs --env .env.telegram.production.local --commands-only
+```
+
+This mode verifies the bot ID/username, registers `/start`, `/menu`, `/history`, `/plans` and `/help` for private chats, verifies the saved command list and enables Telegram’s commands menu button. It does not read, replace or move the webhook and cannot be combined with `--move-from`. Its output excludes credentials. Reapply it only when the command menu changes.
 
 ### Register and verify the webhook
 
@@ -130,7 +158,7 @@ The target comes from that private file’s production `APP_ORIGIN`. `--move-fro
 
 Check a real new Telegram account and repeat login, then verify **Account**, **Order history** and checkout on a phone and computer. Test opening the QR on a phone while the original website remains on a computer. Verify refresh/cancel, expiry, Reject and a wrong code; no rejected or stale request should sign in. Checkout must preserve the original cart until explicit purchase. An existing email/Google account’s purchases must remain separate. Production checks should be read-only; run destructive/mutation test fixtures only against disposable local databases.
 
-The bundled `tests/telegram.integration.mjs` and `tests/telegram-identity.integration.mjs` use isolated loopback MySQL data and mocked Telegram calls. `node --test tests/configure-telegram.test.mjs` checks setup safety without contacting Telegram. These automated checks do not replace a real staging check of mobile Telegram delivery.
+The bundled `tests/telegram.integration.mjs` and `tests/telegram-identity.integration.mjs` use isolated loopback MySQL data and mocked Telegram calls. The bot history checks cover cross-customer/guest isolation, navigation binding, bounded pagination, missing/expired dates and exclusion of delivery credentials. The pure `tests/telegram-history.test.mjs` checks formatting and Myanmar calendar boundaries. `node --test tests/configure-telegram.test.mjs` checks setup safety without contacting Telegram. These automated checks do not replace a real staging check of mobile Telegram delivery.
 
 Official references: [bot deep links and keyboards](https://core.telegram.org/bots/features#deep-linking), [callback button API](https://core.telegram.org/bots/api#inlinekeyboardbutton), [HTTPS webhook secret](https://core.telegram.org/bots/api#setwebhook), [webhook diagnostics](https://core.telegram.org/bots/api#getwebhookinfo).
 

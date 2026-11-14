@@ -85,7 +85,7 @@ async function bootstrap() {
     }
   }
 }
-function ensureOrders() {
+export function ensureOrders() {
   return schemaReady ??= bootstrap().catch(error => {
     schemaReady = undefined;
     throw error;
@@ -98,7 +98,7 @@ function fulfillmentKey() {
   if (!secret || secret.length < 32) throw new Error('Missing order fulfillment key.');
   return createHmac('sha256', secret).update('digimium/order-fulfillment/v1').digest();
 }
-function fulfillmentOwner(row: OrderRow) {
+function fulfillmentOwner(row: Pick<OrderRow, 'customer_id' | 'guest_key'>) {
   return row.customer_id ?? 'guest:' + row.guest_key!.toString('hex');
 }
 function encryptFulfillment(id: string, owner: string, lines: OrderFulfillment[]) {
@@ -108,7 +108,7 @@ function encryptFulfillment(id: string, owner: string, lines: OrderFulfillment[]
   const ciphertext = Buffer.concat([cipher.update(JSON.stringify(lines), 'utf8'), cipher.final()]);
   return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString('base64');
 }
-function decryptFulfillment(row: OrderRow): OrderFulfillment[] {
+function decryptFulfillment(row: Pick<OrderRow, 'id' | 'customer_id' | 'guest_key' | 'fulfillment'>): OrderFulfillment[] {
   if (!row.fulfillment) return [];
   const envelope = Buffer.from(row.fulfillment, 'base64');
   const decipher = createDecipheriv('aes-256-gcm', fulfillmentKey(), envelope.subarray(0, 12));
@@ -116,6 +116,20 @@ function decryptFulfillment(row: OrderRow): OrderFulfillment[] {
   decipher.setAAD(Buffer.from(row.id + '/' + fulfillmentOwner(row)));
   const plaintext = Buffer.concat([decipher.update(envelope.subarray(28)), decipher.final()]);
   return JSON.parse(plaintext.toString('utf8'));
+}
+
+/** Server-only projection for tracking views. Delivery credentials never leave this helper. */
+export function decryptOrderTermDates(row: Pick<OrderRow, 'id' | 'customer_id' | 'guest_key' | 'fulfillment'>): {
+  id: string; startDate: string | null; endDate: string | null;
+}[] {
+  const lines = decryptFulfillment(row);
+  if (!Array.isArray(lines) || lines.length > 3000) throw new Error('Invalid order terms.');
+  return lines.flatMap(line => {
+    if (!line || typeof line.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(line.id)) return [];
+    return [{ id: line.id,
+      startDate: typeof line.startDate === 'string' && line.startDate.length === 10 ? line.startDate : null,
+      endDate: typeof line.endDate === 'string' && line.endDate.length === 10 ? line.endDate : null }];
+  });
 }
 
 function present(row: OrderRow): CommerceOrder {

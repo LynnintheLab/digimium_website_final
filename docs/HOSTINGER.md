@@ -103,15 +103,32 @@ After the real staging check, configure the production app and use its private e
 node scripts/configure-telegram.mjs --env path/to/production.env --move-from https://test.buywith-digimium.store
 ```
 
-The move is allowed only when the current webhook exactly matches that source origin’s Telegram webhook path; any other URL is left unchanged. After moving, remove the Telegram provider settings from staging and apply/redeploy. The bot’s order-history features remain future work; this release implements sign-in.
+The move is allowed only when the current webhook exactly matches that source origin’s Telegram webhook path; any other URL is left unchanged. After moving, remove the Telegram provider settings from staging and apply/redeploy. The same bot now supports on-demand order history and approved-plan remaining time. Adding or deploying these bot commands does not require changing the existing production webhook or moving the bot back to staging.
 
 Customer bootstrap creates the Telegram identity table and makes existing customer email/password columns nullable without changing saved values. Telegram-only accounts use a stable numeric Telegram ID, a name, optional username and no invented email/password. They do not merge automatically with existing email/Google accounts. The protocol creates its expiring challenge table on first use. The app needs CREATE, REFERENCES and ALTER privileges; back up these tables with customer/session/order records.
+
+### Check order history and remaining plan time in Telegram
+
+The existing bot menu provides **📋 အော်ဒါမှတ်တမ်း** (`/history`) and **⏳ Plan သက်တမ်း** (`/plans`). `/start`, `/menu` and `/help` show the menu. History includes pending and approved orders; plans include approved purchases with dates, Myanmar-calendar remaining days, upcoming/ends-today/expired labels and a small visual time bar. Next, refresh, first-page and menu buttons keep long results readable.
+
+The bot reads only the website customer mapped to the verified Telegram sender ID. It does not merge email/Google accounts or claim guest orders. An unlinked Telegram user receives website sign-in instructions. Purchase-account credentials and private delivery notes are excluded from bot messages. See [bot history behavior and verification](LOGIN-PROVIDERS.md#order-history-and-plan-time-in-the-bot).
+
+Use local disposable databases and mocked webhook calls for isolation, pagination, date and credential-exclusion tests. Keep the single production bot’s webhook in production. After deployment, a customer may perform read-only menu/history/plan checks in their own private bot chat; do not create test purchases or approval records in production.
+
+Publish the private-chat command list after deployment with Node 24:
+
+```sh
+node scripts/configure-telegram.mjs --env .env.telegram.production.local --commands-only
+```
+
+The private file is ignored by Git. This mode verifies the bot identity, registers and verifies the five commands and the commands menu button, and leaves the active webhook untouched. Do not use `--move-from` for this menu-only update.
 
 ## 4. Verify the live store
 
 - In a private browser window, open `/` and search for a product. Select a plan and use **Add to cart**. Reopen the cart and check that **Continue to Telegram** offers account or Telegram checkout. The account form must stay in the order popup and return to the cart after success; Telegram checkout displays a history notice and asks for no identity fields. In a test environment, register a customer, save an order, inspect the Telegram draft with its name/email/reference, approve it in admin, then verify dates in the customer account. Verify guest ordering in a disposable test environment, including a repeated request, and check the Guest label in admin. Open the storefront account panel for its three-plan preview and password settings; open Order history for all approved purchases and remaining time.
 - If Google is configured, verify it using the separate staging checks in [the login guide](LOGIN-PROVIDERS.md): a new Google account, repeat sign-in, an existing-email password confirmation, cancellation, and checkout cart preservation. Do not use a live customer account for mutation tests.
 - If Telegram is configured, verify a real staging sign-in with the four-digit website code and matching bot button, including QR cross-device use, Reject, wrong choice, refresh, cancellation and cart preservation. Repeated sign-in must use the same stable Telegram identity; existing email/Google purchases remain separate. See [the login guide](LOGIN-PROVIDERS.md).
+- In the bot’s private chat, use `/history` and `/plans` for a Telegram-linked customer. Check pending versus approved status, dates and remaining time against that customer’s website history. Unknown users and other accounts must not see those purchases; no delivered account password should appear. Use the local mocked suites for cross-user and malformed-callback tests.
 - Open `/admin`. Enter the configured admin email, then enter the six-digit code from the inbox in the same browser within 10 minutes. Close and reopen the same normal browser profile to confirm it remembers you. A fresh private window should ask for its own code. Open a product and confirm that the plan details match what you expect. Test an edit on an unpublished service, upload a small logo, save it and reload. The edit and logo should persist after a restart.
 - Sign out. Opening `/admin` should ask you to sign in again. The customer storefront should still be accessible. A signed-out request to `/api/admin/catalog` should return `401`.
 

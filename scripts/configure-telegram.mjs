@@ -57,11 +57,8 @@ async function readResponse(response) {
   } finally { reader.releaseLock(); }
 }
 
-/** The injectable transport is for local mocked tests; the destination remains fixed. */
-export async function configureTelegram(env, { fetchImpl = fetch, moveFrom } = {}) {
-  const config = configuration(env);
-  const sourceOrigin = moveFrom === undefined ? null : moveSourceOrigin(moveFrom, env.APP_ORIGIN);
-  async function api(method, fields = {}) {
+function telegramTransport(config, fetchImpl) {
+  return async function api(method, fields = {}) {
     try {
       return await readResponse(await fetchImpl(`https://api.telegram.org/bot${config.token}/${method}`, {
         method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
@@ -72,9 +69,21 @@ export async function configureTelegram(env, { fetchImpl = fetch, moveFrom } = {
       if (error instanceof TelegramSetupError) throw error;
       throw new TelegramSetupError('Could not reach Telegram. Check the network and private bot settings, then try again.');
     }
-  }
+  };
+}
+
+async function verifiedBot(config, api) {
   const me = await api('getMe');
   if (!me || me.is_bot !== true || me.id !== config.botId || typeof me.username !== 'string' || me.username.toLowerCase() !== config.username.toLowerCase()) throw new TelegramSetupError('The bot token and configured username do not identify the same bot. Nothing was changed.');
+  return me;
+}
+
+/** The injectable transport is for local mocked tests; the destination remains fixed. */
+export async function configureTelegram(env, { fetchImpl = fetch, moveFrom } = {}) {
+  const config = configuration(env);
+  const sourceOrigin = moveFrom === undefined ? null : moveSourceOrigin(moveFrom, env.APP_ORIGIN);
+  const api = telegramTransport(config, fetchImpl);
+  const me = await verifiedBot(config, api);
   const before = await api('getWebhookInfo');
   if (!before || typeof before.url !== 'string') throw new TelegramSetupError('Telegram returned invalid webhook information. Nothing was changed.');
   if (sourceOrigin) {
@@ -88,13 +97,42 @@ export async function configureTelegram(env, { fetchImpl = fetch, moveFrom } = {
     pendingUpdateCount: Number.isSafeInteger(after.pending_update_count) && after.pending_update_count >= 0 ? after.pending_update_count : 0 };
 }
 
+const privateCommands = [
+  { command: 'start', description: 'Digimium bot စတင်ရန်' },
+  { command: 'menu', description: 'ပင်မ menu ကြည့်ရန်' },
+  { command: 'history', description: 'အော်ဒါမှတ်တမ်း စစ်ရန်' },
+  { command: 'plans', description: 'ဝယ်ထားသော plan သက်တမ်းကျန် စစ်ရန်' },
+  { command: 'help', description: 'အသုံးပြုနည်း ကြည့်ရန်' },
+];
+
+/** Publish only the bot's private-chat menu; this does not alter its active webhook. */
+export async function configureTelegramCommands(env, { fetchImpl = fetch } = {}) {
+  const config = configuration(env);
+  const api = telegramTransport(config, fetchImpl);
+  const me = await verifiedBot(config, api);
+  const scope = { type: 'all_private_chats' };
+  if (await api('setMyCommands', { commands: privateCommands, scope, language_code: '' }) !== true) throw new TelegramSetupError('Telegram did not confirm the command menu update.');
+  const saved = await api('getMyCommands', { scope, language_code: '' });
+  if (!Array.isArray(saved) || saved.length !== privateCommands.length || !privateCommands.every((entry, index) => saved[index]?.command === entry.command && saved[index]?.description === entry.description)) throw new TelegramSetupError('Telegram command menu verification failed.');
+  if (await api('setChatMenuButton', { menu_button: { type: 'commands' } }) !== true) throw new TelegramSetupError('Telegram did not confirm the menu button update.');
+  const menu = await api('getChatMenuButton');
+  if (menu?.type !== 'commands') throw new TelegramSetupError('Telegram menu button verification failed.');
+  return { username: me.username, commands: privateCommands.map(entry => entry.command), scope: scope.type };
+}
+
 export async function readSetupEnvironment(args, base = process.env) {
   let filename;
   let moveFrom;
+  let commandsOnly = false;
   let help = false;
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
     if (arg === '--help' || arg === '-h') { help = true; continue; }
+    if (arg === '--commands-only') {
+      if (commandsOnly) throw new TelegramSetupError('Use --commands-only once.');
+      commandsOnly = true;
+      continue;
+    }
     const flag = /^(--env|--env-file|--move-from)(?:=(.*))?$/.exec(arg);
     if (!flag || (flag[1] === '--move-from' ? moveFrom !== undefined : filename !== undefined)) throw new TelegramSetupError('Usage: node scripts/configure-telegram.mjs --env path/to/private.env [--move-from https://source-origin]');
     const value = flag[2] === undefined ? args[++index] : flag[2];
@@ -102,20 +140,26 @@ export async function readSetupEnvironment(args, base = process.env) {
     if (flag[1] === '--move-from') moveFrom = value;
     else filename = value;
   }
-  if (help) return { help, env: base, moveFrom };
-  if (filename === undefined) return { help, env: base, moveFrom };
+  if (commandsOnly && moveFrom !== undefined) throw new TelegramSetupError('Use --commands-only separately from --move-from.');
+  if (help) return { help, env: base, moveFrom, commandsOnly };
+  if (filename === undefined) return { help, env: base, moveFrom, commandsOnly };
   try {
     const contents = await readFile(filename, 'utf8');
     if (Buffer.byteLength(contents) > 65536) throw new Error('Oversized environment file.');
-    return { help, env: { ...base, ...parseEnv(contents) }, moveFrom };
+    return { help, env: { ...base, ...parseEnv(contents) }, moveFrom, commandsOnly };
   } catch { throw new TelegramSetupError('Cannot read the private environment file. Check its path and permissions.'); }
 }
 
 async function main() {
   try {
-    const { help, env, moveFrom } = await readSetupEnvironment(process.argv.slice(2));
+    const { help, env, moveFrom, commandsOnly } = await readSetupEnvironment(process.argv.slice(2));
     if (help) {
-      console.log('Register a dedicated Telegram login bot with the existing Hostinger app.\n\nNode 24:\n  node --env-file=path/to/private.env scripts/configure-telegram.mjs\n  node scripts/configure-telegram.mjs --env path/to/private.env\n\nMove only after approving the exact current source origin:\n  node scripts/configure-telegram.mjs --env path/to/target.env --move-from https://source-origin\n\nPrivate keys: APP_ORIGIN, TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME, TELEGRAM_WEBHOOK_SECRET.');
+      console.log('Register a dedicated Telegram login bot with the existing Hostinger app.\n\nNode 24:\n  node --env-file=path/to/private.env scripts/configure-telegram.mjs\n  node scripts/configure-telegram.mjs --env path/to/private.env\n\nUpdate only the private-chat commands and menu button:\n  node scripts/configure-telegram.mjs --env path/to/private.env --commands-only\n\nMove only after approving the exact current source origin:\n  node scripts/configure-telegram.mjs --env path/to/target.env --move-from https://source-origin\n\nPrivate keys: APP_ORIGIN, TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME, TELEGRAM_WEBHOOK_SECRET.');
+      return;
+    }
+    if (commandsOnly) {
+      const result = await configureTelegramCommands(env);
+      console.log(`Private-chat command menu verified for @${result.username}: ${result.commands.map(command => '/' + command).join(', ')}.`);
       return;
     }
     const result = await configureTelegram(env, { moveFrom });

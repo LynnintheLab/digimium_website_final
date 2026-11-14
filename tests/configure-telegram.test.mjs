@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { configureTelegram, readSetupEnvironment } from '../scripts/configure-telegram.mjs';
+import { configureTelegram, configureTelegramCommands, readSetupEnvironment } from '../scripts/configure-telegram.mjs';
 
 const env = { APP_ORIGIN: 'https://telegram-test.example.invalid', TELEGRAM_BOT_TOKEN: '123456789:' + 'a'.repeat(43), TELEGRAM_BOT_USERNAME: 'DigimiumFixtureBot', TELEGRAM_WEBHOOK_SECRET: 'b'.repeat(43) };
 const target = env.APP_ORIGIN + '/api/customer/telegram/webhook';
@@ -84,6 +84,51 @@ test('a mismatched bot token or username cannot change any webhook', async () =>
   }
 });
 
+test('private-chat menu registration verifies commands and leaves the webhook untouched', async () => {
+  const calls = [];
+  let commands;
+  const result = await configureTelegramCommands(env, { fetchImpl: async (url, options) => {
+    const prefix = 'https://api.telegram.org/bot' + env.TELEGRAM_BOT_TOKEN + '/';
+    assert.ok(url.startsWith(prefix));
+    const method = url.slice(prefix.length);
+    const fields = JSON.parse(options.body);
+    calls.push({ method, fields });
+    assert.equal(options.redirect, 'error');
+    if (method === 'getMe') return Response.json({ ok: true, result: { id: 123456789, is_bot: true, username: env.TELEGRAM_BOT_USERNAME } });
+    if (method === 'setMyCommands') {
+      assert.deepEqual(fields.scope, { type: 'all_private_chats' });
+      assert.equal(fields.language_code, '');
+      assert.deepEqual(fields.commands.map(entry => entry.command), ['start', 'menu', 'history', 'plans', 'help']);
+      assert.ok(fields.commands.every(entry => entry.description.length > 0 && entry.description.length <= 256));
+      commands = fields.commands;
+      return Response.json({ ok: true, result: true });
+    }
+    if (method === 'getMyCommands') return Response.json({ ok: true, result: commands });
+    if (method === 'setChatMenuButton') {
+      assert.deepEqual(fields, { menu_button: { type: 'commands' } });
+      return Response.json({ ok: true, result: true });
+    }
+    assert.equal(method, 'getChatMenuButton');
+    return Response.json({ ok: true, result: { type: 'commands' } });
+  } });
+  assert.deepEqual(calls.map(call => call.method), ['getMe', 'setMyCommands', 'getMyCommands', 'setChatMenuButton', 'getChatMenuButton']);
+  assert.equal(result.scope, 'all_private_chats');
+  assert.ok(!JSON.stringify(result).includes(env.TELEGRAM_BOT_TOKEN));
+});
+
+test('menu updates refuse mismatched bot ownership and unverified saved commands', async () => {
+  const wrongOwner = transport({ me: { id: 999999999 } });
+  await assert.rejects(configureTelegramCommands(env, wrongOwner), /same bot/);
+  assert.deepEqual(wrongOwner.calls.map(call => call.method), ['getMe']);
+  const calls = [];
+  await assert.rejects(configureTelegramCommands(env, { fetchImpl: async (url) => {
+    const method = url.slice(url.lastIndexOf('/') + 1);
+    calls.push(method);
+    return Response.json({ ok: true, result: method === 'getMe' ? { id: 123456789, is_bot: true, username: env.TELEGRAM_BOT_USERNAME } : method === 'setMyCommands' ? true : [{ command: 'other', description: 'unexpected' }] });
+  } }), /verification failed/);
+  assert.deepEqual(calls, ['getMe', 'setMyCommands', 'getMyCommands']);
+});
+
 test('configuration guards reject insecure or malformed values before any network request', async () => {
   for (const changed of [{ APP_ORIGIN: 'http://example.invalid' }, { APP_ORIGIN: 'https://example.invalid/path' }, { APP_ORIGIN: 'https://user:secret@example.invalid' }, { APP_ORIGIN: 'https://localhost' }, { TELEGRAM_BOT_TOKEN: 'bad/../../token' }, { TELEGRAM_BOT_USERNAME: 'not-a-bot' }, { TELEGRAM_WEBHOOK_SECRET: 'too-short' }]) {
     const calls = [];
@@ -127,5 +172,8 @@ test('private env paths support --env and --env-file without changing process.en
     await assert.rejects(readSetupEnvironment(['--env']), /Provide/);
     await assert.rejects(readSetupEnvironment(['--unknown']), /Usage/);
     await assert.rejects(readSetupEnvironment(['--env', filename, '--env', filename]), /Usage/);
+    assert.equal((await readSetupEnvironment(['--commands-only'], env)).commandsOnly, true);
+    await assert.rejects(readSetupEnvironment(['--commands-only', '--commands-only']), /once/);
+    await assert.rejects(readSetupEnvironment(['--commands-only', '--move-from', 'https://staging.example.invalid']), /separately/);
   } finally { await rm(scratch, { recursive: true, force: true }); }
 });

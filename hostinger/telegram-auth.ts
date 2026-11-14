@@ -6,6 +6,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { CommerceError, commerceJson, readCommerceJson } from '../lib/commerce-http';
 import { customerMutationAllowed, currentCustomer, ensureCustomerSchema, issueTelegramCustomerSession } from './customer-auth';
 import { ensureTelegramIdentitySchema, type TelegramIdentity } from './telegram-identity';
+import { getTelegramHistory } from './telegram-history';
 import { getPool } from './mysql';
 
 const lifetime = 300;
@@ -183,16 +184,91 @@ async function botApi(method: 'sendMessage' | 'answerCallbackQuery' | 'editMessa
   if (!response.ok || result.ok !== true) throw new Error('Bot request failed.'); return result.result;
 }
 async function bestEffort(method: 'answerCallbackQuery' | 'editMessageText', fields: object) { try { await botApi(method, fields); } catch { /* Auth state is authoritative; Telegram UI cleanup may be retried by the user. */ } }
+
+type NavigationView = 'm' | 'h' | 'p';
+type BotButton = { text: string; callback_data?: string; url?: string };
+const navigationLifetime = 24 * 60 * 60;
+const menuText = 'Digimium\n\nအော်ဒါမှတ်တမ်းနဲ့ ဝယ်ထားတဲ့ plan သက်တမ်းတွေကို အောက်ကခလုတ်တွေကနေ စစ်နိုင်ပါတယ်။\n\nWebsite မှာ ဝယ်ယူခဲ့တဲ့ အကောင့်ကို Telegram ဖြင့် ဝင်ထားရန် လိုပါတယ်။';
+
+function navigationSignature(userId: string, messageId: number, view: NavigationView, cursor: string, expires: number) {
+  const c = config();
+  const key = createHmac('sha256', c.secret).update('digimium/telegram-navigation/v1\n' + c.origin).digest();
+  return createHmac('sha256', key).update(JSON.stringify([userId, userId, messageId, view, cursor, expires])).digest().subarray(0, 12).toString('base64url');
+}
+function navigationData(userId: string, messageId: number, view: NavigationView, cursor = '-', expires = Math.floor(Date.now() / 1000) + navigationLifetime) {
+  if (!telegramId(Number(userId)) || !telegramId(messageId) || !/^(?:-|[A-Za-z0-9_-]{32})$/.test(cursor) || (view === 'm' && cursor !== '-')) throw new Error('Invalid bot navigation.');
+  const value = `th1.${view}.${cursor}.${expires.toString(36)}.${navigationSignature(userId, messageId, view, cursor, expires)}`;
+  if (Buffer.byteLength(value, 'utf8') > 64) throw new Error('Oversized bot navigation.');
+  return value;
+}
+function readNavigation(data: string, userId: string, messageId: number): { view: NavigationView; cursor?: string; expired: boolean } | null {
+  const match = /^th1\.([mhp])\.(-|[A-Za-z0-9_-]{32})\.([0-9a-z]{1,7})\.([A-Za-z0-9_-]{16})$/.exec(data);
+  if (!match || Buffer.byteLength(data, 'utf8') > 64 || (match[1] === 'm' && match[2] !== '-')) return null;
+  const expires = Number.parseInt(match[3], 36), now = Math.floor(Date.now() / 1000);
+  if (!Number.isSafeInteger(expires) || expires.toString(36) !== match[3] || expires > now + navigationLifetime + 60) return null;
+  const signature = navigationSignature(userId, messageId, match[1] as NavigationView, match[2], expires);
+  if (!timingSafeEqual(Buffer.from(signature), Buffer.from(match[4]))) return null;
+  return { view: match[1] as NavigationView, ...(match[2] !== '-' ? { cursor: match[2] } : {}), expired: expires <= now };
+}
+function mainButtons(userId: string, messageId: number): BotButton[][] {
+  return [[
+    { text: '📋 အော်ဒါမှတ်တမ်း', callback_data: navigationData(userId, messageId, 'h') },
+    { text: '⏳ Plan သက်တမ်း', callback_data: navigationData(userId, messageId, 'p') },
+  ], [{ text: 'Website ဖွင့်မယ် ↗', url: config().origin }]];
+}
+async function botPage(userId: string, messageId: number, view: NavigationView, cursor?: string, loaded?: Awaited<ReturnType<typeof getTelegramHistory>>) {
+  if (view === 'm') return { text: menuText, reply_markup: { inline_keyboard: mainButtons(userId, messageId) } };
+  const page = loaded ?? await getTelegramHistory(userId, { view: view === 'h' ? 'history' : 'plans', ...(cursor ? { cursor } : {}) });
+  const rows: BotButton[][] = [];
+  if (page.linked) {
+    if (page.nextCursor) rows.push([{ text: 'နောက်ထပ် →', callback_data: navigationData(userId, messageId, view, page.nextCursor) }]);
+    rows.push([
+      { text: '↻ ပြန်စစ်မယ်', callback_data: navigationData(userId, messageId, view, cursor) },
+      ...(cursor ? [{ text: 'အစမှ', callback_data: navigationData(userId, messageId, view) }] : []),
+    ]);
+    rows.push([{ text: '🏠 Menu', callback_data: navigationData(userId, messageId, 'm') },
+      { text: 'Website မှာကြည့်မယ် ↗', url: config().origin + '/order-history' }]);
+  } else {
+    rows.push([{ text: 'Website မှာ Telegram ဖြင့် ဝင်မယ် ↗', url: config().origin + '/account' }],
+      [{ text: '🏠 Menu', callback_data: navigationData(userId, messageId, 'm') }]);
+  }
+  return { text: page.text, reply_markup: { inline_keyboard: rows } };
+}
+function validSentMessage(message: TelegramMessage | undefined, userId: string): message is TelegramMessage {
+  return !!message && telegramId(message.message_id) && message.chat?.type === 'private' && String(message.chat.id) === userId &&
+    String(message.from?.id) === config().botId && message.from?.is_bot === true;
+}
+async function sendBotPage(userId: string, view: NavigationView) {
+  // Bind buttons to the actual Telegram message ID. The initial text contains no reusable navigation capability.
+  const initial = view === 'm' ? undefined : await getTelegramHistory(userId, { view: view === 'h' ? 'history' : 'plans' });
+  const sent = await botApi('sendMessage', { chat_id: userId, text: initial?.text ?? menuText, protect_content: true, link_preview_options: { is_disabled: true } });
+  if (!validSentMessage(sent, userId)) throw new Error('Invalid bot response.');
+  const page = await botPage(userId, sent.message_id, view, undefined, initial);
+  await bestEffort('editMessageText', { chat_id: userId, message_id: sent.message_id, ...page, link_preview_options: { is_disabled: true } });
+}
+async function navigationFromBot(query: TelegramCallback, identity: TelegramIdentity, message: TelegramMessage) {
+  const selected = readNavigation(String(query.data), identity.id, message.message_id);
+  // Unauthenticated/cross-user payloads cannot amplify requests into Bot API calls.
+  if (!selected) return;
+  if (!await claim('navigation:all', 3600) || !await claim('navigation:user:' + identity.id, 120)) return;
+  await bestEffort('answerCallbackQuery', { callback_query_id: query.id, ...(selected.expired ? { text: 'Menu အသစ် ပြန်ဖွင့်ပေးလိုက်ပါတယ်။' } : {}) });
+  const page = await botPage(identity.id, message.message_id, selected.expired ? 'm' : selected.view, selected.expired ? undefined : selected.cursor);
+  await bestEffort('editMessageText', { chat_id: identity.id, message_id: message.message_id, ...page, link_preview_options: { is_disabled: true } });
+}
 async function startFromBot(message: TelegramMessage) {
   const identity = sender(message.from);
   if (!identity || message.chat?.type !== 'private' || message.chat.id !== message.from!.id || !telegramId(message.message_id) || !Number.isInteger(message.date)) return;
-  if (!await claim('bot:all', 900) || !await claim('bot:user:' + identity.id, 25)) return;
   const text = typeof message.text === 'string' ? message.text : '';
   const command = new RegExp('^/start(?:@' + config().username + ')? login_([A-Za-z0-9_-]{43})$','i').exec(text);
   if (!command) {
-    if (/^\/(start|help)(?:@[A-Za-z0-9_]+)?$/.test(text)) await botApi('sendMessage', { chat_id: identity.id, text: 'Digimium အကောင့်ဝင်ရန် website မှာ Telegram ကိုရွေးပြီး ဖွင့်လာတဲ့ link ကို အသုံးပြုပါ။\n' + config().origin, link_preview_options: { is_disabled: true } });
+    const menuCommand = new RegExp('^/(start|menu|help|history|plans)(?:@' + config().username + ')?$','i').exec(text.trim());
+    if (menuCommand && await claim('menu:all', 1800) && await claim('menu:user:' + identity.id, 90)) {
+      const requested = menuCommand[1].toLowerCase();
+      await sendBotPage(identity.id, requested === 'history' ? 'h' : requested === 'plans' ? 'p' : 'm');
+    }
     return;
   }
+  if (!await claim('bot:all', 900) || !await claim('bot:user:' + identity.id, 25)) return;
   const idHash = hash(command[1]), callback = randomBytes(32).toString('base64url'), connection = await getPool().getConnection();
   let flow: Flow | undefined;
   try {
@@ -223,6 +299,7 @@ async function startFromBot(message: TelegramMessage) {
 async function callbackFromBot(query: TelegramCallback) {
   const identity = sender(query.from), message = query.message;
   if (!identity || typeof query.id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(query.id) || typeof query.data !== 'string' || !message || message.chat?.type !== 'private' || message.chat.id !== query.from!.id || !telegramId(message.message_id) || String(message.from?.id) !== config().botId || message.from?.is_bot !== true) return;
+  if (query.data.startsWith('th1.')) { await navigationFromBot(query, identity, message); return; }
   const parsed = /^tg1\.([A-Za-z0-9_-]{43})\.([0-4])$/.exec(query.data); if (!parsed) return;
   if (!await claim('callback:all', 1800) || !await claim('callback:user:' + identity.id, 80)) return;
   const connection = await getPool().getConnection(); let state: 'approved' | 'rejected' | 'expired' = 'expired';
@@ -241,7 +318,8 @@ async function callbackFromBot(query: TelegramCallback) {
   const notice = state === 'approved' ? 'အတည်ပြုပြီးပါပြီ။ Website ကို ပြန်သွားပါ။' : state === 'rejected' ? 'အကောင့်ဝင်ရန် request ကို ပယ်ဖျက်လိုက်ပါပြီ။' : 'ဒီ request ကို အသုံးပြုပြီးပါပြီ သို့မဟုတ် သက်တမ်းကုန်သွားပါပြီ။';
   await bestEffort('answerCallbackQuery', { callback_query_id: query.id, text: notice, show_alert: state !== 'approved' });
   // Do not edit a valid keyboard when a forged/mismatching callback points at it.
-  if (state !== 'expired') await bestEffort('editMessageText', { chat_id: identity.id, message_id: message.message_id, text: notice, reply_markup: { inline_keyboard: [] } });
+  if (state !== 'expired') await bestEffort('editMessageText', { chat_id: identity.id, message_id: message.message_id, text: notice,
+    reply_markup: { inline_keyboard: state === 'approved' ? mainButtons(identity.id, message.message_id) : [] } });
 }
 export async function telegramWebhook(request: Request) {
   const c = configuration(); if (!c) return commerceJson({ error: 'unavailable' }, 503);
