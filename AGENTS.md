@@ -6,6 +6,7 @@ Digimium is a bilingual digital subscription catalog with a persistent browser c
 
 - Read `NOTES.md`, `README.md`, and the guide for the target environment. Hostinger deployment is documented in `docs/HOSTINGER.md`.
 - Preserve the established blue/lavender gradient, navy panels, colored logos, Manrope, and Wa Lone.
+- Keep the phone catalog at two products per row, as the owner requested. The mobile dock uses the language control’s white selected pill; Products/Help selection follows navigation and the visible section, including repeated same-URL anchor taps.
 - Keep current product/plan publication flags unless the owner asks to change them. Do not invent prices or delivery promises.
 - Preserve the red Myanmar checkout guidance and the extra unpriced-selection sentence.
 - The storefront defaults to Myanmar and retains an explicit English choice. Signed-out Hostinger checkout offers **Create account / အကောင့်ဖွင့်မည်** and **Buy on Telegram / Telegram မှဝယ်မည်**. Account sign-in/register stays in the order popup and returns to cart review without submitting. Signed-in checkout shows only **Place order / Order တင်မည်**. Telegram-only purchase asks for no name or email and explains that website history is unavailable.

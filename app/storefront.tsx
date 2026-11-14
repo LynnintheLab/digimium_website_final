@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, ArrowUpRight, ChevronDown, Clapperboard, Globe2, LayoutGrid, Mail, Menu, PenTool, Search, ShoppingBag, Sparkles, X } from "lucide-react";
 import { categories, type Catalog, type ProductPlan } from "../lib/catalog";
 import { categoryName, durationDetail, durationText, planName, productDescription } from "../lib/shop-language";
@@ -47,6 +47,8 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my' }: {
   const [orderOpen, setOrderOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [dockSection, setDockSection] = useState<'services' | 'help'>('services');
+  const dockNavigation = useRef<{ section: 'services' | 'help'; expiresAt: number } | null>(null);
+  const refreshDock = useRef<(() => void) | null>(null);
   const [motionPaused, setMotionPaused] = useState(false);
   const shop = useRef<ShopOrderHandle>(null);
   const account = useRef<AccountMenuHandle>(null);
@@ -67,18 +69,79 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my' }: {
   const visible = browsingAll ? matches : featured.length ? featured : matches.slice(0, 6);
   const cartLabel = t('Cart', 'ဈေးခြင်း');
 
+  const selectDockSection = useCallback((section: 'services' | 'help') => {
+    // Next Link can change the URL without hashchange, including a repeated anchor tap.
+    dockNavigation.current = { section, expiresAt: performance.now() + 1800 };
+    setDockSection(section);
+    refreshDock.current?.();
+  }, []);
+
   useEffect(() => {
     document.documentElement.lang = lang;
     return () => { document.documentElement.lang = 'en'; };
   }, [lang]);
 
   useEffect(() => {
-    const readHash = () => setDockSection(window.location.hash === '#contact' ? 'help' : 'services');
+    let frame = 0;
+    let settleTimer = 0;
+    const readPosition = () => {
+      frame = 0;
+      window.clearTimeout(settleTimer);
+      const contact = document.getElementById('contact');
+      if (!contact) return;
+      const boundary = Math.max((header.current?.getBoundingClientRect().bottom ?? 0) + 24, window.innerHeight * .65);
+      const section = contact.getBoundingClientRect().top <= boundary ? 'help' : 'services';
+      const intent = dockNavigation.current;
+      if (intent && intent.section !== section && performance.now() < intent.expiresAt) {
+        // Keep the tapped target selected while its smooth anchor scroll is in progress.
+        settleTimer = window.setTimeout(schedule, intent.expiresAt - performance.now() + 16);
+        return;
+      }
+      dockNavigation.current = null;
+      setDockSection(section);
+    };
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(readPosition); };
+    const readHash = () => {
+      if (window.location.hash === '#contact') selectDockSection('help');
+      else if (window.location.hash === '#services') selectDockSection('services');
+      else { dockNavigation.current = null; schedule(); }
+    };
+    const manualScroll = () => { dockNavigation.current = null; schedule(); };
+    const scrollKey = (event: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key) &&
+        !(event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable=true]'))) manualScroll();
+    };
+    refreshDock.current = schedule;
+    readHash();
+    schedule();
+    window.addEventListener('hashchange', readHash);
+    window.addEventListener('popstate', readHash);
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    window.addEventListener('pageshow', schedule);
+    window.addEventListener('wheel', manualScroll, { passive: true });
+    window.addEventListener('touchstart', manualScroll, { passive: true });
+    window.addEventListener('keydown', scrollKey);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(settleTimer);
+      refreshDock.current = null;
+      window.removeEventListener('hashchange', readHash);
+      window.removeEventListener('popstate', readHash);
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('pageshow', schedule);
+      window.removeEventListener('wheel', manualScroll);
+      window.removeEventListener('touchstart', manualScroll);
+      window.removeEventListener('keydown', scrollKey);
+    };
+  }, [selectDockSection]);
+
+  useEffect(() => {
     const initialUrl = new URL(window.location.href);
     const wantsAccount = commerceEnabled && initialUrl.searchParams.get('account') === '1';
     const wantsCheckout = initialUrl.searchParams.get('checkout') === '1';
     const frame = requestAnimationFrame(() => {
-      readHash();
       if (!wantsAccount) return;
       // Read the current URL so the checkout component can independently consume its query.
       const currentUrl = new URL(window.location.href);
@@ -86,8 +149,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my' }: {
       window.history.replaceState(window.history.state, '', currentUrl.pathname + currentUrl.search + currentUrl.hash);
       if (!wantsCheckout) account.current?.open();
     });
-    window.addEventListener('hashchange', readHash);
-    return () => { cancelAnimationFrame(frame); window.removeEventListener('hashchange', readHash); };
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
@@ -255,6 +317,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my' }: {
       </button>
       <a className="admin-link" href="/admin">{t('Manage catalog', 'စာရင်း စီမံရန်')}</a><span>© {new Date().getFullYear()} Digimium</span></div></footer>
     <MobileDock lang={lang} active={dockSection} cartCount={cartCount} hidden={menu || accountOpen || orderOpen}
+      onSectionChange={selectDockSection}
       onCart={() => { setMenu(false); shop.current?.openCart(); }}
       onAccount={commerceEnabled ? () => account.current?.open() : undefined}/>
     <ShopOrder ref={shop} products={products} lang={lang} telegram={telegram} hideShortDescriptions={hideShortDescriptions} onCountChange={setCartCount} onOpenChange={setOrderOpen} />

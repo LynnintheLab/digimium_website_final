@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { History, LayoutGrid, LifeBuoy, ShoppingBag, UserRound } from 'lucide-react';
 import { CART_KEY } from '../lib/cart-order';
@@ -15,6 +15,7 @@ type MobileDockProps = {
   cartCount?: number;
   onCart?: () => void;
   onAccount?: () => void;
+  onSectionChange?: (section: 'services' | 'help') => void;
   hidden?: boolean;
 };
 
@@ -34,11 +35,22 @@ function storedCartCount() {
   } catch { return 0; }
 }
 
-export function MobileDock({lang, active, cartCount, onCart, onAccount, hidden = false}: MobileDockProps) {
+export function MobileDock({lang, active, cartCount, onCart, onAccount, onSectionChange, hidden = false}: MobileDockProps) {
   const t = (en: string, my: string) => lang === 'my' ? my : en;
   const [savedCount, setSavedCount] = useState(0);
   const [editing, setEditing] = useState(false);
   const count = cartCount ?? savedCount;
+
+  function navigateSection(event: MouseEvent<HTMLAnchorElement>, section: 'services' | 'help') {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    onSectionChange?.(section);
+    if (event.currentTarget.href !== window.location.href) return;
+    const target = document.getElementById(section === 'help' ? 'contact' : 'services');
+    if (!target) return;
+    // Next Link skips scrolling when the URL already equals this exact anchor.
+    event.preventDefault();
+    target.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
 
   useEffect(() => {
     if (cartCount !== undefined) return;
@@ -71,12 +83,14 @@ export function MobileDock({lang, active, cartCount, onCart, onAccount, hidden =
 
   return <nav className={'mobile-dock' + (!commerceEnabled ? ' mobile-dock-legacy' : '')} hidden={hidden || editing}
     aria-label={t('Mobile navigation', 'ဖုန်း ပင်မမီနူး')}>
-    <Link className="mobile-dock-item" href="/#services" aria-current={active === 'services' ? 'page' : undefined}><span className="mobile-dock-icon"><LayoutGrid size={21} aria-hidden="true"/></span><span>{t('Products', 'ပစ္စည်းများ')}</span></Link>
+    <Link className="mobile-dock-item" href="/#services" aria-current={active === 'services' ? 'page' : undefined}
+      onClick={event => navigateSection(event, 'services')}><span className="mobile-dock-icon"><LayoutGrid size={21} aria-hidden="true"/></span><span>{t('Products', 'ပစ္စည်းများ')}</span></Link>
     {onCart ? <button type="button" className={'mobile-dock-item' + (!commerceEnabled ? ' mobile-dock-center' : '')} aria-label={cartLabel} onClick={onCart}>{cartContents}</button>
       : <Link className={'mobile-dock-item' + (!commerceEnabled ? ' mobile-dock-center' : '')} href="/?checkout=1" aria-label={cartLabel}>{cartContents}</Link>}
     {commerceEnabled && (onAccount ? <button type="button" className="mobile-dock-item mobile-dock-center" onClick={onAccount} aria-label={t('My account', 'ကျွန်ုပ်၏ အကောင့်')} aria-haspopup="dialog" aria-controls="shop-account-panel">{accountContents}</button>
       : <Link className="mobile-dock-item mobile-dock-center" href="/?account=1" aria-current={active === 'account' ? 'page' : undefined}>{accountContents}</Link>)}
     {commerceEnabled && <Link className="mobile-dock-item" href="/order-history" aria-current={active === 'history' ? 'page' : undefined}><span className="mobile-dock-icon"><History size={22} aria-hidden="true"/></span><span>{t('History', 'မှတ်တမ်း')}</span></Link>}
-    <Link className="mobile-dock-item" href="/#contact" aria-current={active === 'help' ? 'page' : undefined}><span className="mobile-dock-icon"><LifeBuoy size={22} aria-hidden="true"/></span><span>{t('Help', 'အကူအညီ')}</span></Link>
+    <Link className="mobile-dock-item" href="/#contact" aria-current={active === 'help' ? 'page' : undefined}
+      onClick={event => navigateSection(event, 'help')}><span className="mobile-dock-icon"><LifeBuoy size={22} aria-hidden="true"/></span><span>{t('Help', 'အကူအညီ')}</span></Link>
   </nav>;
 }
