@@ -76,7 +76,7 @@ Click **Apply changes** and **Restart** the running Node application. Use **Rede
 
 ## 4. Verify the live store
 
-- In a private browser window, open `/` and search for a product. Select a plan and use **Add to cart**. Reopen the cart and check that **Place order** prompts a signed-out visitor to sign in. In a test environment, register a customer, submit an order, approve it in admin, then verify the dates and access details in the customer account.
+- In a private browser window, open `/` and search for a product. Select a plan and use **Add to cart**. Reopen the cart and check that **Continue to Telegram** prompts a signed-out visitor to sign in. In a test environment, register a customer, save an order, inspect the Telegram draft with its name/email/reference, approve it in admin, then verify dates in the customer account. Open the storefront account panel and check password changes with a test customer.
 - Open `/admin`. Enter the configured admin email, then enter the six-digit code from the inbox in the same browser within 10 minutes. Close and reopen the same normal browser profile to confirm it remembers you. A fresh private window should ask for its own code. Open a product and confirm that the plan details match what you expect. Test an edit on an unpublished service, upload a small logo, save it and reload. The edit and logo should persist after a restart.
 - Sign out. Opening `/admin` should ask you to sign in again. The customer storefront should still be accessible. A signed-out request to `/api/admin/catalog` should return `401`.
 

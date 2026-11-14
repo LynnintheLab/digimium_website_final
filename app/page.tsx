@@ -24,7 +24,7 @@ async function storefrontOrigin() {
 export async function generateMetadata(): Promise<Metadata> {
   const origin = await storefrontOrigin();
   const title = 'digimium. — Digital subscriptions';
-  const description = commerceEnabled ? 'Browse digital subscriptions in English or Myanmar, order online and manage your plans in your Digimium account.' : 'Find plans for ChatGPT, Canva, Spotify and more. Browse in English or Myanmar and order through Telegram.';
+  const description = commerceEnabled ? 'Browse digital subscriptions in English or Myanmar, order through Telegram and track your plans in your Digimium account.' : 'Find plans for ChatGPT, Canva, Spotify and more. Browse in English or Myanmar and order through Telegram.';
   const image = {
     url: new URL('/assets/digimium-share.png', origin).href,
     width: 1200,

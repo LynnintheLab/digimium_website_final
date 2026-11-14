@@ -1,22 +1,25 @@
 "use client";
 
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, ChevronDown, LogOut, RefreshCw } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, LogOut, RefreshCw } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
+import { telegramDraft } from "@/lib/cart-order";
+import { orderTelegramMessages } from "@/lib/order-telegram";
 import type { CommerceOrder } from "@/lib/commerce-types";
 import type { ShopLanguage } from "@/lib/shop-language";
 import { durationText } from "@/lib/shop-language";
 
-type Customer = { id: string; name: string; email: string };
-type AccountProps = { lang: ShopLanguage; checkout: boolean };
+type Customer = { id: string; name: string; email: string; createdAt: string };
+type AccountProps = { lang: ShopLanguage; checkout?: boolean; embedded?: boolean; onClose?: () => void };
 type Translate = (en: string, my: string) => string;
 
 const sessionPath = "/api/customer/session";
 
-function AuthForm({ checkout, t, onSuccess }: { checkout: boolean; t: Translate; onSuccess: (customer: Customer) => void }) {
+function AuthForm({ checkout, embedded, t, onSuccess }: { checkout: boolean; embedded: boolean; t: Translate; onSuccess: (customer: Customer) => void }) {
   const [registering, setRegistering] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const Title = embedded ? "h2" : "h1";
   const title = registering ? t("Create account", "အကောင့်ဖွင့်ရန်") : t("Sign in", "အကောင့်ဝင်ရန်");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -45,8 +48,8 @@ function AuthForm({ checkout, t, onSuccess }: { checkout: boolean; t: Translate;
   }
 
   return <section className="customer-auth" aria-labelledby="account-title">
-    <h1 id="account-title">{title}</h1>
-    {checkout && <p className="customer-auth-context">{t("Your cart is saved. Sign in or create an account to continue checkout.", "ဈေးခြင်းကို သိမ်းထားပါတယ်။ အော်ဒါဆက်တင်ဖို့ အကောင့်ဝင်ပါ သို့မဟုတ် အကောင့်ဖွင့်ပါ။")}</p>}
+    <Title id="account-title">{title}</Title>
+    {checkout && <p className="customer-auth-context">{t("Sign in or create an account to continue. Your Telegram order message will include your name and email.", "အော်ဒါဆက်တင်ဖို့ အကောင့်ဝင်ပါ သို့မဟုတ် အကောင့်ဖွင့်ပါ။ Telegram မှာ ပို့မယ့် အော်ဒါစာထဲမှာ သင့်နာမည်နဲ့ အီးမေးလ် ပါဝင်ပါမယ်။")}</p>}
     <form key={String(registering)} onSubmit={submit}>
       {registering && <label>{t("Name", "အမည်")}<input name="name" autoComplete="name" maxLength={100} required /></label>}
       <label>{t("Email", "အီးမေးလ်")}<input name="email" type="email" autoCapitalize="none" autoComplete="username" maxLength={254} required /></label>
@@ -66,13 +69,105 @@ function AuthForm({ checkout, t, onSuccess }: { checkout: boolean; t: Translate;
   </section>;
 }
 
+function PasswordForm({ t, onUpdated, onSignedOut }: { t: Translate; onUpdated: (person: Customer) => void; onSignedOut: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  async function updatePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    setSaved(false);
+    setError("");
+    if (values.get("newPassword") !== values.get("confirmPassword")) {
+      setError(t("The new passwords don’t match.", "စကားဝှက်အသစ် နှစ်ခု မတူပါ။"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await fetch(sessionPath, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, cache: "no-store",
+        body: JSON.stringify({ currentPassword: values.get("currentPassword"), newPassword: values.get("newPassword") }),
+      });
+      const result = await response.json() as { customer?: Customer; error?: string };
+      if (response.ok && result.customer) {
+        onUpdated(result.customer);
+        form.reset();
+        setSaved(true);
+        return;
+      }
+      if (response.status === 401) { onSignedOut(); return; }
+      const messages: Record<string, string> = {
+        current_password: t("The current password is incorrect.", "လက်ရှိ စကားဝှက် မှားနေပါတယ်။"),
+        invalid: t("Use at least 10 characters for your new password.", "စကားဝှက်အသစ်အတွက် အနည်းဆုံး စာလုံး ၁၀ လုံး သုံးပါ။"),
+        rate_limited: t("Too many attempts. Try again in 15 minutes.", "အကြိမ်ရေ များသွားပါတယ်။ ၁၅ မိနစ်နောက် ပြန်ကြိုးစားပါ။"),
+      };
+      setError(messages[result.error ?? ""] ?? t("Couldn’t update your password. Try again.", "စကားဝှက်ကို ပြောင်း၍ မရပါ။ ပြန်ကြိုးစားပါ။"));
+    } catch { setError(t("Couldn’t connect. Check your connection and try again.", "ချိတ်ဆက်၍ မရပါ။ အင်တာနက် စစ်ဆေးပြီး ပြန်ကြိုးစားပါ။")); }
+    finally { setBusy(false); }
+  }
+
+  return <details className="customer-password">
+    <summary>{t("Change password", "စကားဝှက် ပြောင်းရန်")}<ChevronDown size={16} aria-hidden /></summary>
+    <form onSubmit={updatePassword}>
+      <fieldset disabled={busy}>
+        <label>{t("Current password", "လက်ရှိ စကားဝှက်")}<input name="currentPassword" type="password" autoComplete="current-password" required maxLength={256}/></label>
+        <label>{t("New password", "စကားဝှက်အသစ်")}<input name="newPassword" type="password" autoComplete="new-password" required minLength={10} maxLength={256}/></label>
+        <small>{t("Use at least 10 characters.", "အနည်းဆုံး စာလုံး ၁၀ လုံး သုံးပါ။")}</small>
+        <label>{t("Confirm new password", "စကားဝှက်အသစ် ထပ်ဖြည့်ပါ")}<input name="confirmPassword" type="password" autoComplete="new-password" required minLength={10} maxLength={256}/></label>
+        {error && <p className="customer-error" role="alert">{error}</p>}
+        {saved && <p role="status">{t("Password updated.", "စကားဝှက် ပြောင်းပြီးပါပြီ။")}</p>}
+        <button className="customer-primary" type="submit">{busy ? t("Updating…", "ပြောင်းနေပါတယ်…") : t("Update password", "စကားဝှက် ပြောင်းမည်")}</button>
+      </fieldset>
+    </form>
+  </details>;
+}
+
 function formatDate(value: string, lang: ShopLanguage, dateOnly = false) {
   return new Intl.DateTimeFormat(lang === "my" ? "my-MM" : "en-GB", {
     dateStyle: "medium", ...(dateOnly ? { timeZone: "UTC" } : {}),
   }).format(new Date(dateOnly ? value + "T00:00:00Z" : value));
 }
 
-function OrderCard({ order, lang, t }: { order: CommerceOrder; lang: ShopLanguage; t: Translate }) {
+function PendingTelegram({ order, customer, telegram, lang, t, embedded, onClose }: {
+  order: CommerceOrder; customer: Customer; telegram: string; lang: ShopLanguage; t: Translate; embedded: boolean; onClose?: () => void;
+}) {
+  const messages = orderTelegramMessages(order, customer, lang);
+  const fullText = messages.join("\n\n");
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "manual">("idle");
+
+  async function copyMessage() {
+    try {
+      await navigator.clipboard.writeText(fullText);
+      setCopyStatus("copied");
+    } catch { setCopyStatus("manual"); }
+  }
+
+  return <div className="customer-telegram">
+    <p>{t("Send your order to Digimium in Telegram. We’ll confirm payment and send your service account details there.",
+      "Telegram မှာ Digimium ဆီ အော်ဒါစာ ပို့ပေးပါ။ ငွေပေးချေမှု အတည်ပြုတာနဲ့ ဝယ်ထားတဲ့အကောင့် အသေးစိတ် ပေးတာတွေကို အဲဒီ chat မှာပဲ ဆက်လုပ်ပေးပါမယ်။")}</p>
+    <div className="customer-telegram-actions">
+      {messages.map((message, index) => {
+        const url = telegramDraft(telegram, message);
+        if (!url) return null;
+        const label = messages.length === 1 ? t("Open in Telegram", "Telegram မှာ ဖွင့်ရန်")
+          : t(`Open part ${index + 1} of ${messages.length} in Telegram`, `အပိုင်း ${index + 1} / ${messages.length} ကို Telegram မှာ ဖွင့်ရန်`);
+        return <a key={index} className="customer-telegram-link" href={url} target="_blank" rel="noopener noreferrer">{label}<ArrowUpRight size={16} aria-hidden /></a>;
+      })}
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Use a fresh storefront document for its analytics. */}
+      {!telegram && <a className="customer-telegram-link" href={embedded ? "#contact" : "/#contact"} onClick={onClose}>{t("Contact Digimium", "Digimium ကို ဆက်သွယ်ရန်")}</a>}
+      <button type="button" onClick={copyMessage}>{t("Copy order message", "အော်ဒါစာ ကူးယူရန်")}</button>
+    </div>
+    {copyStatus === "copied" && <p role="status">{t("Order message copied.", "အော်ဒါစာကို ကူးယူပြီးပါပြီ။")}</p>}
+    {copyStatus === "manual" && <label>{t("Select and copy your order message.", "အော်ဒါစာကို ရွေးပြီး ကူးယူပါ။")}<textarea readOnly rows={5} value={fullText} onFocus={event => event.currentTarget.select()}/></label>}
+  </div>;
+}
+
+function OrderCard({ order, lang, t, customer, telegram, embedded, onClose }: {
+  order: CommerceOrder; lang: ShopLanguage; t: Translate; customer: Customer; telegram: string; embedded: boolean; onClose?: () => void;
+}) {
   const approved = order.status === "approved";
   return <article className="customer-order">
     <div className="customer-order-meta">
@@ -89,18 +184,22 @@ function OrderCard({ order, lang, t }: { order: CommerceOrder; lang: ShopLanguag
           <div><dt>{t("Start date", "စတင်ရက်")}</dt><dd>{line.startDate && <time dateTime={line.startDate}>{formatDate(line.startDate, lang, true)}</time>}</dd></div>
           <div><dt>{t("End date", "သက်တမ်းကုန်ရက်")}</dt><dd>{line.endDate && <time dateTime={line.endDate}>{formatDate(line.endDate, lang, true)}</time>}</dd></div>
         </dl>
-        {line.accountInfo && <details className="customer-delivery"><summary>{t("Account details", "ဝယ်ထားသော အကောင့်အချက်အလက်")}<ChevronDown size={16} aria-hidden /></summary>
+        {!embedded && line.accountInfo && <details className="customer-delivery"><summary>{t("Previously saved account details", "ယခင်သိမ်းထားသော အကောင့်အချက်အလက်")}<ChevronDown size={16} aria-hidden /></summary>
           <p dir="auto">{line.accountInfo}</p>
         </details>}
       </>}
     </li>)}</ul>
     {order.totalMmk !== null && <div className="customer-total"><span>{t("Order total", "စုစုပေါင်း")}</span><strong>{order.totalMmk.toLocaleString("en-US")} MMK</strong></div>}
+    {!approved && <PendingTelegram order={order} customer={customer} telegram={telegram} lang={lang} t={t} embedded={embedded} onClose={onClose} />}
   </article>;
 }
 
-export default function Account({ lang, checkout }: AccountProps) {
+export function AccountContent({ lang, checkout = false, embedded = false, onClose }: AccountProps) {
+  const Container = embedded ? "section" : "main";
+  const Title = embedded ? "h2" : "h1";
   const t: Translate = (en, my) => lang === "my" ? my : en;
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [telegram, setTelegram] = useState("");
   const [orders, setOrders] = useState<CommerceOrder[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -108,9 +207,10 @@ export default function Account({ lang, checkout }: AccountProps) {
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
+    if (embedded) return;
     document.documentElement.lang = lang;
     return () => { document.documentElement.lang = "en"; };
-  }, [lang]);
+  }, [lang, embedded]);
 
   useEffect(() => {
     let active = true;
@@ -124,15 +224,15 @@ export default function Account({ lang, checkout }: AccountProps) {
         if (!active) return;
         setCustomer(person);
         setOrders(null);
-        if (person && checkout) { window.location.replace("/?checkout=1"); return; }
+        if (person && checkout && !embedded) { window.location.replace("/?checkout=1"); return; }
         if (person) {
           const response = await fetch("/api/customer/orders", options);
           if (!active) return;
           if (response.status === 401) { setCustomer(null); }
           else {
             if (!response.ok) throw new Error("orders");
-            const data = await response.json() as { orders: CommerceOrder[] };
-            if (active) setOrders(data.orders);
+            const data = await response.json() as { orders: CommerceOrder[]; telegram: string; customer: Customer };
+            if (active) { setCustomer(data.customer); setTelegram(data.telegram); setOrders(data.orders); }
           }
         }
         if (active) setFailed(false);
@@ -142,7 +242,7 @@ export default function Account({ lang, checkout }: AccountProps) {
     }
     void load();
     return () => { active = false; controller.abort(); };
-  }, [reload, checkout]);
+  }, [reload, checkout, embedded]);
 
   useEffect(() => {
     function clearOnLeave() { setCustomer(null); setOrders(null); setLoading(true); }
@@ -169,7 +269,12 @@ export default function Account({ lang, checkout }: AccountProps) {
     try {
       const result = await fetch(sessionPath, { method: "DELETE", cache: "no-store" });
       if (!result.ok) throw new Error("logout");
-      window.location.replace("/account");
+      if (!embedded) { window.location.replace("/account"); return; }
+      setCustomer(null);
+      setOrders(null);
+      setFailed(false);
+      setLoggingOut(false);
+      refresh();
     } catch {
       setFailed(true);
       setLoggingOut(false);
@@ -177,47 +282,52 @@ export default function Account({ lang, checkout }: AccountProps) {
   }
 
   function signedIn(person: Customer) {
-    if (checkout) { window.location.replace("/?checkout=1"); return; }
+    if (checkout && !embedded) { window.location.replace("/?checkout=1"); return; }
     setCustomer(person);
     refresh();
   }
 
   const pending = orders?.filter(order => order.status === "pending") ?? [];
   const approved = orders?.filter(order => order.status === "approved") ?? [];
-  return <main className="customer-page" lang={lang}>
-    <header className="customer-header">
+  return <Container className={"customer-page" + (embedded ? " customer-embedded" : "")} lang={lang}>
+    {!embedded && <header className="customer-header">
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- The storefront and account use separate documents. */}
       <a href="/" className="customer-brand" aria-label={t("Digimium store", "Digimium စတိုး")}><Image src="/assets/logo.png" alt="digimium." width={142} height={48} unoptimized /></a>
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Storefront only loads its analytics in a fresh document. */}
       <a className="customer-back" href="/"><ArrowLeft size={15} aria-hidden />{t("Back to store", "ဆိုင်သို့ ပြန်သွားရန်")}</a>
-    </header>
+    </header>}
     <div className="customer-main">
       {failed && <div className="customer-alert" role="alert">{t("Couldn’t update your account. Try again.", "အကောင့်ကို ပြန်လည်ဖော်ပြ၍ မရပါ။ ပြန်ကြိုးစားပါ။")}
         <button type="button" onClick={refresh}>{t("Retry", "ပြန်ကြိုးစားရန်")}</button>
       </div>}
       {!customer && loading && <p role="status">{t("Loading your account…", "အကောင့်ကို ဖော်ပြနေပါတယ်…")}</p>}
-      {!customer && !loading && !failed && <AuthForm t={t} checkout={checkout} onSuccess={signedIn} />}
+      {!customer && !loading && !failed && <AuthForm t={t} checkout={checkout} embedded={embedded} onSuccess={signedIn} />}
       {customer && <div className="customer-dashboard">
         <div className="customer-summary">
-          <div><h1>{t("My account", "ကျွန်ုပ်၏အကောင့်")}</h1><p><strong>{customer.name}</strong><span>{customer.email}</span></p></div>
+          <div>{!embedded && <Title>{t("My account", "ကျွန်ုပ်၏အကောင့်")}</Title>}<p><strong>{customer.name}</strong><span>{customer.email}</span></p><small className="customer-member-since">{t("Joined", "အကောင့်ဖွင့်သည့်နေ့")} <time dateTime={customer.createdAt}>{formatDate(customer.createdAt, lang)}</time></small></div>
           <button type="button" onClick={logout} disabled={loggingOut}><LogOut size={16} aria-hidden />{t("Sign out", "အကောင့်ထွက်ရန်")}</button>
         </div>
+        <PasswordForm t={t} onUpdated={setCustomer} onSignedOut={() => { setCustomer(null); setOrders(null); refresh(); }} />
         {!orders && !failed && <p role="status">{t("Loading orders…", "အော်ဒါများကို ဖော်ပြနေပါတယ်…")}</p>}
         {orders && <>
           <section className="customer-section" aria-labelledby="pending-orders">
             <div className="customer-heading"><h2 id="pending-orders">{t("Pending orders", "အတည်ပြုရန် စောင့်ဆိုင်းနေသော အော်ဒါများ")}</h2>
               <button type="button" className="customer-refresh" onClick={refresh} disabled={loading}><RefreshCw size={15} aria-hidden />{t("Refresh", "ပြန်ကြည့်ရန်")}</button>
             </div>
-            {pending.length ? pending.map(order => <OrderCard key={order.id} order={order} lang={lang} t={t} />)
+            {pending.length ? pending.map(order => <OrderCard key={order.id} order={order} customer={customer} telegram={telegram} lang={lang} t={t} embedded={embedded} onClose={onClose} />)
               : <p className="customer-empty">{t("No orders are awaiting approval.", "အတည်ပြုရန် စောင့်ဆိုင်းနေသော အော်ဒါ မရှိပါ။")}</p>}
           </section>
           <section className="customer-section" aria-labelledby="order-history">
             <h2 id="order-history">{t("Order history", "အော်ဒါမှတ်တမ်း")}</h2>
-            {approved.length ? approved.map(order => <OrderCard key={order.id} order={order} lang={lang} t={t} />)
-              : <p className="customer-empty">{t("Approved orders and your subscription details will appear here.", "အော်ဒါကို အတည်ပြုပြီးတာနဲ့ ဝယ်ယူထားတဲ့ ဝန်ဆောင်မှု အသေးစိတ်ကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>}
+            {approved.length ? approved.map(order => <OrderCard key={order.id} order={order} customer={customer} telegram={telegram} lang={lang} t={t} embedded={embedded} onClose={onClose} />)
+              : <p className="customer-empty">{t("Approved orders and subscription dates will appear here.", "အော်ဒါ အတည်ပြုပြီးရင် ဝယ်ယူမှုမှတ်တမ်းနဲ့ ဝန်ဆောင်မှုသက်တမ်းကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>}
           </section>
         </>}
       </div>}
     </div>
-  </main>;
+  </Container>;
+}
+
+export default function Account(props: AccountProps) {
+  return <AccountContent {...props} />;
 }

@@ -182,3 +182,5 @@
   .order-heading h2 { max-height: 3.5em; overflow-y: auto; }
   .order-footer { padding-block-start: 6px; }
 }
+
+.order-account-history { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; color: var(--blue); font-size: 14px; }

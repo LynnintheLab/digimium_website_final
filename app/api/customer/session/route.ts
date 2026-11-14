@@ -8,4 +8,4 @@ async function handle(request: Request) {
   return customerSession(request);
 }
 
-export { handle as GET, handle as POST, handle as DELETE };
+export { handle as GET, handle as POST, handle as DELETE, handle as PATCH };

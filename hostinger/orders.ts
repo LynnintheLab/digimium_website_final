@@ -4,12 +4,13 @@ import { join } from 'node:path';
 import type { RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { resolveOrder, totalMmk, type CartItem } from '../lib/cart-order';
-import { decodeSnapshot } from '../lib/catalog-store';
+import { decodeSnapshot, getCatalog } from '../lib/catalog-store';
 import type { Catalog } from '../lib/catalog';
 import { CommerceError } from '../lib/commerce-http';
-import type { CommerceCustomer, CommerceOrder, CommerceOrderLine, OrderFulfillment } from '../lib/commerce-types';
+import type { CommerceCustomer, CommerceOrder, CommerceOrderLine, OrderFulfillment, TelegramOrder } from '../lib/commerce-types';
 import { initialCatalog } from '../lib/initial-catalog';
 import { effectivePrice, parseMmk } from '../lib/pricing';
+import { resolveTelegramContact } from '../lib/telegram-contact';
 import { priceOnEnquiry } from '../lib/shop-language';
 import type { CatalogSnapshot } from '../lib/storage-types';
 import { ensureCustomerSchema } from './customer-auth';
@@ -31,7 +32,7 @@ function validDate(value: string) {
 const date = z.string().refine(validDate);
 const fulfillmentSchema = z.object({
   revision: z.number().int().positive().max(0xfffffffe),
-  lines: z.array(z.object({ id: z.string().uuid(), startDate: date, endDate: date, accountInfo: z.string().max(4000) })
+  lines: z.array(z.object({ id: z.string().uuid(), startDate: date, endDate: date, accountInfo: z.string().max(4000).optional() })
     .strict().refine(line => line.endDate >= line.startDate)).min(1).max(3000),
 }).strict();
 
@@ -117,13 +118,28 @@ function snapshotCart(items: CartItem[], catalog: Catalog): OrderSnapshot {
   return { lines, totalMmk: total ?? null };
 }
 
+function telegramOrder(id: string, snapshot: OrderSnapshot): TelegramOrder {
+  return { id, totalMmk: snapshot.totalMmk, lines: snapshot.lines.map(({ productName, planName, duration, price, quantity }) =>
+    ({ productName, planName, duration, price, quantity })) };
+}
+
+function orderContact(catalog: Catalog) {
+  const username = resolveTelegramContact(catalog.settings);
+  if (!username) throw new CommerceError(503, 'Telegram checkout is temporarily unavailable. Please try again.');
+  return username;
+}
+
+export async function currentOrderContact() {
+  return orderContact(await getCatalog());
+}
+
 async function existingCheckout(customerId: string, requestId: string, hash: Buffer) {
   const [rows] = await getPool().execute<RowDataPacket[]>(
-    'SELECT id, request_hash FROM digimium_orders WHERE customer_id = ? AND request_id = ?', [customerId, requestId],
+    'SELECT id, request_hash, snapshot FROM digimium_orders WHERE customer_id = ? AND request_id = ?', [customerId, requestId],
   );
   if (!rows.length) return null;
   if (!hash.equals(rows[0].request_hash)) throw new CommerceError(409, 'This checkout was already submitted with different items.');
-  return { id: rows[0].id as string, created: false };
+  return { order: telegramOrder(rows[0].id, JSON.parse(rows[0].snapshot)), telegram: await currentOrderContact(), created: false };
 }
 
 export async function submitOrder(customerId: string, body: unknown) {
@@ -142,14 +158,16 @@ export async function submitOrder(customerId: string, body: unknown) {
     const [catalog] = await connection.execute<(CatalogSnapshot & RowDataPacket)[]>(
       "SELECT payload, revision, updated_at AS updatedAt FROM digimium_catalog WHERE id = 'main' LOCK IN SHARE MODE",
     );
-    const snapshot = snapshotCart(items, catalog.length ? decodeSnapshot(catalog[0]) : initialCatalog());
+    const current = catalog.length ? decodeSnapshot(catalog[0]) : initialCatalog();
+    const telegram = orderContact(current);
+    const snapshot = snapshotCart(items, current);
     const id = randomUUID();
     await connection.execute(
       'INSERT INTO digimium_orders (id, customer_id, request_id, request_hash, created_at, snapshot) VALUES (?, ?, ?, ?, ?, ?)',
       [id, customerId, requestId, hash, new Date().toISOString(), JSON.stringify(snapshot)],
     );
     await connection.commit();
-    return { id, created: true };
+    return { order: telegramOrder(id, snapshot), telegram, created: true };
   } catch (error) {
     await connection.rollback();
     if (!(error instanceof Error && 'code' in error && error.code === 'ER_DUP_ENTRY')) throw error;
@@ -187,7 +205,7 @@ export async function adminCommerce() {
 export async function saveFulfillment(id: string, body: unknown) {
   if (!z.string().uuid().safeParse(id).success) throw new CommerceError(404, 'Order not found.');
   const input = fulfillmentSchema.safeParse(body);
-  if (!input.success) throw new CommerceError(400, 'Enter valid start and end dates for each item and up to 4,000 characters of account information.');
+  if (!input.success) throw new CommerceError(400, 'Enter valid start and end dates for every item.');
   await ensureOrders();
   const connection = await getPool().getConnection();
   try {
@@ -201,8 +219,16 @@ export async function saveFulfillment(id: string, body: unknown) {
     if (snapshot.lines.length !== input.data.lines.length || !snapshot.lines.every(line => grants.has(line.id))) {
       throw new CommerceError(400, 'Include the dates for every purchased item exactly once.');
     }
+    const previous = new Map(decryptFulfillment(row).map(line => [line.id, line.accountInfo]));
+    const lines = input.data.lines.map(({ id, startDate, endDate, accountInfo }) => {
+      const saved = previous.get(id) || '';
+      if (accountInfo && accountInfo !== saved) {
+        throw new CommerceError(400, 'Send purchased account details to the customer on Telegram.');
+      }
+      return { id, startDate, endDate, accountInfo: saved };
+    });
     row.approved_at ??= new Date().toISOString();
-    row.fulfillment = encryptFulfillment(id, row.customer_id, input.data.lines);
+    row.fulfillment = encryptFulfillment(id, row.customer_id, lines);
     row.revision++;
     const order = present(row);
     await connection.execute('UPDATE digimium_orders SET approved_at = ?, fulfillment = ?, revision = ? WHERE id = ?',

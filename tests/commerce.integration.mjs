@@ -1,7 +1,7 @@
 // Run after npm run build. Uses the same disposable database/origin settings as test:hostinger.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createCipheriv, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -43,7 +43,7 @@ async function register(input) {
   const response = await mutate(customerSession, 'POST', input);
   const session = cookie(response, 'digimium_local_customer');
   const { customer } = await json(response, 201);
-  assert.deepEqual(Object.keys(customer).sort(), ['email', 'id', 'name']);
+  assert.deepEqual(Object.keys(customer).sort(), ['createdAt', 'email', 'id', 'name']);
   return { ...customer, cookie: session };
 }
 
@@ -95,7 +95,9 @@ try {
   const inquiry = { ...product, id: 'custom', name: 'Custom plan', price: '', discountPrice: '', plans: [], availability: 'on-request' };
   const hidden = { ...product, id: 'hidden', published: false };
   const unavailable = { ...product, id: 'unavailable', availability: 'unavailable' };
-  const saveCatalog = (products, expectedRevision) => mutate('/api/admin/catalog', 'PUT', { products, expectedRevision, settings: original.settings }, owner);
+  const telegram = 'DigimiumCheckout';
+  const saveCatalog = (products, expectedRevision, contact = telegram) => mutate('/api/admin/catalog', 'PUT',
+    { products, expectedRevision, settings: { ...original.settings, telegram: contact } }, owner);
   await json(await saveCatalog([product, inquiry, hidden, unavailable], original.revision));
   const item = { productId: product.id, planId: plan.id, quantity: 2 };
   const custom = { productId: inquiry.id, planId: null, quantity: 1 };
@@ -104,14 +106,23 @@ try {
   assert.equal((await submit(submission, '')).status, 401);
   assert.equal((await submit(submission, alice.cookie, 'https://foreign.invalid')).status, 403);
   assert.equal((await submit({ ...submission, customerId: bob.id })).status, 400);
+  assert.equal((await submit({ ...submission, customer: { name: 'Spoofed', email: second.email } })).status, 400);
   assert.equal((await submit({ ...submission, items: [{ ...item, price: '1 MMK' }] })).status, 400);
   for (const invalid of [{ ...item, productId: hidden.id }, { ...item, productId: unavailable.id }, { ...item, planId: 'draft' }, { ...item, planId: null }]) {
     assert.equal((await submit({ ...submission, items: [custom, invalid] })).status, 409, 'The entire cart must be accepted or rejected together');
   }
   const submitted = await Promise.all([submit(), submit()]);
   assert.deepEqual(submitted.map(r => r.status).sort(), [200, 201]);
-  const [{ id }, duplicate] = await Promise.all(submitted.map(r => json(r, r.status)));
-  assert.equal(id, duplicate.id);
+  const [checkout, duplicate] = await Promise.all(submitted.map(r => json(r, r.status)));
+  const { id } = checkout;
+  assert.deepEqual(checkout, duplicate);
+  assert.equal(checkout.telegram, telegram);
+  assert.deepEqual(checkout.customer, { name: first.name, email: first.email });
+  assert.deepEqual(checkout.order, { id, totalMmk: null, lines: [
+    { productName: product.name, planName: plan.name, duration: plan.duration, quantity: 2, price: '1,500 MMK' },
+    { productName: inquiry.name, planName: null, duration: inquiry.duration, quantity: 1, price: '' },
+  ] });
+  assert.ok(!JSON.stringify(checkout).includes(first.password));
   assert.equal((await submit({ ...submission, items: [custom] })).status, 409);
   const before = (await json(await get(customerOrders, alice.cookie))).orders;
   assert.equal(before.length, 1);
@@ -123,12 +134,16 @@ try {
   assert.ok(priced.id);
   const pricedRows = (await json(await get(customerOrders, alice.cookie))).orders;
   assert.equal(pricedRows.find(row => row.id === priced.id).totalMmk, 3000);
-  await json(await saveCatalog([inquiry], original.revision + 1));
-  assert.equal((await json(await submit())).id, id, 'Checkout retries still work after a catalog change');
+  const updatedContact = 'NewStoreContact';
+  await json(await saveCatalog([inquiry], original.revision + 1, updatedContact));
+  assert.deepEqual(await json(await submit()), { ...checkout, telegram: updatedContact },
+    'Retry uses the original items and prices with the current store contact');
+  const accountResponse = await json(await get(customerOrders, alice.cookie));
+  assert.equal(accountResponse.telegram, updatedContact);
+  assert.deepEqual(accountResponse.customer, { id: alice.id, name: first.name, email: first.email, createdAt: alice.createdAt });
   assert.deepEqual((await json(await get(customerOrders + '?customerId=' + alice.id, bob.cookie))).orders, []);
   assert.deepEqual((await json(await get(adminCommerce, owner))).orders.find(row => row.id === id), before[0]);
-  const lines = before[0].lines.map((line, index) => ({ id: line.id, startDate: '2028-02-29', endDate: '2028-03-29',
-    accountInfo: index === 0 ? 'Private test credentials ' + randomUUID() : '' }));
+  const lines = before[0].lines.map(line => ({ id: line.id, startDate: '2028-02-29', endDate: '2028-03-29' }));
   const update = (payload, session = owner, origin = base.origin) => mutate(adminCommerce + '/' + id, 'PATCH', payload, session, origin);
   const approval = { lines, revision: before[0].revision };
   assert.equal((await update(approval, bob.cookie)).status, 401);
@@ -137,28 +152,74 @@ try {
     [{ ...lines[0], endDate: '2028-02-28' }, lines[1]]]) {
     assert.equal((await update({ ...approval, lines: bad })).status, 400);
   }
+  const privateDetails = 'Private historical delivery ' + randomUUID();
+  assert.equal((await update({ ...approval, lines: [{ ...lines[0], accountInfo: privateDetails }, lines[1]] })).status, 400);
   const saved = await Promise.all([update(approval), update(approval)]);
   assert.deepEqual(saved.map(r => r.status).sort(), [200, 409]);
   const approved = (await json(saved.find(r => r.status === 200))).order;
   assert.equal(approved.status, 'approved');
-  assert.equal(approved.lines[0].accountInfo, lines[0].accountInfo);
+  assert.equal(approved.lines[0].accountInfo, '');
   assert.equal(approved.lines[1].accountInfo, '');
   assert.deepEqual((await json(await get(customerOrders, alice.cookie))).orders.find(row => row.id === id), approved);
   assert.deepEqual((await json(await get(customerOrders, bob.cookie))).orders, []);
-  const [[stored]] = await db.execute('SELECT snapshot, fulfillment FROM digimium_orders WHERE id = ?', [id]);
-  assert.ok(!Object.values(stored).some(value => value.includes(lines[0].accountInfo)), 'No plaintext fulfillment in storage');
-  const changedLines = [{ ...lines[0], accountInfo: 'Replacement credentials', endDate: '2028-04-29' }, lines[1]];
+  // Simulate a record encrypted by the release that accepted website credential delivery.
+  const historical = lines.map((line, index) => ({ ...line, accountInfo: index ? '' : privateDetails }));
+  const iv = randomBytes(12);
+  const key = createHmac('sha256', env.ORDER_FULFILLMENT_SECRET).update('digimium/order-fulfillment/v1').digest();
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  cipher.setAAD(Buffer.from(id + '/' + alice.id));
+  const ciphertext = Buffer.concat([cipher.update(JSON.stringify(historical)), cipher.final()]);
+  const envelope = Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString('base64');
+  await db.execute('UPDATE digimium_orders SET fulfillment = ? WHERE id = ?', [envelope, id]);
+  assert.deepEqual(await json(await submit()), { ...checkout, telegram: updatedContact },
+    'Replaying checkout after delivery must never return fulfillment secrets');
+  const changedLines = [{ ...lines[0], endDate: '2028-04-29' }, lines[1]];
   const { order: edited } = await json(await update({ revision: approved.revision, lines: changedLines }));
+  const [[stored]] = await db.execute('SELECT snapshot, fulfillment FROM digimium_orders WHERE id = ?', [id]);
+  assert.ok(!Object.values(stored).some(value => value.includes(privateDetails)), 'No plaintext fulfillment in storage');
   assert.equal(edited.approvedAt, approved.approvedAt);
   assert.equal(edited.lines[0].endDate, changedLines[0].endDate);
-  assert.equal(edited.lines[0].accountInfo, changedLines[0].accountInfo);
+  assert.equal(edited.lines[0].accountInfo, privateDetails, 'Date changes preserve historical encrypted delivery');
   assert.equal(edited.lines[0].price, '1,500 MMK');
   await json(await mutate(customerSession, 'DELETE', {}, alice.cookie));
   assert.equal((await get(customerOrders, alice.cookie)).status, 401);
   const again = await mutate(customerSession, 'POST', { action: 'login', email: first.email, password: first.password });
   const newCookie = cookie(again, 'digimium_local_customer');
   assert.deepEqual((await json(await get(customerOrders, newCookie))).orders.find(row => row.id === id), edited);
-  console.log('Commerce integration passed: account sessions, pending checkout, exact retries, per-line fulfillment and owner-only history.');
+  const otherLogin = await mutate(customerSession, 'POST', { action: 'login', email: first.email, password: first.password });
+  const otherCookie = cookie(otherLogin, 'digimium_local_customer');
+  const nextPassword = randomUUID();
+  const changePassword = (body, session = newCookie, origin = base.origin) => mutate(customerSession, 'PATCH', body, session, origin);
+  const passwords = { action: 'password', currentPassword: first.password, newPassword: nextPassword };
+  assert.equal((await changePassword(passwords, '')).status, 401);
+  assert.equal((await changePassword(passwords, newCookie, 'https://foreign.invalid')).status, 403);
+  assert.equal((await changePassword({ ...passwords, newPassword: 'short' })).status, 400);
+  const wrongPassword = await json(await changePassword({ ...passwords, currentPassword: randomUUID() }), 400);
+  assert.equal(wrongPassword.error, 'current_password');
+  const competing = { ...passwords, newPassword: randomUUID() };
+  const changes = await Promise.all([changePassword(passwords), changePassword(competing, otherCookie)]);
+  assert.deepEqual(changes.map(response => response.status).sort(), [200, 401]);
+  const successful = changes.findIndex(response => response.status === 200);
+  const activeCookie = cookie(changes[successful], 'digimium_local_customer');
+  assert.notEqual(activeCookie, newCookie);
+  assert.notEqual(activeCookie, otherCookie);
+  const winnerPassword = successful ? competing.newPassword : nextPassword;
+  assert.deepEqual((await json(changes[successful])).customer, { id: alice.id, name: first.name, email: first.email, createdAt: alice.createdAt });
+  assert.equal((await get(customerOrders, newCookie)).status, 401);
+  assert.equal((await get(customerOrders, otherCookie)).status, 401);
+  assert.equal((await mutate(customerSession, 'POST', { action: 'login', email: first.email, password: first.password })).status, 401);
+  assert.equal((await mutate(customerSession, 'POST', { action: 'login', email: first.email, password: winnerPassword })).status, 200);
+  assert.equal((await get(customerOrders, bob.cookie)).status, 200, 'Changing one account does not revoke another customer');
+  assert.deepEqual((await json(await get(customerOrders, activeCookie))).orders.find(row => row.id === id), edited);
+  const [[{ password_hash: passwordHash }]] = await db.execute('SELECT password_hash FROM digimium_customers WHERE id = ?', [alice.id]);
+  assert.ok(passwordHash.startsWith('scrypt-v1$') && !passwordHash.includes(winnerPassword));
+  const attempts = [];
+  for (let count = 0; count < 12; count++) {
+    attempts.push((await changePassword({ currentPassword: 'incorrect', newPassword: randomUUID() }, activeCookie)).status);
+  }
+  assert.ok(attempts.includes(429), 'Password changes share a bounded account attempt window');
+
+  console.log('Commerce integration passed: account sessions, recorded Telegram checkout, exact retries, date approvals, password rotation and owner-only history.');
 } finally {
   if (server && server.exitCode === null && !server.signalCode) {
     const exit = once(server, 'exit');

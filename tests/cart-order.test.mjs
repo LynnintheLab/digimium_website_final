@@ -1,3 +1,4 @@
+import { orderTelegramMessages } from '../lib/order-telegram.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { discountPriceError, effectivePrice } from '../lib/pricing.ts';
@@ -94,4 +95,27 @@ test('discounts require a lower whole MMK amount and preserve ordinary quotes an
     assert.equal(effectivePrice({ price: invalid }), invalid);
   }
   assert.equal(effectivePrice({ price: '၃၀,၀၀၀ ကျပ်', discountPrice: '၂၅၀၀၀' }), '25,000 MMK');
+});
+
+test('Telegram checkout identifies the account and order in each draft without including delivery details', () => {
+  const customer = { name: 'မောင် & Co', email: 'buyer+test@example.invalid' };
+  const id = 'aa2d6549-fbd2-4602-a445-c6d99526afcb';
+  const line = { productName: 'Creative', planName: 'Monthly', duration: '1 month', price: '3,000 MMK',
+    quantity: 2, accountInfo: 'private credential must stay off Telegram' };
+  const order = { id, lines: Array.from({ length: 200 }, () => line), totalMmk: 1200000 };
+  for (const lang of ['en', 'my']) {
+    const parts = orderTelegramMessages(order, customer, lang);
+    assert.ok(parts.length > 1);
+    for (const message of parts) {
+      assert.ok(message.includes(id.toUpperCase()) && message.includes(customer.name) && message.includes(customer.email));
+      assert.ok(!message.includes(line.accountInfo));
+      const link = new URL(telegramDraft('DigimiumCheckout', message));
+      assert.equal(link.searchParams.get('text'), message);
+      assert.ok(link.href.length < 8000);
+    }
+    assert.ok(parts.join('\n').includes('1,200,000'));
+  }
+  const lines = [{ ...line, planName: null, price: '' }];
+  const [unknown] = orderTelegramMessages({ ...order, totalMmk: null, lines }, customer, 'en');
+  assert.ok(unknown.includes('Price on enquiry') && unknown.includes('Please confirm the total price.'));
 });

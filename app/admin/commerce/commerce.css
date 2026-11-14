@@ -15,20 +15,36 @@
 .commerce-row:hover { background: var(--soft); }
 .commerce-row-main, .commerce-row-end { display: grid; min-width: 0; gap: 3px; }
 .commerce-row-end { text-align: end; }
-.commerce-row-main > span, .commerce-row-end > span, .commerce-item-meta, .commerce-panel-heading p, .commerce-access small { color: var(--admin-muted); font-size: 13px; }
+.commerce-row-main > span, .commerce-row-end > span, .commerce-item-meta, .commerce-panel-heading p { color: var(--admin-muted); font-size: 13px; }
 .commerce-status { display: inline-flex; width: fit-content; border-radius: 5px; padding: 2px 8px; color: #754609; background: #fff0ce; font-size: 12px; font-weight: 650; }
 .commerce-status[data-status=approved] { color: #165b43; background: #def6ea; }
 .commerce-empty { padding: 24px; color: var(--admin-muted); }
-.commerce-fieldset, .commerce-item { margin: 0; min-width: 0; border: 0; }
-.commerce-item { padding: 0 0 24px; }
-.commerce-item legend { font-size: 16px; font-weight: 650; }
-.commerce-dates { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; margin: 16px 0; }
-.commerce-dates input { min-width: 0; width: 100%; }
-.commerce-access textarea { width: 100%; white-space: pre-wrap; }
-.commerce-save { padding-top: 18px; border-top: 1px solid var(--admin-line); }
-.commerce-save div { display: grid; }
+.admin-commerce .commerce-fieldset { margin: 0; min-width: 0; border: 0; padding: 0; }
+.commerce-item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .9fr); gap: 12px 30px; align-items: center; padding: 22px 28px; }
+.commerce-item + .commerce-item { border-top: 1px solid var(--admin-line); }
+.admin-commerce .commerce-item h3 { font-size: 17px; line-height: 1.4; }
+.commerce-plan-name { margin-top: 3px; font-size: 14px; font-weight: 550; color: var(--admin-ink); }
+.commerce-item-meta { margin-top: 5px; }
+.commerce-customer { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14px; }
+.commerce-customer span { color: var(--admin-muted); }
+.commerce-legacy-details { grid-column: 1 / -1; }
+.commerce-dates { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; margin: 0; }
+.commerce-dates input { min-width: 0; width: 100%; min-height: 44px; }
+.admin-commerce .commerce-dates .admin-field { font-size: 12px; font-weight: 650; gap: 7px; }
+.commerce-legacy-details summary { cursor: pointer; color: var(--admin-muted); font-size: 13px; }
+.commerce-legacy-details p { margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.commerce-save { position: sticky; bottom: 0; z-index: 1; padding: 18px 28px; border-radius: 0 0 12px 12px; background: var(--canvas); border-top: 1px solid var(--admin-line); }
+.commerce-save div { display: grid; gap: 3px; }
+.commerce-save div span { color: var(--admin-muted); font-size: 12px; }
+.commerce-save div strong { font-size: 18px; }
 .commerce-form-error { padding: 12px; color: #8d2630; }
+@media (max-width: 1050px) {
+  .commerce-item { grid-template-columns: 1fr; }
+}
 @media (max-width: 620px) {
+  .commerce-item { padding: 20px 16px; }
+  .commerce-save { padding: 16px; }
+  .commerce-save button { min-height: 44px; }
   .admin-shell .admin-navigation[data-commerce=true] { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 2px 5px; }
   .admin-shell .admin-navigation[data-commerce=true] button { padding: 6px 8px; width: 100%; gap: 6px; }
   .commerce-row { grid-template-columns: minmax(0, 1fr) 16px; gap: 6px; }

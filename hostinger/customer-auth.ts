@@ -7,7 +7,7 @@ import { isSameOriginMutation } from "../lib/admin-auth-policy";
 import { getPool } from "./mysql";
 import { CommerceError, readCommerceJson } from "../lib/commerce-http";
 
-export type Customer = { id: string; name: string; email: string };
+export type Customer = { id: string; name: string; email: string; createdAt: string };
 const sessionSeconds = 30 * 24 * 60 * 60;
 let schema: Promise<void> | undefined;
 
@@ -61,7 +61,7 @@ export async function currentCustomer(request: Request): Promise<Customer | null
   if (!token) return null;
   await ensureCustomerSchema();
   const [rows] = await getPool().execute<(Customer & RowDataPacket)[]>(
-    `SELECT c.id, c.name, c.email FROM digimium_customer_sessions s
+    `SELECT c.id, c.name, c.email, DATE_FORMAT(c.created_at, '%Y-%m-%dT%H:%i:%sZ') AS createdAt FROM digimium_customer_sessions s
      JOIN digimium_customers c ON c.id = s.customer_id
      WHERE s.token_hash = ? AND s.expires_at > UTC_TIMESTAMP()`, [digest(token)],
   );
@@ -118,7 +118,7 @@ async function claimAttempt(scope: string, max: number, bucket: number) {
   return result.affectedRows === 1;
 }
 
-async function withinLimit(request: Request, input: Input) {
+async function withinLimit(request: Request, input: { action: "login" | "register" | "password"; email: string }) {
   const bucket = Math.floor(Date.now() / 900000);
   // Cap total hash work even if a proxy does not supply a trustworthy address.
   if (!await claimAttempt("all", 900, bucket)) return false;
@@ -137,6 +137,52 @@ function reply(data: unknown, status = 200, cookie?: string) {
   return Response.json(data, { status, headers });
 }
 
+async function changePassword(request: Request, oldToken: string | null, cookie: (token: string, age: number) => string) {
+  const customer = await currentCustomer(request);
+  if (!customer || !oldToken) return reply({ error: "signed_out" }, 401);
+  const body = await readCommerceJson(request, 4096);
+  if (!body || typeof body !== "object" || Array.isArray(body)) return reply({ error: "invalid" }, 400);
+  const { action, currentPassword, newPassword } = body as Record<string, unknown>;
+  if ((action !== undefined && action !== "password") || typeof currentPassword !== "string" ||
+      !currentPassword.length || currentPassword.length > 256 || typeof newPassword !== "string" ||
+      newPassword.length < 10 || newPassword.length > 256) return reply({ error: "invalid" }, 400);
+  if (!await withinLimit(request, { action: "password", email: customer.email })) return reply({ error: "rate_limited" }, 429);
+  const [rows] = await getPool().execute<(RowDataPacket & { password_hash: string })[]>(
+    "SELECT password_hash FROM digimium_customers WHERE id = ?", [customer.id],
+  );
+  const previousHash = rows[0]?.password_hash;
+  if (!await matchesPassword(currentPassword, previousHash)) return reply({ error: "current_password" }, 400);
+  const nextHash = await hashPassword(newPassword);
+  const token = randomBytes(32).toString("base64url");
+  const connection = await getPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    // Login and password changes lock the same account first, so an old password cannot create a later session.
+    const [locked] = await connection.execute<(RowDataPacket & { password_hash: string })[]>(
+      "SELECT password_hash FROM digimium_customers WHERE id = ? FOR UPDATE", [customer.id],
+    );
+    const [sessions] = await connection.execute<RowDataPacket[]>(
+      "SELECT token_hash FROM digimium_customer_sessions WHERE token_hash = ? AND customer_id = ? AND expires_at > UTC_TIMESTAMP() FOR UPDATE",
+      [digest(oldToken), customer.id],
+    );
+    if (!sessions.length || locked[0]?.password_hash !== previousHash) {
+      await connection.rollback();
+      return reply({ error: "signed_out" }, 401);
+    }
+    await connection.execute("UPDATE digimium_customers SET password_hash = ? WHERE id = ?", [nextHash, customer.id]);
+    await connection.execute("DELETE FROM digimium_customer_sessions WHERE customer_id = ?", [customer.id]);
+    await connection.execute(
+      "INSERT INTO digimium_customer_sessions (token_hash, customer_id, expires_at) VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND))",
+      [digest(token), customer.id, sessionSeconds],
+    );
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally { connection.release(); }
+  return reply({ customer }, 200, cookie(token, sessionSeconds));
+}
+
 export async function customerSession(request: Request): Promise<Response> {
   const config = site();
   if (!config) return reply({ error: "unavailable" }, 503);
@@ -146,6 +192,7 @@ export async function customerSession(request: Request): Promise<Response> {
   try {
     if (request.method === "GET") return reply({ customer: await currentCustomer(request) });
     const oldToken = sessionToken(request, config.cookie);
+    if (request.method === "PATCH") return await changePassword(request, oldToken, cookie);
     if (request.method === "DELETE") {
       if (oldToken) {
         await ensureCustomerSchema();
@@ -163,14 +210,15 @@ export async function customerSession(request: Request): Promise<Response> {
     let passwordHash: string | null = null;
     if (creating) {
       passwordHash = await hashPassword(input.password);
-      customer = { id: randomUUID(), name: input.name, email: input.email };
+      customer = { id: randomUUID(), name: input.name, email: input.email, createdAt: new Date().toISOString().replace(/\.\d{3}Z$/, "Z") };
     } else {
       const [rows] = await getPool().execute<(Customer & RowDataPacket & { password_hash: string })[]>(
-        "SELECT id, name, email, password_hash FROM digimium_customers WHERE email = ?", [input.email],
+        "SELECT id, name, email, DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%sZ') AS createdAt, password_hash FROM digimium_customers WHERE email = ?", [input.email],
       );
       const existing = rows[0];
       if (!await matchesPassword(input.password, existing?.password_hash) || !existing) return reply({ error: "credentials" }, 401);
-      customer = { id: existing.id, name: existing.name, email: existing.email };
+      passwordHash = existing.password_hash;
+      customer = { id: existing.id, name: existing.name, email: existing.email, createdAt: existing.createdAt };
     }
 
     await getPool().execute("DELETE FROM digimium_customer_sessions WHERE expires_at <= UTC_TIMESTAMP() LIMIT 100");
@@ -179,8 +227,17 @@ export async function customerSession(request: Request): Promise<Response> {
     try {
       await connection.beginTransaction();
       if (creating) {
-        await connection.execute("INSERT INTO digimium_customers (id, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, UTC_TIMESTAMP(3))",
-          [customer.id, customer.name, customer.email, passwordHash]);
+        await connection.execute("INSERT INTO digimium_customers (id, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+          [customer.id, customer.name, customer.email, passwordHash, customer.createdAt.slice(0, 19).replace("T", " ")]);
+      }
+      if (!creating) {
+        const [locked] = await connection.execute<(RowDataPacket & { password_hash: string })[]>(
+          "SELECT password_hash FROM digimium_customers WHERE id = ? FOR UPDATE", [customer.id],
+        );
+        if (locked[0]?.password_hash !== passwordHash) {
+          await connection.rollback();
+          return reply({ error: "credentials" }, 401);
+        }
       }
       if (oldToken) await connection.execute("DELETE FROM digimium_customer_sessions WHERE token_hash = ?", [digest(oldToken)]);
       await connection.execute(

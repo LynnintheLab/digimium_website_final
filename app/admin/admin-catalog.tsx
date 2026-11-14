@@ -235,7 +235,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
   const pages = {
     services: ['Service catalog', 'A little care for your digital collection.'],
     settings: ['Contact settings', 'Keep it easy for customers to reach you.'],
-    orders: ['Orders', 'Review checkouts and manage subscription access.'],
+    orders: ['Orders', 'Match Telegram orders and record subscription dates.'],
     customers: ['Customers', 'View registered customers and their orders.'],
   };
   const lastSaved = saved?.updatedAt ? new Date(saved.updatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : null;

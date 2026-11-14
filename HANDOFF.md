@@ -4,7 +4,7 @@ Updated: **2026-11-14** (Asia/Bangkok). This document is the starting point for 
 
 ## Current customer checkout
 
-The Hostinger shop supports customer registration, account sign-in, website checkout and order history. An order enters the admin queue when checkout succeeds. The admin supplies start and expiration dates for every line and may enter delivery details when approving or later. The customer can read these in their own account. See [Hostinger setup and recovery](docs/HOSTINGER.md) for schema and key management. The sections below also record the earlier showcase and Sites releases.
+The Hostinger shop supports customer registration, sign-in and purchase tracking. Checkout saves an order and opens a Telegram draft containing the customer name, email and matching order reference. Payment and service-account delivery happen in Telegram. Admin records start and expiration dates and approves the website record afterward. The storefront Account button opens a panel with profile details, password change and purchase records. See [Hostinger setup and recovery](docs/HOSTINGER.md) for schema and key management. The sections below also record the earlier showcase and Sites releases.
 
 ## 1. State at the earlier showcase handoff
 
@@ -50,7 +50,7 @@ Other older website folders are reference copies, not alternative remotes for th
 
 ## 3. Product scope and established design
 
-Digimium sells access to digital subscriptions and services. On Hostinger, customers browse, choose a plan, sign in and place their order online. Customer browsing requires no login. Admin login is for the configured owner only.
+Digimium sells access to digital subscriptions and services. On Hostinger, customers browse, choose a plan, sign in and continue to Telegram, while the website saves a matching record. Customer browsing requires no login. Admin login is for the configured owner only.
 
 Preserve these established choices:
 

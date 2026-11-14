@@ -2,7 +2,7 @@
 
 ## Current status
 
-Hostinger customers can register with a name, email and password at `/account`. Online checkout saves a pending order to MySQL. Admin has **Customers** and **Orders** views and can approve an order with editable start and expiration dates and optional purchased-account details per item. The customer sees pending orders and approved purchase history separately. Contact and payment arrangements remain manual. See [the deployment guide](docs/HOSTINGER.md) for table creation, backups and the fulfillment encryption key.
+Hostinger checkout saves a tracking record and opens the store’s Telegram chat with the customer name, email, order reference and saved plan details. Customers send the message and arrange payment and account delivery in Telegram. Admin confirms dates and approves the matching website record. The storefront Account button opens a panel with profile details, orders and password change. The standalone account route also remains available. See [the deployment guide](docs/HOSTINGER.md) for table creation, backups and the fulfillment encryption key.
 
 Ten floating service-logo tiles surround all four edges of the showcase, with mixed sizes, clustered placements and open gaps. Best Seller badges use a bright gold background and filled star. Marked plans have a pale gold gradient and amber border; the selected plan has a blue outline and checked radio. The large watermark is stationary. A footer motion control, page visibility and the system reduced-motion preference govern animation. Phones support horizontal swipes, and multiple slides retain arrow and dash navigation.
 
@@ -27,6 +27,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Restored signed-in Telegram checkout with the customer’s name, email, order reference and purchase snapshot. Restoring the draft from a pending order reuses the same record. The store account button now opens an anchored panel for profile details, password changes and purchase records. The admin order editor groups each plan with its dates. Verified in local Chromium and WebKit using English and Myanmar test accounts, including expired sessions after password change and retries after a lost checkout response.
 
 Verified the staging account page, MySQL-backed session lookup, storefront account link and protected order endpoints. Corrected a legacy Vinext resolution issue discovered during the Worker smoke test. A local build of the legacy target served all 54 seed products from its D1-backed catalog, used the Telegram checkout and returned 404 on customer account routes.
 
@@ -90,7 +92,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-For an incoming order, open **Admin → Orders → Pending**, review its items, confirm subscription dates and enter any access details before approval. Use **Customers** to look up the customer and their orders.
+Match the Telegram order reference with **Admin → Orders → Pending**, complete payment and account delivery in Telegram, then confirm subscription dates and approve its tracking record. Use **Customers** to look up the customer and their orders.
 
 Check the new Best Seller badge and plan treatment on a physical phone. For future changes, read `HANDOFF.md`, this file, `AGENTS.md` and the relevant target guide, then pull `testing` before editing.
 

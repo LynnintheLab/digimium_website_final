@@ -38,8 +38,8 @@
 }
 .customer-auth h1 { font-size: clamp(2rem, 4vw, 2.6rem); }
 .customer-auth form { display: grid; gap: 16px; margin-top: 26px; }
-.customer-auth label { display: grid; gap: 6px; font-size: .9rem; font-weight: 600; }
-.customer-auth input {
+.customer-auth label, .customer-password label { display: grid; gap: 6px; font-size: .9rem; font-weight: 600; }
+.customer-auth input, .customer-password input {
   width: 100%;
   min-height: 48px;
   padding: 10px 12px;
@@ -54,7 +54,7 @@
 }
 .customer-auth-context { margin-top: 12px; }
 .customer-auth small { margin-top: -12px; }
-.customer-primary { min-height: 46px; justify-content: center; border: 0; border-radius: 9px; background: var(--blue); color: white; font-weight: 600; }
+.customer-primary { padding-inline: 14px; min-height: 46px; justify-content: center; border: 0; border-radius: 9px; background: var(--blue); color: white; font-weight: 600; }
 .customer-primary:hover { background: var(--brand-secondary); }
 .customer-switch { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: .85rem; margin-top: 16px; }
 .customer-switch button, .customer-alert button { color: var(--blue); text-decoration: underline; font-weight: 600; }
@@ -93,4 +93,45 @@
   .customer-summary p { display: grid; }
   .customer-summary button, .customer-refresh { min-height: 44px; }
   .customer-alert { align-items: flex-start; flex-direction: column; }
+}
+
+.customer-telegram { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.customer-telegram p, .customer-telegram label { font-size: .88rem; }
+.customer-telegram-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px; margin-top: 8px; }
+.customer-telegram-actions button { color: var(--blue); font-size: .86rem; }
+.customer-telegram-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: var(--blue); font-size: .9rem; font-weight: 650; }
+.customer-telegram-link:hover { text-decoration: underline; }
+.customer-telegram textarea { display: block; width: 100%; margin-top: 6px; padding: 8px; border: 1px solid var(--brand-line-strong); border-radius: 6px; font: inherit; }
+
+.customer-password { margin-top: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.customer-password summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; cursor: pointer; font-weight: 600; font-size: .9rem; }
+.customer-password summary::-webkit-details-marker { display: none; }
+.customer-password[open] summary svg { transform: rotate(180deg); }
+.customer-password fieldset { display: grid; gap: 14px; min-width: 0; margin: 12px 0 0; padding: 0; border: 0; }
+.customer-password small { margin-top: -10px; color: var(--muted); }
+.customer-page.customer-embedded { min-height: 0; padding: 0; border-radius: inherit; background: transparent; }
+.customer-embedded .customer-main { max-width: none; padding: 20px; }
+.customer-embedded .customer-main h2 { font-size: 1.25rem; line-height: 1.5; letter-spacing: -.025em; }
+.customer-embedded .customer-auth { padding: 0; border: 0; border-radius: 0; background: transparent; }
+.customer-embedded .customer-auth h2 { font-size: 1.5rem; }
+.customer-embedded .customer-auth form { gap: 13px; margin-top: 20px; }
+.customer-embedded .customer-summary { padding-bottom: 16px; align-items: flex-start; gap: 10px; }
+.customer-embedded .customer-summary p { display: grid; margin-top: 6px; }
+.customer-embedded .customer-summary button { font-size: .8rem; white-space: nowrap; }
+.customer-embedded .customer-section { margin-top: 24px; }
+.customer-embedded .customer-heading { align-items: flex-start; gap: 8px; }
+.customer-embedded .customer-heading h2 { font-size: 1rem; }
+.customer-embedded .customer-order { padding: 14px; border-radius: 10px; }
+.customer-embedded .customer-order-meta { align-items: flex-start; gap: 8px; font-size: .76rem; }
+.customer-embedded .customer-item-title { font-size: .94rem; }
+.customer-embedded .customer-telegram p { font-size: .82rem; }
+.customer-embedded .customer-telegram-actions { gap: 2px 12px; }
+.customer-page.customer-embedded[lang=my] :is(h1,h2,h3) { letter-spacing: 0; line-height: 1.8; }
+
+.customer-summary > div { min-width: 0; }
+.customer-summary p > * { min-width: 0; overflow-wrap: anywhere; }
+.customer-member-since { display: block; margin-top: 4px; color: var(--muted); font-size: .78rem; line-height: 1.6; }
+@media (max-width: 400px) {
+  .customer-summary, .customer-heading { flex-wrap: wrap; gap: 4px 10px; }
+  .customer-summary button, .customer-refresh { min-height: 44px; }
 }

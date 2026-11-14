@@ -36,3 +36,14 @@ export type OrderFulfillment = {
   endDate: string;
   accountInfo: string;
 };
+
+export type TelegramOrder = Pick<CommerceOrder, 'id' | 'totalMmk'> & {
+  lines: Pick<CommerceOrderLine, 'productName' | 'planName' | 'duration' | 'price' | 'quantity'>[];
+};
+
+export type TelegramCheckout = {
+  id: string;
+  order: TelegramOrder;
+  customer: Pick<CommerceCustomer, 'name' | 'email'>;
+  telegram: string;
+};

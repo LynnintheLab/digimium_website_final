@@ -8,7 +8,7 @@ Digimium is a bilingual digital subscription catalog with a persistent browser c
 - Preserve the established blue/lavender gradient, navy panels, colored logos, Manrope, and Wa Lone.
 - Keep current product/plan publication flags unless the owner asks to change them. Do not invent prices or delivery promises.
 - Preserve the red Myanmar checkout guidance and the extra unpriced-selection sentence.
-- Hostinger checkout creates a pending order for the signed-in customer. Admin approval publishes dates and access details to that customer. The Sites target uses Telegram drafts. Payments are arranged manually.
+- Hostinger checkout saves a pending tracking record, then opens a Telegram draft containing the customer name, email and order reference. Customers send the final message, and payment and account delivery happen in Telegram. Admin approval records subscription dates in purchase history. The store Account button opens an inline account panel with password change. The Sites target uses its original Telegram drafts.
 - Keep `.openai/hosting.json` bound to the existing Site for updates. GitHub pushes and Sites publication are separate actions.
 
 ## Commands

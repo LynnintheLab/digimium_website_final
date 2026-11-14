@@ -68,7 +68,7 @@ Public reads omit unpublished products/plans. With the description setting enabl
 
 **Add to cart** increments an existing selection. **Checkout** includes the current selection without duplicating an already-present line. Known MMK amounts can be totaled; unknown prices require confirmation. Order text includes product, plan, duration, price, and quantity.
 
-Checkout captures the full order, empties the saved browser cart, opens a Telegram DM draft and attempts to copy the captured text. The handoff screen can reopen or copy the same order after the cart clears. Long messages are split into numbered parts. The customer sends the message. There is no server-side order history or payment collection.
+Hostinger checkout saves an authenticated order snapshot before opening the store’s Telegram DM with a draft containing the customer name, email, reference and selected plans. The customer sends the message and arranges payment and service delivery in Telegram. Pending orders can reopen the draft. Admin records dates and approves the purchase in the website history. The legacy Sites deployment opens its Telegram draft from the cart. Both targets split long drafts into numbered parts.
 
 ## Authorization
 
