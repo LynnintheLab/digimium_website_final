@@ -3,103 +3,20 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, LogOut, RefreshCw } from "lucide-react";
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { telegramDraft } from "@/lib/cart-order";
 import { orderTelegramMessages } from "@/lib/order-telegram";
 import type { CommerceCustomer as Customer, CommerceOrder } from "@/lib/commerce-types";
 import type { ShopLanguage } from "@/lib/shop-language";
 import { durationText } from "@/lib/shop-language";
+import { AuthForm } from "./auth-form";
+export { CheckoutAuth } from "./auth-form";
 import { SubscriptionTerm } from "./subscription-term";
 
 type AccountProps = { lang: ShopLanguage; checkout?: boolean; embedded?: boolean; history?: boolean; onClose?: () => void };
 type Translate = (en: string, my: string) => string;
 
 const sessionPath = "/api/customer/session";
-
-type CheckoutAuthProps = {
-  lang: ShopLanguage;
-  onSuccess: (customer: Customer) => void;
-  onGuest: () => void;
-  onBusyChange?: (busy: boolean) => void;
-};
-
-type AuthFormProps = Pick<CheckoutAuthProps, "onSuccess" | "onBusyChange"> & {
-  checkout: boolean;
-  embedded: boolean;
-  history: boolean;
-  t: Translate;
-  onGuest?: () => void;
-};
-
-export function CheckoutAuth({ lang, onSuccess, onGuest, onBusyChange }: CheckoutAuthProps) {
-  return <AuthForm checkout embedded history={false} t={(en, my) => lang === "my" ? my : en}
-    onSuccess={onSuccess} onGuest={onGuest} onBusyChange={onBusyChange} />;
-}
-
-function AuthForm({ checkout, embedded, history, t, onSuccess, onGuest, onBusyChange }: AuthFormProps) {
-  const [registering, setRegistering] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const titleId = useId();
-  const passwordHintId = useId();
-  const Title = embedded || history ? "h2" : "h1";
-  const title = registering ? t("Create account", "အကောင့်ဖွင့်ရန်") : t("Sign in", "အကောင့်ဝင်ရန်");
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (busy) return;
-    const fields = new FormData(event.currentTarget);
-    setBusy(true);
-    onBusyChange?.(true);
-    setError("");
-    try {
-      const res = await fetch(sessionPath, {
-        method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
-        body: JSON.stringify({ action: registering ? "register" : "login", name: fields.get("name"), email: fields.get("email"), password: fields.get("password") }),
-      });
-      const data = await res.json() as { customer?: Customer; error?: string };
-      if (res.ok && data.customer) { onSuccess(data.customer); return; }
-      const errors: Record<string, string> = {
-        credentials: t("The email or password is incorrect.", "အီးမေးလ် သို့မဟုတ် စကားဝှက် မှားနေပါတယ်။"),
-        invalid: t("Check your entries and try again.", "ဖြည့်ထားတဲ့ အချက်အလက်တွေ စစ်ဆေးပြီး ပြန်ကြိုးစားပါ။"),
-        registration: t("Unable to create an account with these details. If you already have an account, sign in.", "ဒီအချက်အလက်တွေနဲ့ အကောင့်ဖွင့်လို့ မရပါ။ အကောင့်ရှိပြီးသားဆိုရင် အကောင့်ဝင်ပါ။"),
-        rate_limited: t("Too many attempts. Try again in 15 minutes.", "အကြိမ်ရေ များသွားပါတယ်။ ၁၅ မိနစ်နောက် ပြန်ကြိုးစားပါ။"),
-      };
-      setError(errors[data.error ?? ""] ?? t("Accounts are temporarily unavailable. Try again.", "အကောင့်စနစ် ခေတ္တ မရနိုင်သေးပါ။ ပြန်ကြိုးစားပါ။"));
-    } catch {
-      setError(t("Couldn’t connect. Check your connection and try again.", "ချိတ်ဆက်၍ မရပါ။ အင်တာနက် စစ်ဆေးပြီး ပြန်ကြိုးစားပါ။"));
-    } finally {
-      setBusy(false);
-      onBusyChange?.(false);
-    }
-  }
-
-  return <section className={onGuest ? "customer-auth customer-checkout-auth" : "customer-auth"} aria-labelledby={titleId}>
-    <Title id={titleId}>{title}</Title>
-    {checkout && !onGuest && <p className="customer-auth-context">{t("Sign in to keep your orders and subscription dates in your account. You can also order without an account.", "အော်ဒါနဲ့ သက်တမ်းကို အကောင့်ထဲမှာ ပြန်ကြည့်ချင်ရင် အကောင့်ဝင်ပါ။ အကောင့်မရှိဘဲလည်း မှာယူနိုင်ပါတယ်။")}</p>}
-    {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Restore the cart in a fresh storefront document. */}
-    {checkout && !onGuest && <a className="customer-guest-link" href="/?checkout=1">{t("Continue without an account", "အကောင့်မရှိဘဲ ဆက်ဝယ်မယ်")}<ArrowRight size={16} aria-hidden /></a>}
-    <form key={String(registering)} onSubmit={submit}>
-      {registering && <label>{t("Name", "အမည်")}<input name="name" autoComplete="name" maxLength={100} required /></label>}
-      <label>{t("Email", "အီးမေးလ်")}<input name="email" type="email" autoCapitalize="none" autoComplete="username" maxLength={254} required /></label>
-      <label>{t("Password", "စကားဝှက်")}<input name="password" type="password"
-        autoComplete={registering ? "new-password" : "current-password"} minLength={registering ? 10 : undefined}
-        maxLength={256} required aria-describedby={registering ? passwordHintId : undefined} /></label>
-      {registering && <small id={passwordHintId}>{t("Use at least 10 characters.", "အနည်းဆုံး စာလုံး ၁၀ လုံး သုံးပါ။")}</small>}
-      {error && <p role="alert" className="customer-error">{error}</p>}
-      <button type="submit" className="customer-primary" disabled={busy}>{busy ? t("Please wait…", "ခဏစောင့်ပါ…") : title}<ArrowRight size={17} aria-hidden /></button>
-    </form>
-    <p className="customer-switch">
-      {registering ? t("Already have an account?", "အကောင့်ရှိပြီးသားလား။") : t("New to Digimium?", "အကောင့် မရှိသေးဘူးလား။")}
-      <button type="button" disabled={busy} onClick={() => { setRegistering(!registering); setError(""); }}>
-        {registering ? t("Sign in", "အကောင့်ဝင်ရန်") : t("Create account", "အကောင့်ဖွင့်ရန်")}
-      </button>
-    </p>
-    {onGuest && <button type="button" disabled={busy} className="customer-guest-link" onClick={onGuest}>
-      {t("Buy on Telegram", "Telegram တွင် ဝယ်ယူမယ်")}<ArrowUpRight size={16} aria-hidden />
-    </button>}
-  </section>;
-}
 
 function PasswordForm({ t, onUpdated, onSignedOut }: { t: Translate; onUpdated: (person: Customer) => void; onSignedOut: () => void }) {
   const [busy, setBusy] = useState(false);

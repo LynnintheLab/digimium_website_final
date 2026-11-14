@@ -1,0 +1,129 @@
+'use client';
+
+import Image from 'next/image';
+import { ArrowLeft, ArrowRight, ArrowUpRight, Phone } from 'lucide-react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import type { CommerceCustomer } from '../../lib/commerce-types';
+import type { ShopLanguage } from '../../lib/shop-language';
+
+type Translate = (en: string, my: string) => string;
+type AuthFormProps = {
+  checkout: boolean;
+  embedded: boolean;
+  history: boolean;
+  t: Translate;
+  onSuccess: (customer: CommerceCustomer) => void;
+  onGuest?: () => void;
+  onBusyChange?: (busy: boolean) => void;
+};
+type Step = 'email' | 'password' | 'new-password' | 'name';
+
+function GoogleMark() {
+  return <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+    <path fill="#4285f4" d="M43.6 24.5c0-1.4-.1-2.8-.4-4.1H24v7.8h11c-.5 2.5-1.9 4.6-4.1 6v5h6.6c3.9-3.6 6.1-8.6 6.1-14.7Z"/>
+    <path fill="#34a853" d="M24 44c5.5 0 10.1-1.8 13.5-4.9l-6.6-5c-1.8 1.2-4.1 1.9-6.9 1.9-5.3 0-9.8-3.6-11.4-8.4H5.8v5.2A20.4 20.4 0 0 0 24 44Z"/>
+    <path fill="#fbbc05" d="M12.6 27.6a12 12 0 0 1 0-7.2v-5.2H5.8a20 20 0 0 0 0 17.6l6.8-5.2Z"/>
+    <path fill="#ea4335" d="M24 12c3 0 5.6 1 7.7 3l5.8-5.8A19.7 19.7 0 0 0 24 4 20.4 20.4 0 0 0 5.8 15.2l6.8 5.2A12 12 0 0 1 24 12Z"/>
+  </svg>;
+}
+
+export function CheckoutAuth({ lang, ...props }: Omit<AuthFormProps, 't' | 'checkout' | 'embedded' | 'history'> & {lang: ShopLanguage}) {
+  return <AuthForm {...props} checkout embedded history={false} t={(en, my) => lang === 'my' ? my : en} />;
+}
+
+export function AuthForm({ checkout, embedded, history, t, onSuccess, onGuest, onBusyChange }: AuthFormProps) {
+  const [step, setStep] = useState<Step>('email');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const inFlight = useRef(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const titleId = useId();
+  const hintId = useId();
+  const Title = embedded || history ? 'h2' : 'h1';
+  const title = step === 'email' ? t('Log in or sign up', 'အကောင့်ဝင် / ဖွင့်ရန်') : step === 'password' ? t('Enter your password', 'စကားဝှက် ထည့်ပါ') : step === 'new-password' ? t('Create your account', 'အကောင့်အသစ် ဖွင့်မယ်') : t('What should we call you?', 'နာမည် ထည့်ပါ');
+
+  useEffect(() => {
+    if (step !== 'email') heading.current?.focus({preventScroll: true});
+  }, [step]);
+
+  function back() {
+    if (inFlight.current) return;
+    setError('');
+    setPassword('');
+    setStep(step === 'name' ? 'new-password' : 'email');
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (inFlight.current) return;
+    const values = new FormData(event.currentTarget);
+    if (step === 'new-password') {
+      setPassword(String(values.get('password') || ''));
+      setError('');
+      setStep('name');
+      return;
+    }
+    inFlight.current = true;
+    setBusy(true);
+    onBusyChange?.(true);
+    setError('');
+    try {
+      const lookup = step === 'email';
+      const response = await fetch(lookup ? '/api/customer/email-step' : '/api/customer/session', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, cache: 'no-store',
+        body: JSON.stringify(lookup ? {email} : {
+          action: step === 'name' ? 'register' : 'login', email,
+          password: step === 'name' ? password : values.get('password'), name: values.get('name'),
+        }),
+      });
+      const data = await response.json() as {next?: 'password' | 'register'; customer?: CommerceCustomer; error?: string};
+      if (response.ok) {
+        if (lookup && (data.next === 'password' || data.next === 'register')) {
+          setEmail(email.trim().toLowerCase());
+          setStep(data.next === 'password' ? 'password' : 'new-password');
+          return;
+        }
+        if (!lookup && data.customer) { setPassword(''); onSuccess(data.customer); return; }
+      }
+      const messages: Record<string, string> = {
+        credentials: t('The password is incorrect. Try again.', 'စကားဝှက် မှားနေပါတယ်။ ပြန်ကြိုးစားပါ။'),
+        invalid: t('Check your details and try again.', 'ဖြည့်ထားတဲ့ အချက်အလက်တွေ စစ်ဆေးပြီး ပြန်ကြိုးစားပါ။'),
+        registration: t('This email may already have an account. Go back and sign in.', 'ဒီ email နဲ့ အကောင့်ရှိပြီးသား ဖြစ်နိုင်ပါတယ်။ နောက်ပြန်သွားပြီး အကောင့်ဝင်ပါ။'),
+        rate_limited: t('Too many attempts. Try again in 15 minutes.', 'အကြိမ်ရေ များသွားပါတယ်။ ၁၅ မိနစ်နောက် ပြန်ကြိုးစားပါ။'),
+      };
+      setError(messages[data.error || ''] || t('We couldn’t continue. Please try again.', 'ဆက်လုပ်၍ မရသေးပါ။ ပြန်ကြိုးစားပါ။'));
+    } catch {
+      setError(t('Couldn’t connect. Check your connection and try again.', 'ချိတ်ဆက်၍ မရပါ။ အင်တာနက် စစ်ဆေးပြီး ပြန်ကြိုးစားပါ။'));
+    } finally { inFlight.current = false; setBusy(false); onBusyChange?.(false); }
+  }
+
+  return <section className={'customer-auth customer-auth-progressive' + (onGuest ? ' customer-checkout-auth' : '')} aria-labelledby={titleId}>
+    <Title ref={heading} tabIndex={-1} id={titleId}>{title}</Title>
+    {step === 'email' ? <>
+      <p className="customer-auth-intro">{t('Choose how you’d like to continue.', 'အကောင့်ဝင်ရန် နည်းလမ်းရွေးပါ။')}</p>
+      <div className="customer-providers" aria-label={t('More sign-in methods coming soon', 'အခြား အကောင့်ဝင်နည်းများ မကြာမီ ရရှိပါမည်')}>
+        <button type="button" className="customer-provider" disabled><GoogleMark/><span>{t('Continue with Google', 'Google ဖြင့် ဝင်မယ်')}</span><small>Coming soon</small></button>
+        <button type="button" className="customer-provider" disabled><Image src="/assets/marks/telegram.svg" alt="" width={20} height={20} unoptimized /><span>{t('Continue with Telegram', 'Telegram ဖြင့် ဝင်မယ်')}</span><small>Coming soon</small></button>
+        <button type="button" className="customer-provider" disabled><Phone size={20} aria-hidden/><span>{t('Continue with phone', 'ဖုန်းနံပါတ်ဖြင့် ဝင်မယ်')}</span><small>Coming soon</small></button>
+      </div>
+      <div className="customer-auth-divider"><span>{t('or use email', 'သို့မဟုတ် email ဖြင့်')}</span></div>
+    </> : <div className="customer-auth-email"><span>{email}</span><button type="button" disabled={busy} onClick={back}><ArrowLeft size={14} aria-hidden/>{t('Back', 'ပြန်သွားရန်')}</button></div>}
+    {step === 'new-password' && <p className="customer-auth-intro" role="status">{t('There’s no account with this email yet. Choose a password to create one.', 'ဒီ email နဲ့ အကောင့်မရှိသေးပါ။ အကောင့်ဖွင့်ဖို့ စကားဝှက်အသစ် သတ်မှတ်ပါ။')}</p>}
+    <form key={step} onSubmit={submit} aria-busy={busy}>
+      {step === 'email' && <label>{t('Email address', 'အီးမေးလ်')}<input name="email" type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="username" autoCapitalize="none" maxLength={254} required disabled={busy}/></label>}
+      {(step === 'password' || step === 'new-password') && <>
+        <input type="hidden" name="email" autoComplete="username" value={email}/>
+        <label>{step === 'password' ? t('Password', 'စကားဝှက်') : t('Create a password', 'စကားဝှက်အသစ်')}<input name="password" type="password" autoComplete={step === 'password' ? 'current-password' : 'new-password'} minLength={step === 'new-password' ? 10 : undefined} maxLength={256} required disabled={busy} aria-describedby={step === 'new-password' ? hintId : undefined}/></label>
+        {step === 'new-password' && <small id={hintId}>{t('Use at least 10 characters.', 'အနည်းဆုံး စာလုံး ၁၀ လုံး သုံးပါ။')}</small>}
+      </>}
+      {step === 'name' && <label>{t('Your name', 'သင့်နာမည်')}<input name="name" autoComplete="name" maxLength={100} required disabled={busy}/></label>}
+      {error && <p role="alert" className="customer-error">{error}</p>}
+      <button type="submit" className="customer-primary" disabled={busy}>{busy ? t('Please wait…', 'ခဏစောင့်ပါ…') : step === 'name' ? t('Create account', 'အကောင့်ဖွင့်မယ်') : step === 'password' ? t('Log in', 'အကောင့်ဝင်မယ်') : t('Continue', 'ဆက်လုပ်မယ်')}<ArrowRight size={17} aria-hidden/></button>
+    </form>
+    {checkout && <div className="customer-auth-alternative">{onGuest ? <button type="button" className="customer-guest-link" disabled={busy} onClick={onGuest}>{t('Buy on Telegram instead', 'Telegram မှာ တိုက်ရိုက်ဝယ်မယ်')}<ArrowUpRight size={16} aria-hidden/></button>
+      // eslint-disable-next-line @next/next/no-html-link-for-pages -- Restore the checkout in a fresh storefront document.
+      : <a className="customer-guest-link" href="/?checkout=1">{t('Buy on Telegram instead', 'Telegram မှာ တိုက်ရိုက်ဝယ်မယ်')}<ArrowUpRight size={16} aria-hidden/></a>}</div>}
+  </section>;
+}

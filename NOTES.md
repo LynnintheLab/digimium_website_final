@@ -2,6 +2,8 @@
 
 ## Current status
 
+Customer login uses one shared chooser in Account, Order history and checkout. Google, Telegram and phone options are disabled Coming soon placeholders. Email-first sign-in asks existing customers for their password; new addresses choose a password then provide a name. There are no social-provider credentials, callbacks, SMS sending or customer-schema migrations in this release. See [LOGIN-PROVIDERS.md](docs/LOGIN-PROVIDERS.md) for future setup.
+
 The storefront, Account and Order history default to Myanmar. An explicit English language selection persists. The initial HTML language matches that preference; the English admin subtree is marked separately.
 
 Hostinger checkout offers Buy with an account or Buy on Telegram. Account login/registration stays inside the order popup and returns to the unchanged cart for review. Telegram-only checkout asks for no name or email and first explains that the purchase and expiry date will not appear in website history. That choice stays outside account history even if the browser is signed in. Both paths save an admin tracking record before opening a prepared Telegram message; customers send it and arrange payment and service access in the chat. Admin matches direct orders by reference and records dates. Older named guest orders and clients remain compatible. See [the deployment guide](docs/HOSTINGER.md) for schema permissions and backups.
@@ -31,6 +33,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Replaced the separate login/register forms with a shared email-first flow and clearly disabled Coming soon provider choices, as requested. Added a private, same-origin, rate-limited email routing endpoint that returns only the next step. Retained the original session, registration, password and checkout behavior. Documented future Google, Telegram and SMS setup using official provider guides. Node 24 build, types, 23 unit tests and the full disposable-MariaDB commerce integration passed. Chromium desktop English and WebKit 320px Myanmar verified all four customer login surfaces, the registration/password/name sequence, no customer creation before final submission, existing-password errors/recovery, and checkout returning to the original cart. Rendered chooser, password and checkout views were inspected. Real providers are intentionally disabled; no SMS or provider account was created.
 
 Made Myanmar the default and preserved explicit English across reloads and account/history routes. Replaced the guest-name step with a Telegram notice and two purchase choices in the cart. Reused login/register within the same native checkout dialog, with busy guards and a return to cart review. Text field focus uses a single fine border with an aligned keyboard outline. Narrow phones stack purchase buttons for readable Myanmar labels.
 
@@ -103,6 +107,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+When ready to add social/phone login, follow the provider setup guide, implement the identity/callback handling and carrier tests, then activate one provider at a time. Current buttons intentionally stay disabled until that work is complete.
 
 Check the checkout choices and account popup on a physical phone with its software keyboard and Telegram app. Guests refer to the Telegram order message; there is no automatic later account linking. Keep ALTER privilege on the order table for the first deployment migration and retain database backups.
 

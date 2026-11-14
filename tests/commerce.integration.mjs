@@ -36,6 +36,7 @@ function cookie(response, name) {
 }
 
 const customerSession = '/api/customer/session';
+const customerEmailStep = '/api/customer/email-step';
 const customerOrders = '/api/customer/orders';
 const adminCommerce = '/api/admin/commerce';
 const credentials = name => ({ action: 'register', name, email: name.toLowerCase() + '@example.invalid', password: randomUUID() });
@@ -87,9 +88,24 @@ try {
   assert.equal((await request(adminCommerce)).status, 401);
   const first = credentials('First');
   const second = credentials('Second');
+  assert.equal((await mutate(customerEmailStep, 'POST', { email: first.email }, '', 'https://foreign.invalid')).status, 403);
+  assert.deepEqual(await json(await mutate(customerEmailStep, 'POST', { email: first.email })), { next: 'register' });
+  for (const body of [{}, { email: 12 }, { email: '' }, { email: 'not an email' }, { email: 'first@example.invalid\nsecond@example.invalid' },
+    { email: first.email, action: 'login' }]) {
+    assert.equal((await mutate(customerEmailStep, 'POST', body)).status, 400);
+  }
   assert.equal((await mutate(customerSession, 'POST', first, '', 'https://foreign.invalid')).status, 403);
   const alice = await register(first);
   const bob = await register(second);
+  const emailStep = await mutate(customerEmailStep, 'POST', { email: '  ' + first.email.toUpperCase() + '  ' });
+  assert.deepEqual(await json(emailStep), { next: 'password' });
+  assert.equal(emailStep.headers.getSetCookie().length, 0, 'Email discovery cannot create a signed-in session');
+  assert.equal((await json(await request(customerSession))).customer, null);
+  const lookupEmail = 'lookup-limit@example.invalid';
+  for (let attempt = 0; attempt < 12; attempt++) {
+    assert.deepEqual(await json(await mutate(customerEmailStep, 'POST', { email: lookupEmail })), { next: 'register' });
+  }
+  assert.equal((await mutate(customerEmailStep, 'POST', { email: lookupEmail })).status, 429);
   assert.equal((await mutate(customerSession, 'POST', first)).status, 409);
   assert.equal((await mutate(customerSession, 'POST', { action: 'login', email: first.email, password: randomUUID() })).status, 401);
   assert.equal((await get(adminCommerce, alice.cookie)).status, 401);

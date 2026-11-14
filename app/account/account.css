@@ -166,3 +166,29 @@
   .customer-summary, .customer-heading { flex-wrap: wrap; gap: 4px 10px; }
   .customer-summary button, .customer-refresh { min-height: 44px; }
 }
+.customer-auth-progressive h1 { font-size: clamp(1.55rem, 3.2vw, 2rem); letter-spacing: -.025em; }
+.customer-auth-progressive :is(h1,h2):focus { outline: none; }
+.customer-auth-intro { margin-top: 8px; color: var(--muted); font-size: 14px; line-height: 1.8; }
+.customer-providers { display: grid; gap: 9px; margin-top: 22px; }
+.customer-auth.customer-auth-progressive button.customer-provider {
+  display: grid; grid-template-columns: 20px minmax(0,1fr) auto; align-items: center; gap: 10px;
+  width: 100%; min-height: 52px; padding: 11px 14px; border: 1px solid var(--line);
+  border-radius: 12px; background: var(--brand-surface); color: var(--brand-navy);
+  font: inherit; font-size: 14px; text-align: start; opacity: 1; cursor: default; text-decoration: none;
+}
+.customer-provider > svg, .customer-provider > img { flex: none; }
+.customer-auth-progressive .customer-provider small { margin: 0; color: var(--muted); font-size: 10px; white-space: nowrap; }
+.customer-auth-divider { display: flex; align-items: center; gap: 12px; margin-top: 22px; color: var(--muted); font-size: 12px; }
+.customer-auth-divider::before, .customer-auth-divider::after { content: ''; height: 1px; flex: 1; background: var(--line); }
+.customer-auth-progressive form { margin-top: 18px; }
+.customer-auth-progressive .customer-primary { width: 100%; min-height: 48px; font: inherit; font-weight: 600; }
+.customer-auth-progressive .customer-primary:disabled { opacity: .6; cursor: wait; }
+.customer-auth-email { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0; }
+.customer-auth-email > span { min-width: 0; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+.customer-auth.customer-auth-progressive .customer-auth-email button { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 4px 0; border: 0; background: transparent; color: var(--blue); font: inherit; font-size: 13px; }
+.customer-auth-alternative { margin-top: 15px; }
+.customer-auth-alternative .customer-guest-link { margin-top: 0; }
+@media (max-width: 400px) {
+  .customer-auth-progressive:not(.customer-checkout-auth) { padding: 22px 16px; border-radius: 14px; }
+  .customer-auth.customer-auth-progressive button.customer-provider { padding-inline: 11px; gap: 8px; font-size: 13px; }
+}

@@ -31,6 +31,8 @@ The starting catalog contains **54 products and 104 plan records**, with **50 pl
 
 Checkout offers Buy with an account or Buy on Telegram. Account sign-in and registration stay inside the order popup, then return to the cart for review. Telegram-only checkout asks for no name or email and explains that the purchase will not appear in website history; account checkout uses the signed-in customer’s name and email. Telegram-only orders appear in admin with a Guest label and reference and are not linked to a website account. Checkout opens a Telegram draft with the order reference and that identity. Customers send the message themselves. Payment and service-account delivery happen in Telegram, followed by manual website approval. MySQL stores customer records and order snapshots separately from the editable catalog.
 
+Customer login uses a shared email-first form. Google, Telegram and phone sign-in are Coming soon placeholders. See [future login provider setup](docs/LOGIN-PROVIDERS.md) for the required accounts and activation work.
+
 ## Quick start
 
 Install Git, GitHub CLI, and Node.js 24 with npm. The package declares Node.js 22.13 or later; Node.js 24 is recommended because the tests import TypeScript directly.
