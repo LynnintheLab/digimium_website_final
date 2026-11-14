@@ -2,6 +2,8 @@
 
 ## Current status
 
+Account and history now use a clearer type hierarchy: bold customer/service names, separate plan/duration/unit-price lines, prominent totals and distinct pending/approved labels. Latin text uses Manrope and Myanmar glyphs use Wa Lone in account body and headings. Active terms use emerald, urgent/pending use amber, expired terms use muted red, and other states retain their labels. The white account panel keeps its heading/close control pinned while scrolling; pending Telegram instructions appear once per section with a clear action on each order.
+
 Customer login uses one shared chooser in Account, Order history and checkout. Google, Telegram and phone options are disabled Coming soon placeholders. Email-first sign-in asks existing customers for their password; new addresses choose a password then provide a name. There are no social-provider credentials, callbacks, SMS sending or customer-schema migrations in this release. See [LOGIN-PROVIDERS.md](docs/LOGIN-PROVIDERS.md) for future setup.
 
 The storefront, Account and Order history default to Myanmar. An explicit English language selection persists. The initial HTML language matches that preference; the English admin subtree is marked separately.
@@ -33,6 +35,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Refined account/history clarity from the owner’s screenshots using the existing fonts, stronger weights, restrained status colors and clearer grouping. Localized unit prices/totals consistently, kept quantity separate, and removed repeated long Telegram guidance from each order. Kept all pending orders, the three-line history preview, full history dates and Telegram draft behavior. Node 24 standalone build, types, focused ESLint and all 23 unit tests passed. Chromium1440/390 English and WebKit320 Myanmar fixtures covered long emails/plans, duplicate-service subscriptions, active/expired/urgent states, three pending orders, no overflow and a pinned panel heading.
 
 Replaced the separate login/register forms with a shared email-first flow and clearly disabled Coming soon provider choices, as requested. Added a private, same-origin, rate-limited email routing endpoint that returns only the next step. Retained the original session, registration, password and checkout behavior. Documented future Google, Telegram and SMS setup using official provider guides. Node 24 build, types, 23 unit tests and the full disposable-MariaDB commerce integration passed. Chromium desktop English and WebKit 320px Myanmar verified all four customer login surfaces, the registration/password/name sequence, no customer creation before final submission, existing-password errors/recovery, and checkout returning to the original cart. Rendered chooser, password and checkout views were inspected. Real providers are intentionally disabled; no SMS or provider account was created.
 

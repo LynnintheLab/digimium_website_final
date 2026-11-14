@@ -192,3 +192,60 @@
   .customer-auth-progressive:not(.customer-checkout-auth) { padding: 22px 16px; border-radius: 14px; }
   .customer-auth.customer-auth-progressive button.customer-provider { padding-inline: 11px; gap: 8px; font-size: 13px; }
 }
+
+/* Readable account hierarchy: identity, subscriptions, then pending actions. */
+.customer-page[lang], .customer-page[lang] :is(h1,h2,h3) { font-family: Manrope, Walone, sans-serif; }
+.customer-dashboard { --account-ink: #17233b; --account-muted: #586278; color: var(--account-ink); }
+.customer-dashboard :is(h1,h2,h3) { font-weight: 700; }
+.customer-dashboard .customer-summary { padding-bottom: 18px; gap: 14px; }
+.customer-dashboard .customer-summary p { display: grid; gap: 4px; margin-top: 0; }
+.customer-profile-name { font-size: 22px; line-height: 1.4; font-weight: 700; letter-spacing: -.02em; }
+.customer-summary p .customer-profile-email { word-break: break-all; color: var(--account-muted); font-size: 13px; line-height: 1.7; }
+.customer-dashboard .customer-member-since { margin-top: 6px; color: var(--account-muted); font-size: 12px; }
+.customer-dashboard .customer-summary > button { color: var(--account-muted); font-size: 12px; }
+.customer-dashboard .customer-password { margin-top: 8px; padding-bottom: 8px; }
+.customer-dashboard .customer-password summary { font-size: 13px; font-weight: 500; color: var(--account-muted); }
+.customer-dashboard .customer-heading { align-items: center; gap: 10px; }
+.customer-dashboard .customer-heading h2 { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; font-size: 17px; font-weight: 700; color: var(--brand-navy); }
+.customer-dashboard .customer-section { margin-top: 26px; }
+.customer-section-count { display: inline-grid; place-items: center; min-width: 24px; padding: 1px 6px; border-radius: 5px; font-size: 12px; font-weight: 700; line-height: 1.8; background: #fdf0d8; color: #7b5014; }
+.customer-section-help { margin-top: 6px; color: var(--account-muted); font-size: 13px; line-height: 1.8; }
+.customer-dashboard .customer-recent-list { margin-top: 4px; }
+.customer-dashboard .customer-recent-list > li { padding-block: 16px; }
+.customer-dashboard .customer-item-title { align-items: start; gap: 10px; font-size: 17px; line-height: 1.5; }
+.customer-dashboard .customer-item-title strong { font-weight: 700; color: var(--account-ink); }
+.customer-dashboard .customer-item-title > span { padding: 2px 6px; border-radius: 4px; background: #f0f2f6; color: #586278; font-size: 11px; line-height: 1.7; }
+.customer-dashboard .customer-item-plan { margin-top: 4px; font-size: 14px; font-weight: 500; color: #3f4b63; line-height: 1.65; }
+.customer-item-duration, .customer-item-meta { margin-top: 5px; color: var(--account-muted); font-size: 12px; line-height: 1.7; }
+.customer-item-meta { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; }
+.customer-unit-price { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 5px; }
+.customer-unit-price small { font-size: 11px; }
+.customer-unit-price strong { font-size: 14px; font-weight: 700; color: var(--account-ink); font-variant-numeric: tabular-nums; }
+.customer-dashboard .customer-order { margin-top: 12px; padding: 18px; border-radius: 12px; }
+.customer-dashboard .customer-order-meta { align-items: flex-start; gap: 12px; font-size: 12px; }
+.customer-order-meta h3 { color: var(--account-ink); font-weight: 700; line-height: 1.6; }
+.customer-order-meta time { display: block; margin-top: 3px; font-size: 11px; color: var(--account-muted); }
+.customer-order-status { flex: none; padding: 3px 7px; border-radius: 5px; color: #7b5014; background: #fdf0d8; font-size: 11px; font-weight: 700; line-height: 1.7; }
+.customer-order[data-status="approved"] .customer-order-status { color: #17684f; background: #eaf6f0; }
+.customer-dashboard .customer-lines { margin-top: 12px; }
+.customer-dashboard .customer-lines > li { padding-block: 14px; }
+.customer-dashboard .customer-total { padding-block: 12px; color: var(--account-muted); font-size: 12px; }
+.customer-total strong { color: var(--brand-navy); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.customer-dashboard .customer-telegram { margin: 0 -18px -18px; padding: 12px 18px; border-top: 1px solid var(--line); border-radius: 0 0 12px 12px; background: var(--brand-surface); }
+.customer-telegram-actions { margin-top: 0; gap: 4px 14px; }
+.customer-dashboard .customer-telegram-link { min-height: 40px; padding: 7px 10px; border-radius: 6px; background: var(--blue); color: #fff; font-size: 12px; font-weight: 600; text-decoration: none; }
+.customer-telegram-link:hover { background: var(--brand-secondary); }
+.customer-dashboard .customer-telegram-actions > button { min-height: 40px; font-size: 12px; color: var(--account-muted); text-decoration: underline; text-underline-offset: 3px; }
+.customer-telegram > :is(p,label) { margin-top: 8px; }
+.customer-embedded .customer-main:has(.customer-dashboard) { padding-top: 20px; background: #fff; }
+.customer-embedded .customer-profile-name { font-size: 21px; }
+.customer-history-link { font-size: 12px; }
+.customer-dashboard .customer-empty { color: var(--account-muted); font-size: 13px; }
+@media (max-width: 400px) {
+  .customer-dashboard .customer-heading { flex-wrap: wrap; gap: 2px 8px; }
+  .customer-dashboard .customer-item-title { font-size: 16px; }
+  .customer-profile-name { font-size: 20px; }
+  .customer-dashboard .customer-order { padding: 14px; }
+  .customer-dashboard .customer-telegram { margin-inline: -14px; margin-bottom: -14px; padding-inline: 14px; }
+  .customer-dashboard .customer-order-meta { gap: 8px; }
+}
