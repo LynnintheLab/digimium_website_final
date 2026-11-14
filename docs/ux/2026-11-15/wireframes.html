@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="my" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Digimium — Older-user UX wireframes</title>
+<style>
+@font-face{font-family:Manrope;src:url('../../../public/assets/fonts/manrope-400.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:Manrope;src:url('../../../public/assets/fonts/manrope-700.woff2') format('woff2');font-weight:700;font-display:swap}
+@font-face{font-family:Walone;src:url('../../../public/assets/fonts/walone-regular.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:Walone;src:url('../../../public/assets/fonts/walone-bold.woff2') format('woff2');font-weight:700;font-display:swap}
+:root{--blue:#1f45b8;--navy:#051650;--ink:#20242e;--muted:#4d5871;--line:#b9c0d0;--soft:#eef1f8;--surface:#fff;--canvas:#e2e7f6}
+*{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(140deg,#e2e7f6,#f2f1fa);font:16px/1.75 Manrope,Walone,sans-serif}button,input{font:inherit;color:inherit}button,a,label,input{touch-action:manipulation}button{cursor:pointer}button:disabled{cursor:default}button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:4px}button{min-height:48px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:10px 16px;white-space:normal;overflow-wrap:anywhere}a{color:var(--blue)}h1,h2,h3,p{margin:0}h1{font:700 28px/1.4 Manrope,Walone,sans-serif}h2{font-size:23px;line-height:1.7}h3{font-size:20px;line-height:1.75}small,.small{font-size:15px}.muted{color:var(--muted)}.english{font-family:Manrope,sans-serif;line-height:1.6}.viewer{max-width:1320px;margin:auto;padding:32px 28px 48px}.viewer-header{display:grid;gap:10px;max-width:900px}.eyebrow{font:700 13px/1.6 Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--blue)}.viewer-intro{max-width:74ch}.viewer-nav{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0 14px}.viewer-nav button{font-size:14px;min-height:44px;padding:8px 12px}.viewer-nav button[aria-current=step]{background:var(--navy);color:white;border-color:var(--navy)}.viewer-options{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:24px}.overview-label{display:flex;align-items:center;gap:9px;min-height:44px;cursor:pointer}.overview-label input{width:22px;height:22px}.viewer-counter{margin-right:auto;font-size:14px}.viewer-prev,.viewer-next{font-size:14px;min-height:44px;padding:8px 14px}.workspace{display:grid;grid-template-columns:minmax(0,470px) minmax(0,1fr);gap:36px;align-items:start;justify-content:center}.screens{min-width:0}.screen{display:none;min-width:0}.screen.active{display:block}.screen-label{font:700 14px/1.6 Manrope,sans-serif;margin:0 0 10px;color:var(--navy)}.phone{background:var(--surface);border:2px solid #8a92a4;border-radius:20px;overflow:hidden;box-shadow:0 14px 35px #05165012}.phone-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:16px 20px;border-bottom:1px solid var(--line)}.wordmark{font:700 24px/1.5 Manrope,sans-serif;color:var(--navy)}.demo-badge{font-size:13px;background:var(--soft);padding:3px 8px;border-radius:5px;color:var(--muted)}.phone-content{padding:22px 20px;display:grid;gap:22px;font-family:Walone,Manrope,sans-serif;font-size:18px;line-height:1.95}.phone-content h2,.phone-content h3{font-family:Walone,Manrope,sans-serif}.phone-content button,.phone-content input{font-family:Walone,Manrope,sans-serif;line-height:1.9}.phone-footer{padding:18px 20px;border-top:1px solid var(--line);display:grid;gap:10px;background:#f8f9fc}.phone-footer button{font-family:Walone,Manrope,sans-serif;font-size:18px;line-height:1.9}.primary{background:var(--blue);color:white;border-color:var(--blue);font-weight:700}.secondary{border-color:#838d9f;background:#fff}.quiet{background:transparent}.full{width:100%}.stack{display:grid;gap:12px}.stack-tight{display:grid;gap:6px}.row{display:flex;align-items:center;justify-content:space-between;gap:14px}.row>*{min-width:0}.row-wrap{flex-wrap:wrap}.service-mark{display:grid;place-items:center;width:48px;height:48px;background:#eef0f4;border:1px solid var(--line);border-radius:10px;flex:none;font:700 22px/1.2 Manrope,sans-serif}.service-mark img{width:31px;height:31px;object-fit:contain;filter:grayscale(1)}.service-title{display:flex;align-items:center;gap:13px}.service-title>div:last-child{min-width:0}.service-title strong{font:700 21px/1.5 Manrope,sans-serif}.rule{height:1px;background:var(--line)}.product-row{border:1px solid var(--line);padding:18px;border-radius:8px;display:grid;gap:12px}.product-row p{color:var(--muted)}.price{font:700 23px/1.5 Manrope,sans-serif;color:var(--navy)}.product-row button{width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:10px}.field{display:grid;gap:8px}.field input{width:100%;min-width:0;border:1px solid #8a92a4;border-radius:7px;padding:12px;font-size:18px;min-height:52px;background:#fff}.search-input{font-size:18px}.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button{flex:1;font-size:16px;min-width:110px}.tabs button[aria-pressed=true]{background:var(--navy);color:#fff;border-color:var(--navy)}.plan-field{padding:0;border:0;margin:0;min-width:0}.plan-field legend{margin-bottom:12px;font-weight:700}.plan-option{border:2px solid var(--blue);background:#f4f6fb;padding:16px;border-radius:8px;display:flex;align-items:flex-start;gap:12px;cursor:pointer}.plan-option input{width:23px;height:23px;margin:10px 0 0;flex:none}.plan-option .stack-tight{min-width:0;flex:1}.plan-details{margin:0;padding-left:25px;color:var(--muted)}.notice{background:#f1f3f8;border-left:4px solid var(--blue);padding:14px 16px;border-radius:0 6px 6px 0;font-size:16px;line-height:1.95}.notice strong{display:block;color:var(--navy)}.step-label{font-size:15px;color:var(--muted)}.quantity{display:flex;align-items:center;gap:15px}.quantity button{width:48px;padding:7px;font-family:Manrope,sans-serif!important;font-size:22px!important}.quantity output{font-family:Manrope,sans-serif;min-width:1.5ch;text-align:center}.summary-list{display:grid;gap:12px;margin:0}.summary-list>div{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}.summary-list dt{color:var(--muted)}.summary-list dd{margin:0;text-align:right;font-weight:700}.total{padding-top:16px;border-top:1px solid var(--line)}.choice{display:grid;gap:6px;text-align:left;width:100%;padding:16px;border:2px solid #8a92a4}.choice strong{font-size:18px}.choice span{font-size:16px}.choice[data-choice=account]{border-color:var(--blue);background:#f3f6ff}.choice[data-choice=guest]{background:#fafafa}.benefit{font-size:15px;color:var(--muted)}.provider{display:flex;align-items:center;gap:12px;text-align:left;width:100%;font-size:18px}.provider-mark{display:grid;place-items:center;font:700 21px/1.5 Manrope,sans-serif;width:24px;flex:none}.provider.future{color:#596175;background:#f1f2f5;border-style:dashed}.provider .future-label{margin-left:auto;font-size:14px}.divider{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:15px}.divider:before,.divider:after{content:"";height:1px;background:var(--line);flex:1}.password-row{display:flex;gap:8px;align-items:stretch}.password-row input{flex:1;width:0;min-width:0}.password-row button{font-size:15px;padding:8px 12px;min-width:64px}.help-box{padding:14px;background:#f1f3f8;border:1px dashed #8a92a4;font-size:16px}.reference{padding:16px;border:1px solid #8a92a4;border-radius:7px;text-align:center}.reference small{display:block}.reference strong{font:700 26px/1.7 Manrope,sans-serif;color:var(--navy)}.instructions{padding-left:26px;margin:0;display:grid;gap:9px}.receipt-status{font-size:16px}.state-chip{display:inline-flex;align-items:center;gap:6px;font-size:15px;font-family:Walone,Manrope,sans-serif;background:#eef0f4;padding:4px 10px;border:1px solid #a1a8b5;border-radius:6px;width:max-content;max-width:100%}.days{display:flex;align-items:baseline;gap:8px;color:var(--navy);flex-wrap:wrap}.days strong{font:700 38px/1.35 Manrope,sans-serif}.term-track{height:12px;background:#e1e5ed;border-radius:3px;overflow:hidden}.term-track>span{height:100%;display:block;background:var(--blue);width:77%}.dates{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0}.dates dt{font-size:15px;color:var(--muted)}.dates dd{margin:4px 0 0;font-family:Manrope,sans-serif;font-size:16px;font-weight:700}.date-help{font-size:14px}.history-card{display:grid;gap:14px;padding:18px;border:1px solid #a4acba;border-radius:8px}.annotation{display:none;padding:6px 0 0;max-width:640px}.annotation.active{display:block}.annotation h2{font:700 22px/1.4 Manrope,Walone,sans-serif}.annotation ol{margin:18px 0 0;padding-left:25px;display:grid;gap:18px}.annotation li{padding-left:4px}.annotation strong{color:var(--navy)}.annotation .evidence{display:block;font:400 13px/1.7 Manrope,sans-serif;color:var(--muted);margin-top:5px}.annotation .scope{margin-top:24px;padding:16px;background:#ffffff70;border-radius:8px;border:1px solid #bfc5d6}.overview .workspace{display:block}.overview .screens{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px 22px;align-items:start}.overview .screen{display:block}.overview .phone-content{padding:18px 16px}.overview .phone-header,.overview .phone-footer{padding:15px 16px}.overview .annotation{display:none}.overview-key{display:none;margin-top:28px;padding-top:20px;border-top:1px solid var(--line)}.overview .overview-key{display:block}.overview-key ol{columns:2;column-gap:36px;padding-left:24px}.overview-key li{break-inside:avoid;margin-bottom:12px}.viewer-status{margin-top:20px;min-height:30px;color:var(--navy);font-size:15px}button[hidden],[hidden]{display:none!important}.footnote{margin-top:28px;padding-top:18px;border-top:1px solid var(--line);font-size:14px;color:var(--muted)}
+@media(max-width:1000px){.workspace{grid-template-columns:minmax(0,440px) minmax(0,1fr);gap:24px}.overview .screens{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.viewer{padding:22px 16px 32px}.workspace{grid-template-columns:minmax(0,470px);justify-content:center}.annotation{max-width:470px}.overview .screens{grid-template-columns:minmax(0,470px);justify-content:center}.overview-key ol{columns:auto}.viewer-nav{gap:7px}.viewer-nav button{flex:1;min-width:90px}.viewer-header h1{font-size:25px}.viewer-counter{flex-basis:100%}}
+@media(max-width:370px){.viewer{padding:18px 10px 28px}.phone-content{padding:20px 15px;font-size:17px;gap:20px}.phone-header,.phone-footer{padding:16px 15px}.phone-content h2{font-size:22px}.phone-content h3{font-size:19px}.dates{grid-template-columns:1fr}.phone-footer button{font-size:17px}.viewer-prev,.viewer-next{flex:1}.row-wrap{align-items:flex-start}.summary-list dd{text-align:left}.choice{padding:14px}.provider{font-size:17px}.provider .future-label{font-size:13px}.password-row{flex-wrap:wrap}.password-row input{width:100%;flex-basis:100%}.password-row button{width:100%}}
+@media print{body{background:white}.viewer{max-width:none;padding:0}.viewer-nav,.viewer-options,.viewer-status,.annotation,.viewer-intro{display:none}.workspace{display:block}.screens{display:grid;grid-template-columns:1fr 1fr;gap:20px}.screen{display:block;break-inside:avoid}.phone{box-shadow:none}.viewer-header{margin-bottom:20px}.overview-key{display:block}.footnote{font-size:11px}}
+.shell-controls{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}.shell-controls button{flex:1;min-width:120px;font-size:14px;line-height:1.8}.shell-controls button[aria-pressed=true]{background:var(--navy);color:#fff;border-color:var(--navy)}.mobile-links{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;padding:6px;background:#f1f3f8;border-top:1px solid #919aad}.mobile-links button{border:0;border-radius:5px;background:transparent;padding:8px 3px;font-family:Walone,Manrope,sans-serif;font-size:15px;line-height:1.9;min-height:56px;min-width:0}.mobile-links button[aria-current=page]{background:#dfe6f8;color:var(--navy);font-weight:700}.mobile-top-links{display:none;border-top:0;border-bottom:1px solid #919aad}.mobile-bottom-links{border-bottom:0}#wireframe-viewer[data-shell=top] .mobile-top-links{display:grid}#wireframe-viewer[data-shell=top] .mobile-bottom-links{display:none}.payment-strip{display:grid;gap:7px;padding:14px 20px;background:#eef1f8;border-bottom:1px solid #b9c0d0;font-family:Walone,Manrope,sans-serif;font-size:15px;line-height:1.9}.payment-strip strong{font-size:16px}.payment-methods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.payment-method{background:white;border:1px solid #a5adbd;border-radius:5px;padding:7px 5px;display:grid;justify-items:center;align-content:center;gap:4px;min-width:0;font:700 14px/1.6 Manrope,sans-serif}.payment-method img{display:block;width:auto;max-width:64px;height:32px;object-fit:contain}.payment-example{font-size:13px;color:var(--muted)}.payment-repeat{padding:14px;border:1px dashed #8a92a4;border-radius:7px;display:grid;gap:8px}.shell-note{display:inline-block;background:#e2e7f6;color:var(--navy);padding:3px 7px;border-radius:4px;font-size:13px}
+@media(max-width:370px){.mobile-links{padding:5px;gap:2px}.mobile-links button{font-size:14px;padding:8px 2px}.payment-strip{padding:14px 15px}}
+.catalog-phone{height:780px;display:flex;flex-direction:column}.catalog-phone>.phone-header,.catalog-phone>.mobile-links{flex-shrink:0}.catalog-scroll{min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#8a92a4 #eef1f8}.catalog-scroll:focus-visible{outline:3px solid var(--blue);outline-offset:-3px}.catalog-scroll-hint{font-size:14px;color:var(--muted);margin:-3px 0 12px}.overview .catalog-phone{height:auto}.overview .catalog-scroll{overflow:visible}.catalog-phone .payment-strip{gap:6px}.catalog-phone .payment-strip p{font-size:15px}.catalog-phone .payment-method{padding:5px;gap:3px}.catalog-phone .payment-method img{height:28px}
+@media(min-width:371px){.catalog-phone .payment-methods{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media print{.catalog-phone{height:auto}.catalog-scroll{overflow:visible}.catalog-scroll-hint{display:none}}
+</style>
+</head>
+<body>
+<main class="viewer" id="wireframe-viewer">
+  <header class="viewer-header">
+    <p class="eyebrow">Digimium · UX review · 15 Nov 2026</p>
+    <h1>အသုံးပြုရလွယ်စေမည့် မျက်နှာပြင် နမူနာများ</h1>
+    <p class="viewer-intro">လက်ရှိ website ကို ပြင်ထားခြင်း မဟုတ်ပါ။ အောက်ပါပုံစံများကို နှိပ်ကြည့်ပြီး ဝယ်ယူမှုအဆင့်ဆင့်ကို စမ်းကြည့်နိုင်ပါတယ်။ ဈေးနှုန်း၊ ရက်စွဲ၊ အော်ဒါအမှတ် အားလုံးသည် ရှင်းပြရန် နမူနာများသာ ဖြစ်ပါသည်။</p>
+  </header>
+  <nav class="viewer-nav" aria-label="နမူနာမျက်နှာပြင် ရွေးရန်">
+    <button type="button" data-screen="1" aria-current="step">၁။ ပစ္စည်းရှာ</button>
+    <button type="button" data-screen="2">၂။ အစီအစဉ်ရွေး</button>
+    <button type="button" data-screen="3">၃။ ပြန်စစ်</button>
+    <button type="button" data-screen="4">၄။ အကောင့်ဝင်</button>
+    <button type="button" data-screen="5">၅။ Telegram ပို့</button>
+    <button type="button" data-screen="6">၆။ မှတ်တမ်းကြည့်</button>
+  </nav>
+  <div class="viewer-options">
+    <span class="viewer-counter" id="screen-counter">မျက်နှာပြင် ၁ / ၆</span>
+    <label class="overview-label"><input type="checkbox" id="show-all"> အားလုံးကို ယှဉ်ကြည့်မယ်</label>
+    <button type="button" class="viewer-prev" id="previous-screen">← ရှေ့တစ်ဆင့်</button>
+    <button type="button" class="viewer-next" id="next-screen">နောက်တစ်ဆင့် →</button>
+  </div>
+  <div class="workspace">
+  <div class="screens">
+    <section class="screen active" data-page="1" aria-labelledby="screen-title-1">
+      <h2 class="screen-label" id="screen-title-1">01 / Catalog — readable single column</h2>
+      <div class="shell-controls" role="group" aria-label="Mobile navigation ပုံစံ နှိုင်းယှဉ်ရန်"><button type="button" data-shell-choice="bottom" aria-pressed="true">A · အောက်ခြေမီနူး<br><span class="small">အကြံပြုထားသည်</span></button><button type="button" data-shell-choice="top" aria-pressed="false">B · အပေါ်မီနူး<br><span class="small">ယှဉ်ကြည့်ရန်</span></button></div>
+      <p class="catalog-scroll-hint">အလယ်က စာရင်းကို အပေါ်အောက် ရွှေ့ကြည့်ပါ။ မီနူးလေးခုကို ဆက်မြင်နေရပါမယ်။</p>
+      <div class="phone catalog-phone">
+        <header class="phone-header"><span class="wordmark">digimium.</span><span class="demo-badge">နမူနာ</span></header>
+        <nav class="mobile-links mobile-top-links" aria-label="အပေါ်မီနူး နမူနာ"><button type="button" data-goto="1" aria-current="page">ပစ္စည်းများ</button><button type="button" data-goto="3">ဈေးခြင်း</button><button type="button" data-goto="6">မှတ်တမ်း</button><button type="button" data-goto="4">အကောင့်</button></nav>
+        <div class="catalog-scroll" role="region" aria-label="အပေါ်အောက် ရွှေ့ကြည့်နိုင်သော ဝန်ဆောင်မှုစာရင်း" tabindex="0">
+        <div class="payment-strip"><strong>ပေးချေနိုင်သော နည်းလမ်းများ</strong><div class="payment-methods"><span class="payment-method"><img src="assets/payments/kbzpay.jpg" alt=""><span>KBZPay</span></span><span class="payment-method"><img src="assets/payments/wavepay.jpg" alt=""><span>Wave</span></span><span class="payment-method"><img src="assets/payments/ayapay.jpg" alt=""><span>AYA Pay</span></span><span class="payment-method"><img src="assets/payments/uabpay.jpg" alt=""><span>uabpay</span></span><span class="payment-method"><img src="assets/payments/binance.png" alt=""><span>Binance</span></span></div><p>ငွေပေးချေမှုကို Telegram မှာ ဆက်လုပ်ပါ။</p></div>
+        <div class="phone-content">
+          <h2>ဘာဝန်ဆောင်မှု လိုချင်ပါသလဲ?</h2>
+          <label class="field">လိုချင်တဲ့ ဝန်ဆောင်မှုကို ရှာပါ<input class="search-input" id="catalog-search" type="search" placeholder="ဥပမာ — Spotify" autocomplete="off"></label>
+          <p class="muted small">မသေချာရင် ဆိုင်ကို အရင်မေးနိုင်ပါတယ်။</p>
+          <article class="product-row" id="spotify-result">
+            <div class="service-title"><span class="service-mark"><img src="../../../public/assets/marks/spotify.svg" alt=""></span><div><strong>Spotify</strong><p class="small">သီချင်းနားထောင်ရန်</p></div></div>
+            <div class="row row-wrap"><span>Individual · ၁ လ</span><strong class="price">16,000 <small>ကျပ်</small></strong></div>
+            <button type="button" class="secondary" data-goto="2">အစီအစဉ်နဲ့ ဈေးနှုန်း ကြည့်မယ် <span aria-hidden="true">→</span></button>
+          </article>
+          <p id="search-empty" class="notice" hidden>မတွေ့သေးပါ။ “Spotify” လို့ ရှာကြည့်ပါ။</p>
+          <button type="button" class="quiet" data-help="catalog">ဝယ်ဖို့ အကူအညီတောင်းမယ်</button>
+        </div>
+        </div>
+        <nav class="mobile-links mobile-bottom-links" aria-label="အောက်ခြေမီနူး နမူနာ"><button type="button" data-goto="1" aria-current="page">ပစ္စည်းများ</button><button type="button" data-goto="3">ဈေးခြင်း</button><button type="button" data-goto="6">မှတ်တမ်း</button><button type="button" data-goto="4">အကောင့်</button></nav>
+      </div>
+    </section>
+    <section class="screen" data-page="2" aria-labelledby="screen-title-2">
+      <h2 class="screen-label" id="screen-title-2">02 / Plan — clear Myanmar actions</h2>
+      <div class="phone">
+        <header class="phone-header"><span class="wordmark">digimium.</span><span class="demo-badge">နမူနာ</span></header>
+        <div class="phone-content">
+          <p class="step-label">အစီအစဉ် ရွေးပါ</p>
+          <div class="service-title"><span class="service-mark"><img src="../../../public/assets/marks/spotify.svg" alt=""></span><div><strong>Spotify</strong><p class="small muted">သီချင်းနားထောင်ရန်</p></div></div>
+          <fieldset class="plan-field"><legend>ဘယ်အစီအစဉ်ကို ဝယ်မလဲ?</legend>
+            <label class="plan-option"><input type="radio" name="sample-plan" value="spotify-month" checked><span class="stack-tight"><strong>Spotify Individual</strong><span>သက်တမ်း — ၁ လ</span><strong class="price">16,000 <small>ကျပ်</small></strong></span></label>
+          </fieldset>
+          <div class="notice"><strong>ငွေပေးချေမှုကို Telegram မှာ ဆက်လုပ်ပါမယ်</strong>အခုနှိပ်ရင် အော်ဒါကို အရင်ပြန်စစ်နိုင်ပါတယ်။ ဒီအဆင့်မှာ ငွေပေးချေရမှာ မဟုတ်ပါ။</div>
+        </div>
+        <footer class="phone-footer"><button type="button" class="primary" data-goto="3">အော်ဒါ ပြန်စစ်မယ် →</button><button type="button" class="secondary" id="add-cart">ဈေးခြင်းထဲ ထည့်မယ်</button><button type="button" class="quiet" data-goto="1">ပစ္စည်းစာရင်းကို ပြန်သွားမယ်</button></footer>
+      </div>
+    </section>
+    <section class="screen" data-page="3" aria-labelledby="screen-title-3">
+      <h2 class="screen-label" id="screen-title-3">03 / Review — choose by history benefit</h2>
+      <div class="phone">
+        <header class="phone-header"><span class="wordmark">digimium.</span><span class="demo-badge">နမူနာ</span></header>
+        <div class="phone-content">
+          <h2>သင့်အော်ဒါကို ပြန်စစ်ပါ</h2>
+          <div class="stack-tight"><h3>Spotify Individual</h3><p class="muted">သက်တမ်း — ၁ လ</p><p class="small">တစ်ခုလျှင် <span class="english">16,000</span> ကျပ်</p></div>
+          <div class="row row-wrap"><span>အရေအတွက်</span><div class="quantity"><button type="button" id="quantity-minus" aria-label="အရေအတွက် လျှော့မယ်">−</button><output id="quantity-value">1</output><button type="button" id="quantity-plus" aria-label="အရေအတွက် တိုးမယ်">+</button></div></div>
+          <div class="row row-wrap total"><strong>စုစုပေါင်း</strong><strong class="price" data-total>16,000 <small>ကျပ်</small></strong></div>
+          <div class="payment-repeat"><strong>ပေးချေနိုင်သော နည်းလမ်းများ</strong><div class="payment-methods"><span class="payment-method"><img src="assets/payments/kbzpay.jpg" alt=""><span>KBZPay</span></span><span class="payment-method"><img src="assets/payments/wavepay.jpg" alt=""><span>Wave</span></span><span class="payment-method"><img src="assets/payments/ayapay.jpg" alt=""><span>AYA Pay</span></span><span class="payment-method"><img src="assets/payments/uabpay.jpg" alt=""><span>uabpay</span></span><span class="payment-method"><img src="assets/payments/binance.png" alt=""><span>Binance</span></span></div><p class="small">ငွေပေးချေမှုကို Telegram မှာ ဆက်လုပ်ပါ။ ဆိုင်နဲ့ ဈေးနှုန်းအတည်ပြုပြီးမှ ငွေပေးချေပါ။</p></div>
+          <div class="notice"><strong>နည်းလမ်းနှစ်ခုလုံးမှာ Telegram ကို ဆက်သွားရပါမယ်</strong>ကွာခြားချက်က website မှာ ဝယ်ယူမှုမှတ်တမ်းနဲ့ သက်တမ်းကို ပြန်ကြည့်နိုင်ခြင်းပါ။</div>
+          <div class="stack">
+            <button type="button" class="choice" data-choice="account"><strong>အကောင့်နဲ့ ဆက်ဝယ်မယ် →</strong><span>ဝယ်ထားတာနဲ့ သက်တမ်းကို website မှာ ပြန်ကြည့်နိုင်မယ်</span></button>
+            <button type="button" class="choice" data-choice="guest"><strong>အကောင့်မသုံးဘဲ ဆက်ဝယ်မယ် →</strong><span>website မှာ မှတ်တမ်း မပေါ်ပါ။ Telegram က အော်ဒါစာကို သိမ်းထားရပါမယ်။</span></button>
+          </div>
+          <p class="benefit" id="review-account-state">နမူနာအကောင့် ဝင်မထားသေးပါ။</p>
+        </div>
+        <footer class="phone-footer"><button type="button" class="quiet" data-goto="2">အစီအစဉ် ပြန်ရွေးမယ်</button></footer>
+      </div>
+    </section>
+    <section class="screen" data-page="4" aria-labelledby="screen-title-4">
+      <h2 class="screen-label" id="screen-title-4">04 / Login — available paths and assistance</h2>
+      <div class="phone">
+        <header class="phone-header"><span class="wordmark">digimium.</span><span class="demo-badge">နမူနာ</span></header>
+        <div class="phone-content">
+          <div class="stack-tight"><h2>အကောင့်ဝင် / အသစ်ဖွင့်မယ်</h2><p class="muted small">ဝယ်ထားတာတွေကို နောက်တစ်ခါ ပြန်ကြည့်နိုင်ဖို့ပါ။</p></div>
+          <div class="stack"><button type="button" class="provider" data-login="Google"><span class="provider-mark" aria-hidden="true">G</span> Google ဖြင့် ဝင်မယ်</button><button type="button" class="provider" data-login="Telegram"><span class="provider-mark" aria-hidden="true">↗</span> Telegram ဖြင့် ဝင်မယ်</button><div class="provider future notice"><span>ဖုန်းနံပါတ်ဖြင့် ဝင်ရန်</span><span class="future-label">မရသေးပါ</span></div></div>
+          <div class="divider">သို့မဟုတ် Email ဖြင့်</div>
+          <label class="field">အီးမေးလ်<input type="email" id="demo-email" value="sample@example.com" readonly aria-describedby="demo-login-note"></label>
+          <button type="button" class="secondary" id="email-continue">Email ဖြင့် ဆက်မယ်</button>
+          <div class="stack" id="password-section" hidden>
+            <label class="field" for="demo-password">စကားဝှက်</label><div class="password-row"><input id="demo-password" type="password" value="DemoPassword123" readonly aria-describedby="demo-login-note"><button type="button" id="toggle-password" aria-pressed="false">ပြမယ်</button></div>
+            <button type="button" class="primary" data-login="Email">အကောင့်ဝင်မယ်</button>
+            <button type="button" class="quiet" id="password-help" aria-expanded="false" aria-controls="password-assistance">စကားဝှက်အတွက် အကူအညီလိုပါသလား?</button>
+            <div class="help-box" id="password-assistance" hidden><strong>ဆိုင်ကို အကူအညီတောင်းပါ</strong><p>ဤနေရာက အကူအညီပုံစံ နမူနာသာဖြစ်ပါတယ်။ လက်ရှိ website မှာ စကားဝှက် ပြန်သတ်မှတ်ပေးသည့်စနစ် မရှိသေးပါ။ ဒီနမူနာက စာပို့ခြင်း၊ စကားဝှက်ပြောင်းခြင်း မလုပ်ပါ။</p></div>
+          </div>
+          <p class="small muted" id="demo-login-note">နမူနာခလုတ်များသာ ဖြစ်ပါသည်။ အကောင့်အစစ်ဖြင့် ဝင်ခြင်း မလုပ်ပါ။</p>
+        </div>
+        <footer class="phone-footer"><button type="button" class="quiet" data-goto="3">အော်ဒါပြန်စစ်သည့် အဆင့်သို့ ပြန်မယ်</button><button type="button" class="secondary" data-choice="guest">အကောင့်မသုံးဘဲ ဆက်ဝယ်မယ်</button></footer>
+      </div>
+    </section>
+    <section class="screen" data-page="5" aria-labelledby="screen-title-5">
+      <h2 class="screen-label" id="screen-title-5">05 / Handoff — recoverable order draft</h2>
+      <div class="phone">
+        <header class="phone-header"><span class="wordmark">digimium.</span><span class="demo-badge">နမူနာ</span></header>
+        <div class="phone-content">
+          <h2>နောက်ဆုံးအဆင့် — Telegram မှာ စာပို့ပါ</h2>
+          <div class="reference"><small>နမူနာ အော်ဒါအမှတ်</small><strong>DEMO-001</strong></div>
+          <div class="stack-tight"><h3>Spotify Individual · ၁ လ</h3><p><span id="handoff-quantity">1</span> ခု · <strong data-total>16,000 ကျပ်</strong></p></div>
+          <p class="receipt-status" id="handoff-mode">အကောင့်မသုံးဘဲ ဆက်ဝယ်ရန် ရွေးထားပါတယ်။</p>
+          <ol class="instructions"><li>Telegram ဖွင့်မယ် ကို နှိပ်ပါ။</li><li>ဆိုင်ရဲ့ စာပို့ခန်းမှာ ပြင်ဆင်ထားတဲ့စာကို <strong>ပို့ရန် / Send</strong> နှိပ်ပေးပါ။</li><li>ငွေပေးချေမှုနဲ့ ဝယ်ထားတဲ့အကောင့် ရယူဖို့ ဆိုင်နဲ့ ဆက်ပြောပါ။</li></ol>
+          <div class="notice"><strong>အော်ဒါစာကို ပြန်ဖွင့်နိုင်ပါတယ်</strong>Telegram ဖွင့်မရသေးရင် ဒီနေရာကနေ ပြန်ဖွင့်ပါ။ အော်ဒါအမှတ်နဲ့ စာကိုလည်း ကူးယူနိုင်ပါတယ်။</div>
+          <p class="small muted">ဒီနမူနာမှာ စာမျက်နှာကို reload လုပ်လည်း နမူနာအော်ဒါကို ပြန်ကြည့်နိုင်ပါတယ်။</p>
+        </div>
+        <footer class="phone-footer"><button type="button" class="primary" id="open-telegram-demo">Telegram ဖွင့်မယ် ↗</button><button type="button" class="secondary" id="copy-order-demo">အော်ဒါစာ ကူးယူမယ်</button><button type="button" class="quiet" data-help="handoff">Telegram ဖွင့်မရဘူး — အကူအညီလိုတယ်</button><button type="button" class="secondary" data-goto="6">ဝယ်ယူမှု မှတ်တမ်း နမူနာကြည့်မယ်</button></footer>
+      </div>
+    </section>
+    <section class="screen" data-page="6" aria-labelledby="screen-title-6">
+      <h2 class="screen-label" id="screen-title-6">06 / History — pending and purchased together</h2>
+      <div class="phone">
+        <header class="phone-header"><span class="wordmark">digimium.</span><span class="demo-badge">နမူနာ</span></header>
+        <div class="phone-content">
+          <h2>ဝယ်ယူမှု မှတ်တမ်း</h2>
+          <p class="muted small">အကောင့်နဲ့ ဝယ်ထားသည့် အော်ဒါများအတွက် နမူနာပါ။</p>
+          <div class="tabs" role="group" aria-label="အော်ဒါ အခြေအနေ ရွေးရန်"><button type="button" id="history-approved" aria-pressed="true">ဝယ်ယူပြီး (၁)</button><button type="button" id="history-pending" aria-pressed="false">စောင့်ဆိုင်းဆဲ (၁)</button></div>
+          <article class="history-card" id="approved-card"><div class="service-title"><span class="service-mark"><img src="../../../public/assets/marks/spotify.svg" alt=""></span><div><strong>Spotify</strong><p class="small muted">Individual · ၁ လ</p></div></div><span class="state-chip">✓ အသုံးပြုနိုင်ဆဲ</span><div class="days"><strong>23</strong><span>ရက် ကျန်ပါသေးတယ်</span></div><div class="term-track" role="meter" aria-label="ကျန်ရှိသော သက်တမ်း နမူနာ" aria-valuemin="0" aria-valuemax="30" aria-valuenow="23" aria-valuetext="နမူနာ — ရက် ၃၀ အနက် ၂၃ ရက် ကျန်"><span></span></div><dl class="dates"><div><dt>စတင်ရက်</dt><dd>8 Nov 2026</dd></div><div><dt>သက်တမ်းကုန်ရက်</dt><dd>8 Dec 2026</dd></div></dl><p class="date-help muted">ရက်စွဲတွေကို မြန်မာစံတော်ချိန်အရ ပြထားပါတယ်။ နမူနာတွက်ချက်ရက် — 15 Nov 2026</p><div class="row row-wrap total"><span>ဝယ်ယူခဲ့သည့် ဈေးနှုန်း</span><strong class="english">16,000 ကျပ်</strong></div></article>
+          <article class="history-card" id="pending-card" hidden><strong class="english">DEMO-001</strong><h3>Spotify Individual · ၁ လ</h3><span class="state-chip">ဆိုင်အတည်ပြုရန် စောင့်နေသည်</span><p class="small">ဆိုင်က အတည်ပြုပြီး ရက်စွဲတွေ သတ်မှတ်ပေးရင် ဒီမှာ သက်တမ်းကို ပြန်ကြည့်နိုင်ပါမယ်။</p><strong class="english" data-total>16,000 ကျပ်</strong><button type="button" class="secondary" data-goto="5">Telegram မှာ ဆက်ပြောမယ် →</button></article>
+          <p class="notice small">အကောင့်မသုံးဘဲ ဝယ်ထားတဲ့အော်ဒါကို ဒီစာရင်းမှာ မပြပါ။ အဲဒီအော်ဒါအတွက် Telegram က စာကို ပြန်ကြည့်ပါ။</p>
+        </div>
+        <footer class="phone-footer"><button type="button" class="secondary" data-goto="1">ဝန်ဆောင်မှုများ ထပ်ကြည့်မယ်</button></footer>
+      </div>
+    </section>
+  </div>
+  <aside aria-label="Wireframe annotations">
+    <section class="annotation active" data-note="1"><h2>၁။ အရင်ဖတ်လို့ ရစေပါ</h2><ol><li><strong>စာလုံးကြီး၊ တစ်ကော်လံ</strong> — ဝန်ဆောင်မှုအမည်၊ ဘာအတွက်သုံးတာလဲ၊ သက်တမ်းနဲ့ ဈေးနှုန်းကို အစဉ်လိုက် မြင်ရစေပါ။<span class="evidence">Readability · mobile catalog</span></li><li><strong>A — အောက်ခြေမီနူးကို အကြံပြု</strong> — “ပစ္စည်းများ / ဈေးခြင်း / မှတ်တမ်း / အကောင့်” ကို စာနဲ့ အမြဲပြပါ။ အသုံးများတဲ့ လမ်းလေးခုကို ရှာဖို့ မီနူးဖွင့်ရသည့်အဆင့် လျှော့ပါ။ Telegram ခလုတ်ကြီးကို မီနူးအလယ်မှာ မထည့်ပါ။<span class="evidence">A/B proposal · actual older-user preference remains untested</span></li><li><strong>B — အပေါ်မီနူးနဲ့ ယှဉ်ကြည့်</strong> — အလားတူ ခေါင်းစဉ်လေးခုကို ထိပ်မှာ ရှင်းရှင်းထားနိုင်ပါတယ်။ လက်ရှိ website ကို မပြောင်းဘဲ နမူနာနှစ်မျိုးကို ပြောင်းနှိပ်ကြည့်နိုင်ပါတယ်။</li><li><strong>ငွေပေးချေနည်းကို ထိပ်မှာ မြင်စေပါ</strong> — ဆိုင်ရှင်အတည်ပြုထားသည့် KBZ / Wave / AYA / UABpay / Binance ကို မူရင်း logo များနဲ့ brand header အောက်မှာ ပြပြီး အော်ဒါပြန်စစ်ချိန်မှာ ထပ်ပြပါ။ ငွေပေးချေမှုက Telegram မှာ ဆက်လုပ်ရခြင်းဖြစ်ပြီး website က ငွေဖြတ်ပေးခြင်း မဟုတ်ပါ။</li><li><strong>မေးဖို့လမ်းကို အနီးမှာထား</strong> — အကူအညီကို content အနီးရှိ စာပါခလုတ်နဲ့ ပေးပါ။</li></ol><p class="scope">နမူနာမှာ Spotify တစ်ခုသာ ထည့်ထားသည်။ Payment account၊ QR၊ credentials၊ network သို့မဟုတ် currency အသစ် မထည့်ထားပါ။ Logo များသည် သက်ဆိုင်ရာ provider ၏ မူရင်း asset များဖြစ်သည်။</p></section>
+    <section class="annotation" data-note="2"><h2>၂။ နောက်ဘာဖြစ်မလဲ ရှင်းစေပါ</h2><ol><li><strong>မြန်မာလို လုပ်ဆောင်ချက်</strong> — “Check Out” အစား “အော်ဒါ ပြန်စစ်မယ်” ဟု နောက်တစ်ဆင့်ကို တိတိကျကျ ပြောပါ။<span class="evidence">Finding: English purchase actions</span></li><li><strong>ရွေးထားသည့်အစီအစဉ် သိသာ</strong> — Radio၊ အပြာရောင်ဘောင်၊ သက်တမ်းနဲ့ ဈေးနှုန်းကို တွဲပြပါ။</li><li><strong>ငွေမပေးချေရသေးကြောင်း ရှင်း</strong> — ဝယ်မိမှာ စိုးရိမ်သူကို နောက်အဆင့်မတိုင်မီ ပြန်စစ်ခွင့် ရှိကြောင်း ပြပါ။</li></ol></section>
+    <section class="annotation" data-note="3"><h2>၃။ ချန်နယ်ထက် မှတ်တမ်းကို ခွဲပြပါ</h2><ol><li><strong>နှစ်ခုလုံး Telegram</strong> — အကောင့်ဖြင့်ဝယ်ခြင်းနဲ့ Telegram ဖြင့်ဝယ်ခြင်းဟု ရွေးခိုင်းသည့် ရောထွေးမှုကို ဖြေရှင်းပါ။<span class="evidence">Finding: account vs Telegram ambiguity</span></li><li><strong>Guest ရဲ့ ကန့်သတ်ချက် အရင်ပြ</strong> — website history မရခြင်းကို ရွေးပြီးမှ မဟုတ်ဘဲ ရွေးစဉ်ကတည်းက ပြပါ။</li><li><strong>ဝင်ပြီးရင် အော်ဒါဆက်စစ်</strong> — Login နမူနာက အော်ဒါကို မတင်ဘဲ ဒီ review ကို ပြန်ရောက်ပါမယ်။</li></ol></section>
+    <section class="annotation" data-note="4"><h2>၄။ ဝင်လို့ရသည့်နည်းတွေ ရှေ့တင်ပါ</h2><ol><li><strong>Google / Telegram ခလုတ်တွေ အလုပ်လုပ်</strong> — ဒီနေရာမှာ ဒေသတွင်းနမူနာ sign-in သာဖြစ်ပြီး တကယ့် provider ကို မဖွင့်ပါ။</li><li><strong>Phone မရသေးခြင်း ရှင်း</strong> — လုပ်လို့ရသလိုမြင်ရသည့် disabled ခလုတ်ကြီး မလုပ်ပါ။<span class="evidence">Finding: unavailable provider prominence</span></li><li><strong>စကားဝှက် ဖတ်စစ်နိုင်</strong> — Email ဖြင့် ဆက်မယ်ကို နှိပ်ပြီး ပြ/ဝှက် နမူနာ စမ်းပါ။<span class="evidence">Finding: password visibility / assistance</span></li><li><strong>Recovery မရှိသေး</strong> — အကူအညီခလုတ်သည် ပုံစံအဆိုပြုချက်သာဖြစ်သည်။ Password reset backend ရှိပြီးသားဟု မဖော်ပြပါ။ Google–Telegram account linking လည်း ဤအဆိုပြုချက်တွင် မပါပါ။</li></ol></section>
+    <section class="annotation" data-note="5"><h2>၅။ Telegram မဖွင့်ရင်လည်း ပြန်ဆက်နိုင်ပါစေ</h2><ol><li><strong>အော်ဒါအမှတ် ထင်ရှား</strong> — နောက်တစ်ခါ ပြန်ပြောရာမှာ ရှာလို့လွယ်စေပါ။<span class="evidence">Risk to validate: guest draft recovery after reload — source review; untested end-to-end</span></li><li><strong>ပို့ရန် / Send ကို နှိပ်ရန် ထပ်ပြော</strong> — ပြင်ဆင်ပြီးခြင်း၊ Telegram ဖွင့်ပြီးခြင်းကို စာပို့ပြီးခြင်းဟု မဖော်ပြပါ။</li><li><strong>ပြန်ဖွင့် / ကူးယူ / အကူအညီ</strong> — နမူနာအော်ဒါနဲ့ ရွေးထားသည့်နည်းကို ဒီ browser ထဲမှာသာ သိမ်းထားပါတယ်။ Reload လုပ်ပြီးလည်း ပြန်ကြည့်နိုင်ပါတယ်။ Clipboard၊ network၊ Telegram အစစ်ကို ဤခလုတ်တွေ မသုံးပါ။</li></ol></section>
+    <section class="annotation" data-note="6"><h2>၆။ အော်ဒါမပျောက်သွားသလို ခံစားရစေပါ</h2><ol><li><strong>စောင့်ဆိုင်းဆဲနဲ့ ဝယ်ယူပြီးကို တစ်နေရာတည်း</strong> — Account settings ထဲ သွားရှာရသည့်အဆင့် လျှော့ပါ။<span class="evidence">Finding: pending orders outside history</span></li><li><strong>ကျန်ရက်ကို အရင်မြင်</strong> — နံပါတ်ကြီး၊ စာသားအခြေအနေ၊ ရက်စွဲနဲ့ bar ကို တွဲပါ။ အရောင်တစ်မျိုးတည်းကို မမှီခိုပါ။</li><li><strong>Guest အတွက် မလွဲစေပါနဲ့</strong> — ဒီ history သည် အကောင့်နဲ့ဝယ်ထားသူအတွက်သာ ဖြစ်ကြောင်း ထိန်းထားပါ။</li></ol><p class="scope">အကောင့် box ထဲက brief မှာ နောက်ဆုံး ၃ ခုနဲ့ “အားလုံးကြည့်မယ်” ထားနိုင်ပါတယ်။ ပုံတွင် full history ကို ပြထားသည်။</p></section>
+  </aside>
+  </div>
+  <section class="overview-key" aria-label="Overview annotations"><h2>ပြောင်းလဲရန် အဓိကအချက်များ</h2><ol><li>တစ်ကော်လံ catalog၊ ဖတ်ရလွယ်သည့် စာလုံးနဲ့ ထင်ရှားသည့်ဈေးနှုန်း။</li><li>မြန်မာလို နောက်အဆင့်ပြောသည့် purchase action။</li><li>နှစ်နည်းလုံး Telegram ဖြစ်ကြောင်းနဲ့ history ကွာခြားချက်ကို အရင်ပြ။</li><li>ဝင်လို့ရသည့်နည်းတွေ အရင်တင်၊ စကားဝှက် ပြ/ဝှက်၊ အမှန်တကယ်လုပ်ဆောင်မည့် အကူအညီလမ်း။</li><li>Reload လုပ်လည်း ပြန်ကြည့်နိုင်သည့် guest draft၊ အော်ဒါအမှတ်နဲ့ Send ညွှန်ကြားချက်။</li><li>စောင့်ဆိုင်းဆဲ / ဝယ်ယူပြီး တစ်နေရာတည်း၊ ကျန်ရက်ကြီးနဲ့ date/bar။</li></ol></section>
+  <p class="viewer-status" role="status" aria-live="polite" id="demo-status"></p>
+  <p class="footnote">Wireframe proposal only · No live checkout, payment, provider sign-in, messages, account linking, or password reset. All interactions use illustrative local data. The proposed assistance and persistent handoff require separate production implementation.</p>
+</main>
+<script>
+(function(){
+  'use strict';
+  const root=document.getElementById('wireframe-viewer');
+  const key='digimium-ux-wireframe-demo-2026-11-15';
+  let saved={};
+  try{saved=JSON.parse(localStorage.getItem(key)||'{}')||{};}catch{}
+  const state={screen:Math.max(1,Math.min(6,Number(saved.screen)||1)),quantity:Math.max(1,Math.min(5,Number(saved.quantity)||1)),mode:saved.mode==='account'?'account':'guest',signedIn:saved.signedIn===true,history:saved.history==='pending'?'pending':'approved',receipt:saved.receipt===true,shell:saved.shell==='top'?'top':'bottom'};
+  const overview=document.getElementById('show-all');
+  const status=document.getElementById('demo-status');
+  function persist(){try{localStorage.setItem(key,JSON.stringify(state));}catch{}}
+  function announce(text){status.textContent=text;}
+  function paint(){
+    root.classList.toggle('overview',overview.checked);
+    root.dataset.shell=state.shell;
+    root.querySelectorAll('[data-shell-choice]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.shellChoice===state.shell)));
+    root.querySelectorAll('[data-page]').forEach(el=>el.classList.toggle('active',Number(el.dataset.page)===state.screen));
+    root.querySelectorAll('[data-note]').forEach(el=>el.classList.toggle('active',Number(el.dataset.note)===state.screen));
+    root.querySelectorAll('[data-screen]').forEach(el=>{if(Number(el.dataset.screen)===state.screen)el.setAttribute('aria-current','step');else el.removeAttribute('aria-current');});
+    document.getElementById('screen-counter').textContent='မျက်နှာပြင် '+new Intl.NumberFormat('my-MM').format(state.screen)+' / ၆';
+    document.getElementById('previous-screen').disabled=state.screen===1;
+    document.getElementById('next-screen').disabled=state.screen===6;
+    document.getElementById('quantity-value').value=String(state.quantity);
+    document.getElementById('quantity-minus').disabled=state.quantity<=1;
+    document.getElementById('quantity-plus').disabled=state.quantity>=5;
+    const total=(16000*state.quantity).toLocaleString('en-US')+' ကျပ်';
+    root.querySelectorAll('[data-total]').forEach(el=>{el.textContent=total;});
+    document.getElementById('handoff-quantity').textContent=String(state.quantity);
+    document.getElementById('review-account-state').textContent=state.signedIn?'နမူနာအကောင့် ဝင်ပြီးပါပြီ။ အော်ဒါကို စစ်ပြီး ဆက်ဝယ်မည့်နည်း ရွေးပါ။':'နမူနာအကောင့် ဝင်မထားသေးပါ။';
+    document.getElementById('handoff-mode').textContent=state.mode==='account'?'အကောင့်နဲ့ ဆက်ဝယ်ရန် ရွေးထားပါတယ်။ ဆိုင်အတည်ပြုပြီးရင် website မှာ မှတ်တမ်းနဲ့ သက်တမ်းကို ပြန်ကြည့်နိုင်ပါမယ်။':'အကောင့်မသုံးဘဲ ဆက်ဝယ်ရန် ရွေးထားပါတယ်။ website history မှာ မပေါ်ပါ။ Telegram မှာ ပို့ထားတဲ့စာကို သိမ်းထားပါ။';
+    document.getElementById('approved-card').hidden=state.history!=='approved';
+    document.getElementById('pending-card').hidden=state.history!=='pending';
+    document.getElementById('history-approved').setAttribute('aria-pressed',String(state.history==='approved'));
+    document.getElementById('history-pending').setAttribute('aria-pressed',String(state.history==='pending'));
+  }
+  function go(screen,notice){state.screen=screen;overview.checked=false;paint();persist();if(notice)announce(notice);}
+  root.querySelectorAll('[data-screen]').forEach(button=>button.addEventListener('click',()=>go(Number(button.dataset.screen))));
+  root.querySelectorAll('[data-goto]').forEach(button=>button.addEventListener('click',()=>go(Number(button.dataset.goto))));
+  document.getElementById('previous-screen').addEventListener('click',()=>go(Math.max(1,state.screen-1)));
+  document.getElementById('next-screen').addEventListener('click',()=>go(Math.min(6,state.screen+1)));
+  overview.addEventListener('change',paint);
+  root.querySelectorAll('[data-shell-choice]').forEach(button=>button.addEventListener('click',()=>{state.shell=button.dataset.shellChoice;paint();persist();announce(state.shell==='bottom'?'A — အောက်ခြေမီနူး နမူနာကို ပြထားပါတယ်။':'B — အပေါ်မီနူး နမူနာကို ပြထားပါတယ်။');}));
+  document.getElementById('quantity-minus').addEventListener('click',()=>{state.quantity=Math.max(1,state.quantity-1);paint();persist();});
+  document.getElementById('quantity-plus').addEventListener('click',()=>{state.quantity=Math.min(5,state.quantity+1);paint();persist();});
+  root.querySelectorAll('[data-choice]').forEach(button=>button.addEventListener('click',()=>{state.mode=button.dataset.choice;if(state.mode==='account'&&!state.signedIn)go(4);else{state.receipt=true;go(5);}persist();}));
+  root.querySelectorAll('[data-login]').forEach(button=>button.addEventListener('click',()=>{state.signedIn=true;state.mode='account';go(3,button.dataset.login+' နမူနာအကောင့် ဝင်ပြီးပါပြီ။ အော်ဒါအစစ် မတင်ထားပါ။');}));
+  document.getElementById('email-continue').addEventListener('click',()=>{document.getElementById('password-section').hidden=false;announce('နမူနာစကားဝှက်ကို ပြ/ဝှက် စမ်းကြည့်နိုင်ပါတယ်။');});
+  document.getElementById('toggle-password').addEventListener('click',function(){const field=document.getElementById('demo-password');const show=field.type==='password';field.type=show?'text':'password';this.textContent=show?'ဝှက်မယ်':'ပြမယ်';this.setAttribute('aria-pressed',String(show));});
+  document.getElementById('password-help').addEventListener('click',function(){const help=document.getElementById('password-assistance');help.hidden=!help.hidden;this.setAttribute('aria-expanded',String(!help.hidden));});
+  document.getElementById('add-cart').addEventListener('click',()=>go(1,'နမူနာဈေးခြင်းထဲ ထည့်ပြီးပါပြီ။ အစီအစဉ် ကြည့်မယ်ကနေ အော်ဒါ ပြန်စစ်နိုင်ပါတယ်။'));
+  document.getElementById('history-approved').addEventListener('click',()=>{state.history='approved';paint();persist();});
+  document.getElementById('history-pending').addEventListener('click',()=>{state.history='pending';paint();persist();});
+  document.getElementById('catalog-search').addEventListener('input',function(){const q=this.value.trim().toLowerCase();const match=!q||'spotify သီချင်း'.includes(q);document.getElementById('spotify-result').hidden=!match;document.getElementById('search-empty').hidden=match;});
+  document.getElementById('open-telegram-demo').addEventListener('click',()=>announce('နမူနာသာဖြစ်လို့ Telegram ကို မဖွင့်ပါ။ အစစ်မှာ Telegram ဖွင့်ပြီး ပြင်ဆင်ထားသောစာကို Send နှိပ်ပို့ရပါမယ်။'));
+  document.getElementById('copy-order-demo').addEventListener('click',()=>announce('နမူနာ — DEMO-001 · Spotify Individual · ၁ လ · '+state.quantity+' ခု · '+(16000*state.quantity).toLocaleString('en-US')+' ကျပ်။ Clipboard ကို မပြောင်းထားပါ။'));
+  root.querySelectorAll('[data-help]').forEach(button=>button.addEventListener('click',()=>announce('အကူအညီ နမူနာ — ဆိုင်ကို ဆက်သွယ်ပြီး လိုချင်သောဝန်ဆောင်မှု သို့မဟုတ် အော်ဒါအမှတ်ကို ပြောပြနိုင်ရန် နေရာပါ။ ဒီနမူနာက စာမပို့ပါ။')));
+  paint();
+  if(state.receipt)announce('သိမ်းထားသော နမူနာအော်ဒါ DEMO-001 ကို မျက်နှာပြင် ၅ မှာ ပြန်ကြည့်နိုင်ပါတယ်။');
+})();
+</script>
+</body>
+</html>
