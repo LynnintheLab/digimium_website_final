@@ -284,7 +284,7 @@
 .customer-dashboard .customer-history-list-title { margin: 20px 0 0; font-size: 18px; line-height: 1.8; }
 .customer-history-orders .customer-section-help { margin-block: 5px 0; }
 @media (max-width: 800px) {
-  .customer-page:not(.customer-embedded) { padding-bottom: calc(120px + env(safe-area-inset-bottom,0px)); }
+  .customer-page:not(.customer-embedded) { padding-bottom: calc(var(--mobile-dock-clearance,104px) + env(safe-area-inset-bottom,0px)); }
 }
 @media (max-width: 400px) {
   .customer-history-filters button { padding-inline: 8px; gap: 5px; }

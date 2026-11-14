@@ -1,29 +1,35 @@
 .mobile-dock { display: none; }
 @media (max-width: 800px) {
+  :root { --mobile-dock-clearance: 104px; }
   .mobile-dock {
+    --dock-radius: 32px; --dock-inset: 3px;
     position: fixed; z-index: 18; inset-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
     bottom: calc(12px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(5,minmax(0,1fr));
-    align-items: end; gap: 1px; max-width: 520px; margin-inline: auto; padding: 8px 5px;
-    border: 1px solid var(--line); border-radius: 28px; background: color-mix(in srgb, white 96%, var(--canvas));
-    box-shadow: 0 9px 28px rgb(5 22 80 / 20%); color: var(--brand-navy);
+    align-items: end; gap: 1px; max-width: 480px; margin-inline: auto; padding: var(--dock-inset);
+    border: 1px solid var(--line); border-radius: var(--dock-radius); background: color-mix(in srgb, white 98%, var(--canvas));
+    box-shadow: 0 6px 22px rgb(5 22 80 / 11%); color: var(--brand-navy);
   }
   .mobile-dock[hidden] { display: none; }
   .mobile-dock-item {
-    display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 5px;
-    min-width: 0; min-height: 65px; border: 0; border-radius: 18px; background: transparent;
-    padding: 5px 1px; color: var(--muted); font: 400 13px/1.75 Manrope,Walone,sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    min-width: 0; min-height: 56px; border: 0; border-radius: calc(var(--dock-radius) - var(--dock-inset) - 1px); background: transparent;
+    padding: 4px 1px; color: var(--muted); font: 500 14px/1.6 Manrope,Walone,sans-serif;
     text-align: center; overflow-wrap: anywhere; text-decoration: none;
   }
-  .mobile-dock-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 30px; flex: none; }
-  .mobile-dock-item[aria-current=page] { background: var(--soft); color: var(--blue); font-weight: 700; }
-  .mobile-dock-center { min-height: 89px; margin-top: -24px; color: var(--brand-navy); font-weight: 700; }
-  .mobile-dock-center .mobile-dock-icon { width: 52px; height: 52px; border: 3px solid white; border-radius: 50%; background: var(--blue); color: white; box-shadow: 0 4px 11px rgb(31 69 184 / 25%); }
-  .mobile-dock-badge { position: absolute; top: -4px; right: -6px; min-width: 20px; height: 20px; display: grid; place-items: center; padding-inline: 3px; border: 2px solid white; border-radius: 12px; color: white; background: var(--brand-navy); font: 700 11px/1 Manrope,sans-serif; }
+  .mobile-dock-item > span:last-child { white-space: nowrap; overflow-wrap: normal; }
+  .mobile-dock-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 24px; flex: none; }
+  .mobile-dock-item[aria-current=page] { background: color-mix(in srgb, var(--blue) 8%, white); color: var(--blue); font-weight: 700; }
+  @media (hover: hover) { .mobile-dock-item:hover { color: var(--blue); } }
+  .mobile-dock-item:active { color: var(--brand-navy); }
+  .mobile-dock-center { min-height: 70px; margin-top: -14px; padding-block: 0; color: var(--brand-navy); font-weight: 700; }
+  .mobile-dock-center[aria-current=page] { background: transparent; color: var(--blue); }
+  .mobile-dock-center .mobile-dock-icon { width: 44px; height: 44px; border: 2px solid white; border-radius: 50%; background: var(--blue); color: white; box-shadow: 0 3px 8px rgb(31 69 184 / 16%); }
+  .mobile-dock-center[aria-current=page] .mobile-dock-icon { background: var(--brand-navy); }
+  .mobile-dock-badge { position: absolute; top: -4px; right: -5px; min-width: 18px; height: 18px; display: grid; place-items: center; padding-inline: 3px; border: 2px solid white; border-radius: 12px; color: white; background: var(--brand-navy); font: 700 10px/1 Manrope,sans-serif; }
   .mobile-dock-legacy { grid-template-columns: repeat(3,minmax(0,1fr)); max-width: 360px; }
   body:has(dialog[open]) .mobile-dock { display: none; }
 }
 @media (max-width: 370px) {
-  .mobile-dock { inset-inline: max(9px,env(safe-area-inset-left)) max(9px,env(safe-area-inset-right)); padding-inline: 3px; gap: 0; }
-  .mobile-dock-item { font-size: 12px; }
-  .mobile-dock-center .mobile-dock-icon { width: 48px; height: 48px; }
+  .mobile-dock { inset-inline: max(9px,env(safe-area-inset-left)) max(9px,env(safe-area-inset-right)); gap: 0; }
+  .mobile-dock-item { font-size: 13px; }
 }

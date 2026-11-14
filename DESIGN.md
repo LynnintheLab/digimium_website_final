@@ -135,6 +135,9 @@ Main surfaces use the `surface` radius; mobile product cards use `surface-mobile
 ## Components
 
 - **Primary and secondary actions:** inline flex, 49px minimum height, 22px icon gap. Secondary actions have a fine neutral border. Hover lifts either button by 2px over 0.2s. On mobile, minimum height is 48px and padding is 13px 18px.
+- **Mobile dock:** a compact floating capsule, approximately 64px tall, with a 44px raised Account circle in the center. The 32px outer radius and 28px selected radius share a 3px inset plus 1px border, so nested curves align. Keep labels on one line and preserve touch targets. Position cart feedback above the dock. Account/History use the same component.
+- **Language selection:** a 132px pill with two equal EN/Myanmar segments, a 3px inset and a white selected thumb. Keep pressed-state semantics and keyboard focus; remove thumb transitions for reduced motion.
+- **Checkout choice copy:** signed-out review uses only Create account / အကောင့်ဖွင့်မည် and Buy on Telegram / Telegram မှဝယ်မည်. Keep explanatory guest guidance in its next step. Signed-in review keeps only Place order / Order တင်မည်.
 - **Catalog filters:** wrapping text controls with 36px minimum height. Active is Persian Blue with white text; inactive hover uses the soft surface. Expose selected state with `aria-pressed`.
 - **Search:** compact on desktop; full-width, lightly tinted and bordered on phones, placed above the filters. Clear control is 44px; Enter dismisses the keyboard.
 - **Product cards:** entire card opens the plan picker; left-aligned mark, display title, muted category and description, and an arrow action. Hover changes the surface to a slightly deeper blue tint and border to blue.

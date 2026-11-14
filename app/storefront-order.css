@@ -20,9 +20,13 @@ html:has(.storefront-shell) {
 }
 .shop-header-tools, .shop-language, .shop-cart-button { display: inline-flex; align-items: center; }
 .shop-header-tools { gap: 14px; }
-.shop-language { border: 1px solid var(--line); border-radius: 6px; padding: 2px; }
-.shop-language button { min-height: 34px; min-width: 34px; padding: 4px 8px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 12px; }
-.shop-language button[aria-pressed=true] { background: var(--brand-selected); color: var(--brand-navy); font-weight: 700; }
+.shop-language { position: relative; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 132px; flex: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: color-mix(in srgb, var(--blue) 6%, white); }
+.shop-language::before { content: ''; position: absolute; inset-block: 3px; left: 3px; width: calc((100% - 6px) / 2); border-radius: inherit; background: white; box-shadow: 0 1px 4px rgb(5 22 80 / 10%); transition: transform 180ms ease-out; }
+.shop-language:has(button[lang=my][aria-pressed=true])::before { transform: translateX(100%); }
+.shop-language button { position: relative; z-index: 1; min-height: 36px; min-width: 0; padding: 4px 8px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 14px; line-height: 1.6; transition: color 180ms ease-out; }
+.shop-language button[aria-pressed=true] { color: var(--brand-navy); font-weight: 700; }
+.shop-language button:active { color: var(--blue); }
+@media (prefers-reduced-motion: reduce) { .shop-language::before, .shop-language button { transition: none; } }
 .shop-cart-button { gap: 7px; min-height: 42px; border: 0; padding: 6px 3px; color: var(--ink); background: transparent; font-size: 14px; }
 .shop-cart-button:hover { color: var(--blue); }
 .shop-cart-count { padding: 1px 6px; border-radius: 4px; background: var(--brand-selected); color: var(--brand-secondary); font: 600 12px/1.6 Manrope,sans-serif; }
@@ -152,7 +156,7 @@ html:has(.storefront-shell) {
 
 .store-payment-strip { padding-block: 13px 15px; border-bottom: 1px solid var(--line); }
 @media (max-width: 800px) {
-  .storefront-shell { padding-bottom: calc(124px + env(safe-area-inset-bottom)); }
+  .storefront-shell { padding-bottom: calc(var(--mobile-dock-clearance,104px) + env(safe-area-inset-bottom)); }
   .shop-header-tools > .shop-cart-button, .shop-header-tools .shop-account-link { display: none; }
   .shop-language button { min-width: 44px; min-height: 44px; }
   .store-payment-strip { padding-block: 11px 13px; }

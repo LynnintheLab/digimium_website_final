@@ -111,6 +111,7 @@
 .order-transcript { display: grid; gap: 6px; }
 .order-transcript textarea { width: 100%; resize: vertical; padding: 12px; border: 1px solid var(--brand-line-strong); border-radius: 6px; background: var(--canvas); color: var(--ink); font: inherit; font-weight: 400; }
 .order-notifications { position: fixed; z-index: 10; inset: auto 12px max(20px, env(safe-area-inset-bottom)); pointer-events: none; }
+@media (max-width: 800px) { .order-notifications { bottom: calc(var(--mobile-dock-clearance,104px) + env(safe-area-inset-bottom)); } }
 .order-toast {
   display: flex; align-items: center; gap: 10px; width: fit-content; max-width: 100%; margin-inline: auto;
   padding: 10px 15px; background: var(--brand-navy); border-radius: 8px; color: var(--brand-on-dark); font-size: 13px;
@@ -220,9 +221,8 @@
 .shop-order[data-screen="cart"] .order-quantity { margin-top: 8px; font-size: 16px; gap: 12px; }
 .shop-order[data-screen="cart"] .order-quantity .order-icon { width: 44px; height: 44px; }
 .shop-order[data-screen="cart"] .order-footer { padding-top: 12px; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
-.order-purchase-options .order-action { display: flex; flex-direction: column; gap: 2px; align-items: center; padding: 10px 12px; min-height: 52px; }
+.order-purchase-options .order-action { padding: 10px 12px; min-height: 52px; }
 .order-purchase-options .order-action > strong { font: inherit; font-size: 16px; font-weight: 650; }
-.order-purchase-options .order-action > small { font-size: 14px; font-weight: 400; line-height: 1.65; }
 .order-place-action { display: grid; grid-template-columns: minmax(0,1fr); }
 .order-place-action .order-action { width: 100%; min-height: 52px; font-size: 16px; }
 .order-session-status { margin: 0; min-height: 48px; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--muted); }
