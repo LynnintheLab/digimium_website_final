@@ -11,6 +11,8 @@
 
 ## စမ်းသပ်ထားမှု
 
+Product ၂ ခုစီနဲ့ Help highlight ပြင်ဆင်မှုကို Node 24 build/typecheck၊ Chrome 320/390/430/768px ဖုန်း/တက်ဘလက်အရွယ်နဲ့ 1440px desktop မှာ စစ်ထားပါတယ်။ တူညီတဲ့ Help link ကို ပြန်နှိပ်ခြင်း၊ keyboard၊ back/forward နဲ့ reduced motion ကိုလည်း စစ်ပြီးပါပြီ။ Hostinger source `77ff07e` က testing/live နှစ်ခုလုံးမှာ Completed/Current ဖြစ်ပြီး live 320/390px မှာ ၂ ကော်လံ၊ ဈေးနှုန်းနဲ့ Help ရွေးထားတဲ့ အဖြူရောင် pill ကို ထပ်စစ်ထားပါတယ်။ Telegram app/link မဖွင့်ထားပါ။
+
 နောက်ဆုံး style polish ကို Node 24 build/typecheck၊ Chrome 320/390px မြန်မာ/English နဲ့ 1440px desktop မှာ စစ်ထားပါတယ်။ Bar အမြင့် 64px ဝန်းကျင်၊ selected အကွေး၊ language pill၊ reduced motion နဲ့ စာတို checkout ခလုတ်တွေ အဆင်ပြေပါတယ်။ Hostinger မှာ source `e0e6fef` Completed/Current ဖြစ်တာနဲ့ live UI ကိုလည်း စစ်ထားပါတယ်။ အော်ဒါမတင်ဘဲ Telegram app/link ကို လုံးဝမဖွင့်ထားပါ။
 
 Core UX အတွက် Node 24 unit test **၅၃ ခု**၊ commerce integration၊ Hostinger/Sites build နဲ့ type check အောင်ပါတယ်။ Local Chrome မှာ မြန်မာ/English၊ 320/390px ဖုန်းအရွယ်နဲ့ desktop ကို စစ်ထားပါတယ်။ Signed-in/out ခလုတ်၊ guest warning၊ pending order၊ Telegram ကနေ website ပြန်လာခြင်း၊ receipt reload၊ အကောင့်ထွက်ပြီး private receipt ဖျောက်ခြင်းနဲ့ သက်တမ်းအခြေအနေများကို စမ်းထားပါတယ်။ Hostinger မှာ source `22e376b` Completed/Current ဖြစ်တာကို နှစ်ခုလုံး စစ်ထားပါတယ်။ Live မှာ UI၊ product ၅၄ ခု၊ payment ပုံတွေနဲ့ login capability ကိုသာ စစ်ပြီး စမ်းသပ်အော်ဒါ မတင်ပါ။
