@@ -131,6 +131,31 @@
 .customer-summary > div { min-width: 0; }
 .customer-summary p > * { min-width: 0; overflow-wrap: anywhere; }
 .customer-member-since { display: block; margin-top: 4px; color: var(--muted); font-size: .78rem; line-height: 1.6; }
+.customer-history-link, .customer-history-account, .customer-guest-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--blue);
+  font-size: .86rem;
+  font-weight: 650;
+  text-underline-offset: 3px;
+}
+.customer-history-link:hover, .customer-history-account:hover, .customer-guest-link:hover { text-decoration: underline; }
+.customer-history-link { flex: none; }
+.customer-history-link svg, .customer-history-account svg, .customer-guest-link svg { flex: none; }
+.customer-recent .customer-heading { align-items: center; flex-wrap: wrap; gap: 0 12px; }
+.customer-recent-list { margin: 4px 0 0; padding: 0; list-style: none; }
+.customer-recent-list > li { padding: 17px 0; border-bottom: 1px solid var(--line); }
+.customer-recent-list .customer-item-plan { margin-top: 2px; }
+.customer-history-heading { margin-bottom: 28px; }
+.customer-history-heading > p { max-width: 60ch; margin-top: 10px; color: var(--muted); }
+.customer-history-signin { max-width: 460px; margin: 0 auto 22px; color: var(--muted); }
+.customer-history-page .customer-summary { padding-bottom: 18px; }
+.customer-history-page .customer-summary p { margin-top: 0; }
+.customer-history-account { margin-top: 20px; }
+.customer-guest-link { margin-top: 10px; }
+.customer-page :is(a, button, input, summary):focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 @media (max-width: 400px) {
   .customer-summary, .customer-heading { flex-wrap: wrap; gap: 4px 10px; }
   .customer-summary button, .customer-refresh { min-height: 44px; }

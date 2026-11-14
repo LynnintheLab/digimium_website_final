@@ -79,7 +79,7 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
   const orders = data?.orders ?? [];
   const customersById = new Map(customers.map(customer => [customer.id, customer]));
   const counts = new Map<string, number>();
-  for (const order of orders) counts.set(order.customerId, (counts.get(order.customerId) ?? 0) + 1);
+  for (const order of orders) if (order.customerId) counts.set(order.customerId, (counts.get(order.customerId) ?? 0) + 1);
 
   const scopedOrders = customerId ? orders.filter(order => order.customerId === customerId) : orders;
   const pendingCount = scopedOrders.filter(order => order.status === 'pending').length;
@@ -88,8 +88,8 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
   const term = search.trim().toLowerCase();
   const shownOrders = scopedOrders.filter(order => {
     if (filter !== 'all' && order.status !== filter) return false;
-    const customer = customersById.get(order.customerId);
-    return [order.id, orderReference(order.id), customer?.name, customer?.email,
+    const customer = order.customerId ? customersById.get(order.customerId) : undefined;
+    return [order.id, orderReference(order.id), customer?.name, customer?.email, order.guestName, order.guestName ? 'Guest' : '',
       ...order.lines.flatMap(line => [line.productName, line.planName])]
       .some(value => value?.toLowerCase().includes(term));
   });
@@ -109,13 +109,13 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
         : <button type="button" disabled={refreshing} onClick={() => void refresh()}>Try again</button>}</div>
     </div>}
     {notice && <p role="status" className="admin-feedback admin-feedback-success"><Check size={17} />{notice}</p>}
-    {selected ? <OrderEditor key={selected.id + '-' + selected.revision} order={selected} customer={customersById.get(selected.customerId)}
+    {selected ? <OrderEditor key={selected.id + '-' + selected.revision} order={selected} customer={selected.customerId ? customersById.get(selected.customerId) : undefined}
       onDirtyChange={onDirtyChange} onBack={backToList}
       onReload={async () => { if (await refresh()) onDirtyChange(false); }}
       onSaved={order => {
         setData(current => current ? { ...current, orders: current.orders.map(row => row.id === order.id ? order : row) } : current);
         setFilter('approved');
-        setNotice(selected.status === 'pending' ? 'Order approved and added to the customer’s history.' : 'Order details updated.');
+        setNotice(selected.status === 'pending' ? selected.customerId ? 'Order approved and added to the customer’s history.' : 'Guest order approved. Dates saved in the order record.' : 'Order details updated.');
         backToList();
       }} /> : data ? <section className="commerce-panel" aria-label={view === 'orders' ? 'Order list' : 'Customer directory'}>
       <div className="commerce-list-tools">
@@ -154,7 +154,7 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
           <ChevronRight size={18} aria-hidden="true" />
         </button></li>)}</ul> : <p className="commerce-empty">{term ? 'No matching customers.' : 'No customers have registered yet.'}</p>
       : shownOrders.length ? <ul className="commerce-rows">{shownOrders.map(order => {
-        const customer = customersById.get(order.customerId);
+        const customer = order.customerId ? customersById.get(order.customerId) : undefined;
         return <li key={order.id}><button className="commerce-row" type="button" onClick={event => {
           orderTrigger.current = event.currentTarget;
           setSelectedId(order.id);
@@ -162,7 +162,7 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
           requestAnimationFrame(() => document.getElementById('commerce-order-title')?.focus());
         }}>
           <span className="commerce-row-main"><strong>{orderReference(order.id)} <span className="commerce-status" data-status={order.status}>{order.status === 'pending' ? 'Pending' : 'Approved'}</span></strong>
-            <span>{customer?.name ?? 'Customer'}{customer ? ' · ' + customer.email : ''}</span>
+            <span>{customer?.name ?? order.guestName ?? 'Customer'}{customer ? ' · ' + customer.email : order.guestName ? ' · Guest' : ''}</span>
             <span>{order.lines.map(line => line.productName + (line.planName ? ' · ' + line.planName : '')).join(', ')}</span>
           </span>
           <span className="commerce-row-end"><strong>{orderTotal(order)}</strong>

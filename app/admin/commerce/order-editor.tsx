@@ -78,7 +78,8 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
         <span className="commerce-status" data-status={order.status}>{pending ? 'Pending' : 'Approved'}</span>
       </div>
       {customer && <div className="commerce-customer"><strong>{customer.name}</strong><span>{customer.email}</span></div>}
-      {pending && <p>Match the reference, name and email with the customer’s Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.</p>}
+      {order.guestName && <div className="commerce-customer"><strong>{order.guestName}</strong><span>Guest · no website account</span></div>}
+      {pending && <p>{order.guestName ? 'Match the reference and guest name with the Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.' : 'Match the reference, name and email with the customer’s Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.'}</p>}
     </div>
     <form onSubmit={submit}>
       <fieldset disabled={busy} className="commerce-fieldset">

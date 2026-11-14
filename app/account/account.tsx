@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, LogOut, RefreshCw } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { telegramDraft } from "@/lib/cart-order";
@@ -8,18 +9,19 @@ import { orderTelegramMessages } from "@/lib/order-telegram";
 import type { CommerceOrder } from "@/lib/commerce-types";
 import type { ShopLanguage } from "@/lib/shop-language";
 import { durationText } from "@/lib/shop-language";
+import { SubscriptionTerm } from "./subscription-term";
 
 type Customer = { id: string; name: string; email: string; createdAt: string };
-type AccountProps = { lang: ShopLanguage; checkout?: boolean; embedded?: boolean; onClose?: () => void };
+type AccountProps = { lang: ShopLanguage; checkout?: boolean; embedded?: boolean; history?: boolean; onClose?: () => void };
 type Translate = (en: string, my: string) => string;
 
 const sessionPath = "/api/customer/session";
 
-function AuthForm({ checkout, embedded, t, onSuccess }: { checkout: boolean; embedded: boolean; t: Translate; onSuccess: (customer: Customer) => void }) {
+function AuthForm({ checkout, embedded, history, t, onSuccess }: { checkout: boolean; embedded: boolean; history: boolean; t: Translate; onSuccess: (customer: Customer) => void }) {
   const [registering, setRegistering] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const Title = embedded ? "h2" : "h1";
+  const Title = embedded || history ? "h2" : "h1";
   const title = registering ? t("Create account", "အကောင့်ဖွင့်ရန်") : t("Sign in", "အကောင့်ဝင်ရန်");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -49,7 +51,9 @@ function AuthForm({ checkout, embedded, t, onSuccess }: { checkout: boolean; emb
 
   return <section className="customer-auth" aria-labelledby="account-title">
     <Title id="account-title">{title}</Title>
-    {checkout && <p className="customer-auth-context">{t("Sign in or create an account to continue. Your Telegram order message will include your name and email.", "အော်ဒါဆက်တင်ဖို့ အကောင့်ဝင်ပါ သို့မဟုတ် အကောင့်ဖွင့်ပါ။ Telegram မှာ ပို့မယ့် အော်ဒါစာထဲမှာ သင့်နာမည်နဲ့ အီးမေးလ် ပါဝင်ပါမယ်။")}</p>}
+    {checkout && <p className="customer-auth-context">{t("Sign in to keep your orders and subscription dates in your account. You can also order without an account.", "အော်ဒါနဲ့ သက်တမ်းကို အကောင့်ထဲမှာ ပြန်ကြည့်ချင်ရင် အကောင့်ဝင်ပါ။ အကောင့်မရှိဘဲလည်း မှာယူနိုင်ပါတယ်။")}</p>}
+    {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Restore the cart in a fresh storefront document. */}
+    {checkout && <a className="customer-guest-link" href="/?checkout=1">{t("Continue without an account", "အကောင့်မရှိဘဲ ဆက်ဝယ်မယ်")}<ArrowRight size={16} aria-hidden /></a>}
     <form key={String(registering)} onSubmit={submit}>
       {registering && <label>{t("Name", "အမည်")}<input name="name" autoComplete="name" maxLength={100} required /></label>}
       <label>{t("Email", "အီးမေးလ်")}<input name="email" type="email" autoCapitalize="none" autoComplete="username" maxLength={254} required /></label>
@@ -156,7 +160,6 @@ function PendingTelegram({ order, customer, telegram, lang, t, embedded, onClose
           : t(`Open part ${index + 1} of ${messages.length} in Telegram`, `အပိုင်း ${index + 1} / ${messages.length} ကို Telegram မှာ ဖွင့်ရန်`);
         return <a key={index} className="customer-telegram-link" href={url} target="_blank" rel="noopener noreferrer">{label}<ArrowUpRight size={16} aria-hidden /></a>;
       })}
-      {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Use a fresh storefront document for its analytics. */}
       {!telegram && <a className="customer-telegram-link" href={embedded ? "#contact" : "/#contact"} onClick={onClose}>{t("Contact Digimium", "Digimium ကို ဆက်သွယ်ရန်")}</a>}
       <button type="button" onClick={copyMessage}>{t("Copy order message", "အော်ဒါစာ ကူးယူရန်")}</button>
     </div>
@@ -180,10 +183,7 @@ function OrderCard({ order, lang, t, customer, telegram, embedded, onClose }: {
       </div>
       <p className="customer-item-plan">{[line.planName, durationText(line.duration, lang), line.price].filter(Boolean).join(" · ")}</p>
       {approved && <>
-        <dl className="customer-dates">
-          <div><dt>{t("Start date", "စတင်ရက်")}</dt><dd>{line.startDate && <time dateTime={line.startDate}>{formatDate(line.startDate, lang, true)}</time>}</dd></div>
-          <div><dt>{t("End date", "သက်တမ်းကုန်ရက်")}</dt><dd>{line.endDate && <time dateTime={line.endDate}>{formatDate(line.endDate, lang, true)}</time>}</dd></div>
-        </dl>
+        <SubscriptionTerm startDate={line.startDate} endDate={line.endDate} lang={lang} />
         {!embedded && line.accountInfo && <details className="customer-delivery"><summary>{t("Previously saved account details", "ယခင်သိမ်းထားသော အကောင့်အချက်အလက်")}<ChevronDown size={16} aria-hidden /></summary>
           <p dir="auto">{line.accountInfo}</p>
         </details>}
@@ -194,7 +194,21 @@ function OrderCard({ order, lang, t, customer, telegram, embedded, onClose }: {
   </article>;
 }
 
-export function AccountContent({ lang, checkout = false, embedded = false, onClose }: AccountProps) {
+function RecentOrders({ orders, lang, t, onClose }: { orders: CommerceOrder[]; lang: ShopLanguage; t: Translate; onClose?: () => void }) {
+  const recent = orders.flatMap(order => order.lines.map(line => ({ orderId: order.id, line }))).slice(0, 3);
+  return <section className="customer-section customer-recent" aria-labelledby="order-history">
+    <div className="customer-heading"><h2 id="order-history">{t("Order history", "အော်ဒါမှတ်တမ်း")}</h2>
+      <Link className="customer-history-link" href="/order-history" onClick={onClose}>{t("View all orders", "အားလုံးကြည့်ရန်")}<ArrowRight size={15} aria-hidden /></Link>
+    </div>
+    {recent.length ? <ul className="customer-recent-list">{recent.map(({ orderId, line }) => <li key={`${orderId}-${line.id}`}>
+      <div className="customer-item-title"><strong>{line.productName}</strong>{line.quantity > 1 && <span>{t("Qty", "အရေအတွက်")} {line.quantity}</span>}</div>
+      <p className="customer-item-plan">{[line.planName, durationText(line.duration, lang)].filter(Boolean).join(" · ")}</p>
+      <SubscriptionTerm startDate={line.startDate} endDate={line.endDate} lang={lang} compact />
+    </li>)}</ul> : <p className="customer-empty">{t("Approved orders and subscription dates will appear here.", "အော်ဒါ အတည်ပြုပြီးရင် ဝယ်ယူမှုမှတ်တမ်းနဲ့ ဝန်ဆောင်မှုသက်တမ်းကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>}
+  </section>;
+}
+
+export function AccountContent({ lang, checkout = false, embedded = false, history = false, onClose }: AccountProps) {
   const Container = embedded ? "section" : "main";
   const Title = embedded ? "h2" : "h1";
   const t: Translate = (en, my) => lang === "my" ? my : en;
@@ -226,7 +240,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, onClo
         setOrders(null);
         if (person && checkout && !embedded) { window.location.replace("/?checkout=1"); return; }
         if (person) {
-          const response = await fetch("/api/customer/orders", options);
+          const response = await fetch(`/api/customer/orders?view=${history ? "history" : "overview"}`, options);
           if (!active) return;
           if (response.status === 401) { setCustomer(null); }
           else {
@@ -242,7 +256,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, onClo
     }
     void load();
     return () => { active = false; controller.abort(); };
-  }, [reload, checkout, embedded]);
+  }, [reload, checkout, embedded, history]);
 
   useEffect(() => {
     function clearOnLeave() { setCustomer(null); setOrders(null); setLoading(true); }
@@ -269,7 +283,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, onClo
     try {
       const result = await fetch(sessionPath, { method: "DELETE", cache: "no-store" });
       if (!result.ok) throw new Error("logout");
-      if (!embedded) { window.location.replace("/account"); return; }
+      if (!embedded) { window.location.replace(history ? "/order-history" : "/account"); return; }
       setCustomer(null);
       setOrders(null);
       setFailed(false);
@@ -289,7 +303,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, onClo
 
   const pending = orders?.filter(order => order.status === "pending") ?? [];
   const approved = orders?.filter(order => order.status === "approved") ?? [];
-  return <Container className={"customer-page" + (embedded ? " customer-embedded" : "")} lang={lang}>
+  return <Container className={"customer-page" + (embedded ? " customer-embedded" : "") + (history ? " customer-history-page" : "")} lang={lang}>
     {!embedded && <header className="customer-header">
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- The storefront and account use separate documents. */}
       <a href="/" className="customer-brand" aria-label={t("Digimium store", "Digimium စတိုး")}><Image src="/assets/logo.png" alt="digimium." width={142} height={48} unoptimized /></a>
@@ -297,31 +311,41 @@ export function AccountContent({ lang, checkout = false, embedded = false, onClo
       <a className="customer-back" href="/"><ArrowLeft size={15} aria-hidden />{t("Back to store", "ဆိုင်သို့ ပြန်သွားရန်")}</a>
     </header>}
     <div className="customer-main">
+      {history && <div className="customer-history-heading"><h1>{t("Order history", "အော်ဒါမှတ်တမ်း")}</h1>
+        <p>{t("Your approved orders and subscription dates, in one place.", "အတည်ပြုပြီးသော အော်ဒါတွေနဲ့ ဝန်ဆောင်မှုသက်တမ်းတွေကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>
+      </div>}
       {failed && <div className="customer-alert" role="alert">{t("Couldn’t update your account. Try again.", "အကောင့်ကို ပြန်လည်ဖော်ပြ၍ မရပါ။ ပြန်ကြိုးစားပါ။")}
         <button type="button" onClick={refresh}>{t("Retry", "ပြန်ကြိုးစားရန်")}</button>
       </div>}
       {!customer && loading && <p role="status">{t("Loading your account…", "အကောင့်ကို ဖော်ပြနေပါတယ်…")}</p>}
-      {!customer && !loading && !failed && <AuthForm t={t} checkout={checkout} embedded={embedded} onSuccess={signedIn} />}
+      {!customer && !loading && !failed && <>
+        {history && <p className="customer-history-signin">{t("Sign in to see orders placed with your account. If you ordered without an account, check your Telegram conversation with Digimium.", "အကောင့်နဲ့ ဝယ်ထားတဲ့ အော်ဒါတွေကို ကြည့်ဖို့ အကောင့်ဝင်ပါ။ အကောင့်မရှိဘဲ ဝယ်ထားရင် Digimium နဲ့ ပြောထားတဲ့ Telegram chat မှာ ပြန်ကြည့်နိုင်ပါတယ်။")}</p>}
+        <AuthForm t={t} checkout={checkout} embedded={embedded} history={history} onSuccess={signedIn} />
+      </>}
       {customer && <div className="customer-dashboard">
         <div className="customer-summary">
-          <div>{!embedded && <Title>{t("My account", "ကျွန်ုပ်၏အကောင့်")}</Title>}<p><strong>{customer.name}</strong><span>{customer.email}</span></p><small className="customer-member-since">{t("Joined", "အကောင့်ဖွင့်သည့်နေ့")} <time dateTime={customer.createdAt}>{formatDate(customer.createdAt, lang)}</time></small></div>
+          <div>{!embedded && !history && <Title>{t("My account", "ကျွန်ုပ်၏အကောင့်")}</Title>}<p><strong>{customer.name}</strong><span>{customer.email}</span></p>{!history && <small className="customer-member-since">{t("Joined", "အကောင့်ဖွင့်သည့်နေ့")} <time dateTime={customer.createdAt}>{formatDate(customer.createdAt, lang)}</time></small>}</div>
           <button type="button" onClick={logout} disabled={loggingOut}><LogOut size={16} aria-hidden />{t("Sign out", "အကောင့်ထွက်ရန်")}</button>
         </div>
-        <PasswordForm t={t} onUpdated={setCustomer} onSignedOut={() => { setCustomer(null); setOrders(null); refresh(); }} />
+        {!history && <PasswordForm t={t} onUpdated={setCustomer} onSignedOut={() => { setCustomer(null); setOrders(null); refresh(); }} />}
         {!orders && !failed && <p role="status">{t("Loading orders…", "အော်ဒါများကို ဖော်ပြနေပါတယ်…")}</p>}
         {orders && <>
-          <section className="customer-section" aria-labelledby="pending-orders">
+          {!history && <RecentOrders orders={approved} lang={lang} t={t} onClose={onClose} />}
+          {!history && <section className="customer-section" aria-labelledby="pending-orders">
             <div className="customer-heading"><h2 id="pending-orders">{t("Pending orders", "အတည်ပြုရန် စောင့်ဆိုင်းနေသော အော်ဒါများ")}</h2>
               <button type="button" className="customer-refresh" onClick={refresh} disabled={loading}><RefreshCw size={15} aria-hidden />{t("Refresh", "ပြန်ကြည့်ရန်")}</button>
             </div>
             {pending.length ? pending.map(order => <OrderCard key={order.id} order={order} customer={customer} telegram={telegram} lang={lang} t={t} embedded={embedded} onClose={onClose} />)
               : <p className="customer-empty">{t("No orders are awaiting approval.", "အတည်ပြုရန် စောင့်ဆိုင်းနေသော အော်ဒါ မရှိပါ။")}</p>}
-          </section>
-          <section className="customer-section" aria-labelledby="order-history">
-            <h2 id="order-history">{t("Order history", "အော်ဒါမှတ်တမ်း")}</h2>
+          </section>}
+          {history && <section className="customer-section" aria-labelledby="approved-orders">
+            <div className="customer-heading"><h2 id="approved-orders">{t("Approved orders", "အတည်ပြုပြီးသော အော်ဒါများ")}</h2>
+              <button type="button" className="customer-refresh" onClick={refresh} disabled={loading}><RefreshCw size={15} aria-hidden />{t("Refresh", "ပြန်ကြည့်ရန်")}</button>
+            </div>
             {approved.length ? approved.map(order => <OrderCard key={order.id} order={order} customer={customer} telegram={telegram} lang={lang} t={t} embedded={embedded} onClose={onClose} />)
               : <p className="customer-empty">{t("Approved orders and subscription dates will appear here.", "အော်ဒါ အတည်ပြုပြီးရင် ဝယ်ယူမှုမှတ်တမ်းနဲ့ ဝန်ဆောင်မှုသက်တမ်းကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>}
-          </section>
+            <Link href="/account" className="customer-history-account">{t("View pending orders and account settings", "စောင့်ဆိုင်းဆဲ အော်ဒါများနှင့် အကောင့်အချက်အလက် ကြည့်ရန်")}<ArrowRight size={16} aria-hidden /></Link>
+          </section>}
         </>}
       </div>}
     </div>

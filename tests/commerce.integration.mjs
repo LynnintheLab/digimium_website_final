@@ -1,7 +1,7 @@
 // Run after npm run build. Uses the same disposable database/origin settings as test:hostinger.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createCipheriv, createHmac, randomBytes, randomUUID } from 'node:crypto';
+import { createCipheriv, createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -54,6 +54,24 @@ try {
   await new Promise((resolve, reject) => probe.once('error', reject).listen(Number(base.port), base.hostname, resolve));
   await new Promise(resolve => probe.close(resolve));
   await db.query(await readFile(new URL('hostinger/schema.sql', root), 'utf8'));
+  // Exercise the upgrade from the deployed account-only order schema, as well as fresh installs.
+  await db.query(await readFile(new URL('hostinger/customer-auth-schema.sql', root), 'utf8'));
+  await db.query(`CREATE TABLE digimium_orders (
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+    customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    request_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    request_hash BINARY(32) NOT NULL,
+    created_at CHAR(24) CHARACTER SET ascii NOT NULL,
+    approved_at CHAR(24) CHARACTER SET ascii NULL,
+    revision INT UNSIGNED NOT NULL DEFAULT 1,
+    snapshot MEDIUMTEXT NOT NULL,
+    fulfillment MEDIUMTEXT NULL,
+    UNIQUE KEY orders_customer_request (customer_id, request_id),
+    INDEX orders_customer_created (customer_id, created_at),
+    CONSTRAINT orders_customer FOREIGN KEY (customer_id) REFERENCES digimium_customers (id),
+    CHECK (JSON_VALID(snapshot)),
+    CHECK ((approved_at IS NULL AND fulfillment IS NULL) OR (approved_at IS NOT NULL AND fulfillment IS NOT NULL))
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
   server = spawn(process.execPath, ['--import', new URL('tests/fixtures/resend-fetch.mjs', root).href,
     fileURLToPath(new URL('.next/standalone/server.js', root))], {
     cwd: fileURLToPath(root), env: { ...env, FIXTURE_MAIL_FAILURE: '0', NODE_ENV: 'production', HOSTNAME: base.hostname, PORT: base.port },
@@ -219,7 +237,85 @@ try {
   }
   assert.ok(attempts.includes(429), 'Password changes share a bounded account attempt window');
 
-  console.log('Commerce integration passed: account sessions, recorded Telegram checkout, exact retries, date approvals, password rotation and owner-only history.');
+  for (let index = 0; index < 2; index++) {
+    const added = await json(await submit({ requestId: randomUUID(), items: [custom] }, activeCookie), 201);
+    const order = (await json(await get(adminCommerce, owner))).orders.find(row => row.id === added.id);
+    await json(await mutate(adminCommerce + '/' + added.id, 'PATCH', { revision: order.revision,
+      lines: order.lines.map(line => ({ id: line.id, startDate: '2028-01-01', endDate: '2028-03-01' })) }, owner));
+  }
+  const overview = (await json(await get(customerOrders + '?view=overview', activeCookie))).orders;
+  assert.equal(overview.filter(order => order.status === 'approved').flatMap(order => order.lines).length, 3);
+  assert.ok(overview.some(order => order.id === priced.id && order.status === 'pending'));
+  assert.ok(overview.every(order => order.lines.every(line => !line.accountInfo)), 'Account preview never returns historical credentials');
+  const history = (await json(await get(customerOrders + '?view=history', activeCookie))).orders;
+  assert.ok(history.every(order => order.status === 'approved'));
+  assert.equal(history.flatMap(order => order.lines).length, 4);
+  assert.equal(history.find(order => order.id === id).lines[0].accountInfo, privateDetails);
+  assert.deepEqual((await json(await get(customerOrders + '?view=history&customerId=' + alice.id, bob.cookie))).orders, []);
+
+  const guestSession = '/api/customer/guest-session';
+  assert.equal((await mutate(guestSession, 'POST', {}, '', 'https://foreign.invalid')).status, 403);
+  const guestStart = await mutate(guestSession, 'POST', {});
+  const guestCookie = cookie(guestStart, 'digimium_local_guest');
+  assert.deepEqual(await json(guestStart), { guest: true });
+  const guestAgain = await mutate(guestSession, 'POST', {}, guestCookie);
+  assert.equal(guestAgain.headers.get('set-cookie'), null, 'Established guest sessions survive preflight retries');
+  assert.deepEqual(await json(guestAgain), { guest: true });
+  assert.equal((await get(customerOrders, guestCookie)).status, 401);
+  assert.equal((await json(await get(customerSession, guestCookie))).customer, null);
+  const guestBody = { requestId: randomUUID(), items: [custom], guestName: '  ဒေါ်မြ  ' };
+  assert.equal((await submit(guestBody, '')).status, 401);
+  const changedToken = guestCookie.slice(0, -2) + (guestCookie.at(-2) === 'a' ? 'b' : 'a') + guestCookie.at(-1);
+  assert.equal((await submit(guestBody, changedToken)).status, 401);
+  assert.equal((await submit(guestBody, guestCookie, 'https://foreign.invalid')).status, 403);
+  assert.equal((await submit({ items: [custom], requestId: randomUUID() }, guestCookie)).status, 401,
+    'A returning guest is offered the name form instead of an invalid-order error');
+  const signedInDuringGuestForm = await json(await submit({ ...guestBody, requestId: randomUUID() }, bob.cookie), 201);
+  assert.deepEqual(signedInDuringGuestForm.customer, { name: second.name, email: second.email },
+    'The verified account wins when another tab signs in while the guest form is open');
+  for (const guestName of ['', '  ', 'x'.repeat(101), 'First\nSecond', 12, null]) {
+    assert.equal((await submit({ ...guestBody, guestName }, guestCookie)).status, 400);
+  }
+  assert.equal((await submit({ ...guestBody, customerId: alice.id }, guestCookie)).status, 400);
+  const guestResponses = await Promise.all([submit(guestBody, guestCookie), submit(guestBody, guestCookie)]);
+  assert.deepEqual(guestResponses.map(response => response.status).sort(), [200, 201]);
+  const guestResults = await Promise.all(guestResponses.map(response => json(response, response.status)));
+  assert.deepEqual(guestResults[0], guestResults[1]);
+  const guestCheckout = guestResults[0];
+  assert.deepEqual(guestCheckout.customer, { name: 'ဒေါ်မြ', email: null, guest: true });
+  assert.equal(guestCheckout.telegram, updatedContact);
+  assert.equal((await submit({ ...guestBody, guestName: 'Different' }, guestCookie)).status, 409);
+  assert.equal((await submit({ ...guestBody, items: [{ ...custom, quantity: 2 }] }, guestCookie)).status, 409);
+  const guestAdmin = await json(await get(adminCommerce, owner));
+  assert.equal(guestAdmin.customers.length, 2, 'Guest checkout never fabricates a registered customer');
+  const guestOrder = guestAdmin.orders.find(order => order.id === guestCheckout.id);
+  assert.equal(guestOrder.customerId, null);
+  assert.equal(guestOrder.guestName, 'ဒေါ်မြ');
+  assert.ok(!JSON.stringify(guestAdmin).includes('guest_key'));
+  assert.ok(!(await json(await get(customerOrders, activeCookie))).orders.some(order => order.id === guestCheckout.id));
+  const anotherGuestCookie = cookie(await mutate(guestSession, 'POST', {}), 'digimium_local_guest');
+  const anotherGuest = await json(await submit(guestBody, anotherGuestCookie), 201);
+  assert.notEqual(anotherGuest.id, guestCheckout.id, 'Same names and request IDs in independent browsers do not share orders');
+  const guestApproval = { revision: guestOrder.revision,
+    lines: guestOrder.lines.map(line => ({ id: line.id, startDate: '2028-03-01', endDate: '2028-04-01' })) };
+  assert.equal((await mutate(adminCommerce + '/' + guestCheckout.id, 'PATCH', guestApproval, guestCookie)).status, 401);
+  const approvedGuest = (await json(await mutate(adminCommerce + '/' + guestCheckout.id, 'PATCH', guestApproval, owner))).order;
+  assert.equal(approvedGuest.status, 'approved');
+  assert.equal(approvedGuest.guestName, 'ဒေါ်မြ');
+  assert.equal(approvedGuest.lines[0].endDate, '2028-04-01');
+  assert.deepEqual((await json(await get(adminCommerce, owner))).orders.find(order => order.id === guestCheckout.id), approvedGuest,
+    'Guest fulfillment can be read back by admin with its own encryption ownership');
+  assert.deepEqual(await json(await submit(guestBody, guestCookie)), guestCheckout,
+    'Guest replay after approval returns only the original public purchase snapshot');
+  // Fill this guest's limit window without writing twenty additional fixture orders.
+  const guestKey = createHash('sha256').update(guestCookie.split('=')[1].split('.')[1]).digest('hex');
+  const guestScope = createHash('sha256').update('guest-checkout:order:guest:' + guestKey).digest();
+  await db.execute('UPDATE digimium_customer_auth_limits SET attempts = 20 WHERE bucket = ? AND scope_hash = ?',
+    [Math.floor(Date.now() / 900000), guestScope]);
+  assert.equal((await submit({ ...guestBody, requestId: randomUUID() }, guestCookie)).status, 429);
+  assert.deepEqual(await json(await submit(guestBody, guestCookie)), guestCheckout, 'Safe retries remain available at the new-order limit');
+
+  console.log('Commerce integration passed: account sessions, Telegram checkout, guest schema migration, isolated guests, exact retries, guest limits, date approvals, password rotation and owner-only history.');
 } finally {
   if (server && server.exitCode === null && !server.signalCode) {
     const exit = once(server, 'exit');

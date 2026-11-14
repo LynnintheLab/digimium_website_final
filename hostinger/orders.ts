@@ -14,6 +14,7 @@ import { resolveTelegramContact } from '../lib/telegram-contact';
 import { priceOnEnquiry } from '../lib/shop-language';
 import type { CatalogSnapshot } from '../lib/storage-types';
 import { ensureCustomerSchema } from './customer-auth';
+import { limitGuestCheckout } from './guest-checkout';
 import { getPool } from './mysql';
 
 const catalogId = z.string().min(1).max(64).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
@@ -23,6 +24,11 @@ const itemSchema = z.object({
 const checkoutSchema = z.object({
   requestId: z.string().uuid(), items: z.array(itemSchema).min(1).max(3000),
 }).strict();
+const guestCheckoutSchema = checkoutSchema.extend({
+  guestName: z.string().trim().min(1).max(100).refine(value => !/\p{Cc}/u.test(value)),
+});
+type CheckoutOwner = { customerId: string; guestKey?: never; guestName?: never } |
+  { customerId: null; guestKey: Buffer; guestName: string };
 
 function validDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000')) return false;
@@ -40,7 +46,9 @@ type PurchasedLine = Omit<CommerceOrderLine, 'startDate' | 'endDate' | 'accountI
 type OrderSnapshot = { lines: PurchasedLine[]; totalMmk: number | null };
 interface OrderRow extends RowDataPacket {
   id: string;
-  customer_id: string;
+  customer_id: string | null;
+  guest_key: Buffer | null;
+  guest_name: string | null;
   created_at: string;
   approved_at: string | null;
   revision: number;
@@ -58,6 +66,23 @@ async function bootstrap() {
     if (!(error instanceof Error && 'code' in error && error.code === 'ER_NO_SUCH_TABLE')) throw error;
     await pool.query(await readFile(join(process.cwd(), 'hostinger', 'order-schema.sql'), 'utf8'));
   }
+  // Existing deployments gain nullable account ownership without altering any saved snapshots.
+  try {
+    await pool.query('SELECT guest_key, guest_name FROM digimium_orders LIMIT 0');
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ER_BAD_FIELD_ERROR')) throw error;
+    try {
+      await pool.query(`ALTER TABLE digimium_orders
+        MODIFY customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+        ADD guest_key BINARY(32) NULL,
+        ADD guest_name VARCHAR(100) NULL,
+        ADD UNIQUE KEY orders_guest_request (guest_key, request_id)`);
+    } catch (migrationError) {
+      if (!(migrationError instanceof Error && 'code' in migrationError && migrationError.code === 'ER_DUP_FIELDNAME')) throw migrationError;
+      // Another server may have completed the same atomic migration first.
+      await pool.query('SELECT guest_key, guest_name FROM digimium_orders LIMIT 0');
+    }
+  }
 }
 function ensureOrders() {
   return schemaReady ??= bootstrap().catch(error => {
@@ -72,10 +97,13 @@ function fulfillmentKey() {
   if (!secret || secret.length < 32) throw new Error('Missing order fulfillment key.');
   return createHmac('sha256', secret).update('digimium/order-fulfillment/v1').digest();
 }
-function encryptFulfillment(id: string, customerId: string, lines: OrderFulfillment[]) {
+function fulfillmentOwner(row: OrderRow) {
+  return row.customer_id ?? 'guest:' + row.guest_key!.toString('hex');
+}
+function encryptFulfillment(id: string, owner: string, lines: OrderFulfillment[]) {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', fulfillmentKey(), iv);
-  cipher.setAAD(Buffer.from(id + '/' + customerId));
+  cipher.setAAD(Buffer.from(id + '/' + owner));
   const ciphertext = Buffer.concat([cipher.update(JSON.stringify(lines), 'utf8'), cipher.final()]);
   return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString('base64');
 }
@@ -84,7 +112,7 @@ function decryptFulfillment(row: OrderRow): OrderFulfillment[] {
   const envelope = Buffer.from(row.fulfillment, 'base64');
   const decipher = createDecipheriv('aes-256-gcm', fulfillmentKey(), envelope.subarray(0, 12));
   decipher.setAuthTag(envelope.subarray(12, 28));
-  decipher.setAAD(Buffer.from(row.id + '/' + row.customer_id));
+  decipher.setAAD(Buffer.from(row.id + '/' + fulfillmentOwner(row)));
   const plaintext = Buffer.concat([decipher.update(envelope.subarray(28)), decipher.final()]);
   return JSON.parse(plaintext.toString('utf8'));
 }
@@ -94,6 +122,7 @@ function present(row: OrderRow): CommerceOrder {
   const delivery = new Map(decryptFulfillment(row).map(line => [line.id, line]));
   return {
     id: row.id, customerId: row.customer_id, createdAt: row.created_at, approvedAt: row.approved_at,
+    ...(row.guest_name ? { guestName: row.guest_name } : {}),
     status: row.approved_at ? 'approved' : 'pending', revision: row.revision, totalMmk: snapshot.totalMmk,
     lines: snapshot.lines.map(line => {
       const grant = delivery.get(line.id);
@@ -133,9 +162,10 @@ export async function currentOrderContact() {
   return orderContact(await getCatalog());
 }
 
-async function existingCheckout(customerId: string, requestId: string, hash: Buffer) {
+async function existingCheckout(owner: CheckoutOwner, requestId: string, hash: Buffer) {
   const [rows] = await getPool().execute<RowDataPacket[]>(
-    'SELECT id, request_hash, snapshot FROM digimium_orders WHERE customer_id = ? AND request_id = ?', [customerId, requestId],
+    'SELECT id, request_hash, snapshot FROM digimium_orders WHERE ' + (owner.customerId ? 'customer_id' : 'guest_key') + ' = ? AND request_id = ?',
+    [owner.customerId ?? owner.guestKey, requestId],
   );
   if (!rows.length) return null;
   if (!hash.equals(rows[0].request_hash)) throw new CommerceError(409, 'This checkout was already submitted with different items.');
@@ -145,11 +175,23 @@ async function existingCheckout(customerId: string, requestId: string, hash: Buf
 export async function submitOrder(customerId: string, body: unknown) {
   const input = checkoutSchema.safeParse(body);
   if (!input.success) throw new CommerceError(400, 'Select valid items and quantities before submitting your order.');
-  const { items, requestId } = input.data;
-  const hash = createHash('sha256').update(JSON.stringify(items.map(item => [item.productId, item.planId, item.quantity]))).digest();
+  return storeOrder({ customerId }, input.data);
+}
+
+export async function submitGuestOrder(guestKey: Buffer, body: unknown, request: Request) {
+  const input = guestCheckoutSchema.safeParse(body);
+  if (!input.success) throw new CommerceError(400, 'Enter a name of up to 100 characters and select valid items.');
+  return storeOrder({ customerId: null, guestKey, guestName: input.data.guestName }, input.data, request);
+}
+
+async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSchema>, request?: Request) {
+  const { items, requestId } = input;
+  const canonical = JSON.stringify(items.map(item => [item.productId, item.planId, item.quantity]));
+  const hash = createHash('sha256').update(owner.customerId ? canonical : owner.guestName + '\n' + canonical).digest();
   await ensureOrders();
-  const existing = await existingCheckout(customerId, requestId, hash);
+  const existing = await existingCheckout(owner, requestId, hash);
   if (existing) return existing;
+  if (owner.guestKey && request) await limitGuestCheckout(request, owner.guestKey);
 
   const connection = await getPool().getConnection();
   try {
@@ -163,8 +205,8 @@ export async function submitOrder(customerId: string, body: unknown) {
     const snapshot = snapshotCart(items, current);
     const id = randomUUID();
     await connection.execute(
-      'INSERT INTO digimium_orders (id, customer_id, request_id, request_hash, created_at, snapshot) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, customerId, requestId, hash, new Date().toISOString(), JSON.stringify(snapshot)],
+      'INSERT INTO digimium_orders (id, customer_id, guest_key, guest_name, request_id, request_hash, created_at, snapshot) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, owner.customerId, owner.guestKey ?? null, owner.guestName ?? null, requestId, hash, new Date().toISOString(), JSON.stringify(snapshot)],
     );
     await connection.commit();
     return { order: telegramOrder(id, snapshot), telegram, created: true };
@@ -175,12 +217,12 @@ export async function submitOrder(customerId: string, body: unknown) {
     connection.release();
   }
   // A simultaneous retry can win the unique key while this transaction is in flight.
-  const winner = await existingCheckout(customerId, requestId, hash);
+  const winner = await existingCheckout(owner, requestId, hash);
   if (!winner) throw new Error('Checkout collision.');
   return winner;
 }
 
-const orderColumns = 'id, customer_id, created_at, approved_at, revision, snapshot, fulfillment';
+const orderColumns = 'id, customer_id, guest_key, guest_name, created_at, approved_at, revision, snapshot, fulfillment';
 
 export async function customerOrders(customerId: string) {
   await ensureOrders();
@@ -228,7 +270,7 @@ export async function saveFulfillment(id: string, body: unknown) {
       return { id, startDate, endDate, accountInfo: saved };
     });
     row.approved_at ??= new Date().toISOString();
-    row.fulfillment = encryptFulfillment(id, row.customer_id, lines);
+    row.fulfillment = encryptFulfillment(id, fulfillmentOwner(row), lines);
     row.revision++;
     const order = present(row);
     await connection.execute('UPDATE digimium_orders SET approved_at = ?, fulfillment = ?, revision = ? WHERE id = ?',

@@ -21,7 +21,8 @@ export type CommerceOrderLine = {
 
 export type CommerceOrder = {
   id: string;
-  customerId: string;
+  customerId: string | null;
+  guestName?: string;
   createdAt: string;
   approvedAt: string | null;
   status: 'pending' | 'approved';
@@ -44,6 +45,6 @@ export type TelegramOrder = Pick<CommerceOrder, 'id' | 'totalMmk'> & {
 export type TelegramCheckout = {
   id: string;
   order: TelegramOrder;
-  customer: Pick<CommerceCustomer, 'name' | 'email'>;
+  customer: { name: string; email: string | null; guest?: boolean };
   telegram: string;
 };

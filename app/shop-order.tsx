@@ -17,7 +17,7 @@ import './shop-order.css';
 type Locale = 'en' | 'my';
 export type ShopOrderHandle = { openProduct(product: Product, planId?: string): void; openCart(): void };
 type Props = { products: Product[]; lang: Locale; telegram: string; hideShortDescriptions?: boolean; onCountChange: (count: number) => void };
-type Screen = 'product' | 'cart' | 'handoff' | null;
+type Screen = 'product' | 'cart' | 'guest' | 'handoff' | null;
 
 function orderDescription({product, plan}: OrderLine, lang: Locale) {
   const name = plan ? planName(plan, lang) : lang === 'my' ? 'အစီအစဉ် စုံစမ်းရန်' : 'Plan enquiry';
@@ -34,8 +34,8 @@ function Logo({product}: {product: Product}) {
 
 function CheckoutNote({askAboutPrice, lang}: {askAboutPrice: boolean; lang: Locale}) {
   if (commerceEnabled) return <p className="order-checkout-note">{lang === 'my'
-    ? 'အကောင့်ဝင်ပြီး Telegram မှာ ဆက်မှာယူပါ။ စာထဲမှာ သင့်နာမည်၊ email နဲ့ အော်ဒါအချက်အလက်တွေ ပါဝင်ပါမယ်။ Website မှာလည်း အော်ဒါမှတ်တမ်း သိမ်းပေးပါမယ်။'
-    : 'Continue to Telegram with your account name, email and order details. Your order is also saved in your account.'}
+    ? 'အကောင့်မရှိလည်း နာမည်တစ်ခုထည့်ပြီး ဝယ်လို့ရပါတယ်။ ငွေပေးချေမှုနဲ့ ဝယ်ထားတဲ့ service အကောင့်ရယူဖို့ Telegram မှာ ဆက်သွယ်ပါ။'
+    : 'No account needed. Use a name or nickname, then arrange payment and service delivery in Telegram.'}
     {askAboutPrice && <><br/>{lang === 'my' ? 'ဈေးနှုန်း မဖော်ပြထားသော အစီအစဉ်အတွက် Admin က ဈေးနှုန်း အတည်ပြုပေးပါမယ်။' : 'Digimium will confirm the price of any plan marked “Price on enquiry”.'}</>}
   </p>;
   return <p lang="my" className="order-checkout-note">
@@ -61,6 +61,9 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   const [handoffContact, setHandoffContact] = useState(telegram);
   const [submitting, setSubmitting] = useState(false);
   const [orderError, setOrderError] = useState('');
+  const [guestName, setGuestName] = useState('');
+  const [guestOrder, setGuestOrder] = useState(false);
+  const guestInput = useRef<HTMLInputElement>(null);
   const inFlight = useRef(false);
   const attempt = useRef<{basket: string; requestId: string} | null>(null);
   const copyAttempt = useRef(0);
@@ -116,6 +119,9 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     };
   }, [products]);
   useEffect(() => { onCountChange(count); }, [count, onCountChange]);
+  useEffect(() => {
+    if (screen === 'guest') guestInput.current?.focus();
+  }, [screen]);
   useEffect(() => {
     if (!lastAdded) return;
     const timeout = window.setTimeout(() => setLastAdded(''), 5000);
@@ -186,15 +192,32 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     void copy(orderText.join('\n\n'));
     setScreen('handoff');
   }
-  async function placeOrder() {
+  async function placeOrder(asGuest = false) {
     if (inFlight.current || !checkoutRows.length) return;
     const items = checkoutRows.map(({productId, planId, quantity}) => ({productId, planId, quantity}));
-    const basket = JSON.stringify(items);
+    const name = guestName.trim();
+    if (asGuest && !name) {
+      setOrderError(t('Enter a name or nickname to continue.', 'ဆက်ဝယ်ရန် နာမည် သို့မဟုတ် အမည်ပြောင်တစ်ခု ထည့်ပါ။'));
+      guestInput.current?.focus();
+      return;
+    }
+    const basket = JSON.stringify({items, guestName: asGuest ? name : null});
     const key = 'digimium-checkout-attempt';
     inFlight.current = true;
     setSubmitting(true);
     setOrderError('');
     try {
+      if (!asGuest) {
+        const session = await fetch('/api/customer/session', {cache: 'no-store'});
+        if (!session.ok) throw new Error(t('We couldn’t check your account. Please try again.', 'အကောင့်ကို စစ်ဆေးမရသေးပါ။ ပြန်ကြိုးစားပါ။'));
+        const identity = await session.json() as {customer: {id: string} | null};
+        // Keep a guest's saved retry key intact when reopening checkout after a lost response.
+        if (!identity.customer) { setScreen('guest'); return; }
+      }
+      if (asGuest) {
+        const guestSession = await fetch('/api/customer/guest-session', {method: 'POST'});
+        if (!guestSession.ok) throw new Error(t('We couldn’t prepare your order. Please try again.', 'အော်ဒါကို ပြင်ဆင်မရသေးပါ။ ပြန်ကြိုးစားပါ။'));
+      }
       if (!attempt.current) {
         try { attempt.current = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch { /* Storage is optional. */ }
       }
@@ -204,10 +227,11 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       try { sessionStorage.setItem(key, JSON.stringify(attempt.current)); } catch { /* Retain the in-memory key for retries. */ }
       const response = await fetch('/api/customer/orders', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({items, requestId: attempt.current.requestId}),
+        body: JSON.stringify({items, requestId: attempt.current.requestId, ...(asGuest ? {guestName: name} : {})}),
       });
       if (response.status === 401) {
-        window.location.assign('/account?checkout=1');
+        setScreen('guest');
+        if (asGuest) setOrderError(t('Please try again to continue without an account.', 'အကောင့်မရှိဘဲ ဆက်ဝယ်ရန် ပြန်ကြိုးစားပါ။'));
         return;
       }
       const data = await response.json() as TelegramCheckout & {error?: string};
@@ -219,6 +243,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       setHandoff(messages);
       setCopyStatus('idle');
       setOrderId(data.id);
+      setGuestOrder(Boolean(data.customer.guest));
       saveCart([]);
       attempt.current = null;
       try { sessionStorage.removeItem(key); } catch { /* No persisted attempt. */ }
@@ -262,7 +287,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
           {screen === 'product' && hideShortDescriptions && product && <Logo product={product}/>}
           <div className="order-heading-title">
             <h2 id="shop-order-title">{screen === 'product' ? product?.name : screen === 'handoff' ?
-              t('Your Telegram order', 'သင့် Telegram အော်ဒါ') : t('Your cart', 'သင့်ဈေးခြင်း')}</h2>
+              t('Your Telegram order', 'သင့် Telegram အော်ဒါ') : screen === 'guest' ? t('What should we call you?', 'ဘယ်နာမည်နဲ့ မှာယူမလဲ?') : t('Your cart', 'သင့်ဈေးခြင်း')}</h2>
             {screen === 'product' && product?.bestSeller && <BestSellerBadge lang={lang} id="shop-product-badge" />}
           </div>
           <button type="button" disabled={submitting} className="order-icon" aria-label={t('Close', 'ပိတ်ရန်')} onClick={() => setScreen(null)}><X size={20}/></button>
@@ -322,8 +347,29 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
             <div className="order-actions"><button type="button" disabled={submitting} className="order-action order-secondary" onClick={() => setScreen(null)}>{t('Keep browsing', 'ဆက်လက် ရွေးချယ်ရန်')}</button>{checkoutControl}</div>
           </footer>
         </> : <div className="order-empty"><ShoppingBag size={30}/><p>{t('Your cart is empty. Choose a product and add a plan.', 'ဈေးခြင်းထဲမှာ ပစ္စည်း မရှိသေးပါ။ ဝန်ဆောင်မှုတစ်ခု ရွေးပြီး အစီအစဉ်ကို ထည့်လိုက်ပါ။')}</p><button className="order-action order-secondary" onClick={() => setScreen(null)}>{t('Browse products', 'ပစ္စည်းများ ကြည့်ရန်')}</button></div>)}
+        {screen === 'guest' && <form className="order-guest" onSubmit={event => { event.preventDefault(); void placeOrder(true); }}>
+          <div className="order-scroll order-content">
+            <p className="order-guest-intro">{t('A name or nickname is all you need to order.', 'နာမည် သို့မဟုတ် မှတ်မိလွယ်တဲ့ အမည်တစ်ခု ထည့်ရုံပါပဲ။')}</p>
+            <label className="order-guest-label" htmlFor="order-guest-name">{t('Name or nickname', 'နာမည် / အမည်ပြောင်')}</label>
+            <input ref={guestInput} id="order-guest-name" className="order-guest-input" name="guestName" autoComplete="nickname" required maxLength={100}
+              value={guestName} onChange={event => setGuestName(event.target.value)} disabled={submitting} aria-describedby="order-guest-help order-guest-notice" />
+            <p id="order-guest-help" className="order-guest-help">{t('This name will appear in your Telegram order.', 'Telegram အော်ဒါစာထဲမှာ ဒီနာမည်ကို ထည့်ပေးပါမယ်။')}</p>
+            <div id="order-guest-notice" className="order-guest-notice">
+              <strong>{t('Buying without an account', 'အကောင့်မရှိဘဲ ဝယ်ယူခြင်း')}</strong>
+              <p>{t('You won’t be able to view this order or its expiry date in a website account. Keep the order message in Telegram.', 'ဒီအော်ဒါနဲ့ သက်တမ်းကုန်ရက်ကို website အကောင့်မှာ ပြန်ကြည့်လို့မရပါ။ Telegram က အော်ဒါစာကို သိမ်းထားပေးပါ။')}</p>
+            </div>
+            <a className="order-guest-signin" href="/account?checkout=1" aria-disabled={submitting || undefined} onClick={event => { if (submitting) event.preventDefault(); }}>{t('Have an account? Sign in', 'အကောင့်ရှိပြီးသားလား? အကောင့်ဝင်ရန်')}</a>
+          </div>
+          <footer className="order-footer order-guest-footer">
+            {orderError && <p className="order-checkout-note" role="alert">{orderError}</p>}
+            <button type="submit" className="order-action order-primary" disabled={submitting || !checkoutAllowed}>{submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Continue without an account', 'အကောင့်မရှိဘဲ ဆက်ဝယ်မယ်')}<ArrowUpRight size={17}/></button>
+            <button type="button" className="order-guest-back" disabled={submitting} onClick={() => { setOrderError(''); setScreen('cart'); }}>{t('Back to cart', 'ဈေးခြင်းသို့ ပြန်ရန်')}</button>
+          </footer>
+        </form>}
         {screen === 'handoff' && <div className="order-content order-handoff">
-          {commerceEnabled && orderId && <p>{t('Saved in your account. Send this message in Telegram to arrange payment and receive your service account.', 'အော်ဒါကို သင့်အကောင့်ထဲ သိမ်းထားပါတယ်။ ငွေပေးချေမှုနဲ့ ဝယ်ထားတဲ့ service အကောင့်ရယူဖို့ Telegram မှာ ဒီစာကို ပို့ပေးပါ။')}</p>}
+          {commerceEnabled && orderId && <p>{guestOrder
+            ? t('Your guest order is recorded. Send this message in Telegram to arrange payment and receive your service account. Keep the message for your records.', 'အကောင့်မရှိဘဲ တင်ထားတဲ့ အော်ဒါကို မှတ်ထားပြီးပါပြီ။ ငွေပေးချေမှုနဲ့ ဝယ်ထားတဲ့ service အကောင့်ရယူဖို့ Telegram မှာ ဒီစာကို ပို့ပြီး သိမ်းထားပေးပါ။')
+            : t('Saved in your account. Send this message in Telegram to arrange payment and receive your service account.', 'အော်ဒါကို သင့်အကောင့်ထဲ သိမ်းထားပါတယ်။ ငွေပေးချေမှုနဲ့ ဝယ်ထားတဲ့ service အကောင့်ရယူဖို့ Telegram မှာ ဒီစာကို ပို့ပေးပါ။')}</p>}
           <p role="status">{copyStatus === 'copied' ? t('Order copied. Tap Send in the Telegram chat to confirm your request.', 'အော်ဒါကို ကူးယူပြီးပါပြီ။ Telegram စာပို့ခန်းမှာ ပို့ရန်ကို နှိပ်ပေးပါ။') :
             t('Your order is ready. Copy the details or open your draft in Telegram.', 'အော်ဒါ အဆင်သင့်ဖြစ်ပါပြီ။ အသေးစိတ်ကို ကူးယူပါ သို့မဟုတ် Telegram တွင် ဖွင့်ပါ။')}</p>
           {handoff.length > 1 && <p>{t(`Your order uses ${handoff.length} Telegram messages. Send each part in the same chat.`, `ဒီအော်ဒါကို Telegram မှာ စာ ${handoff.length} ပိုင်းခွဲပြီး တစ်ခန်းတည်းမှာ ပို့ပေးပါ။`)}</p>}
@@ -335,7 +381,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
               return url ? <a key={index} className="order-action order-primary" href={url} target="_blank" rel="noopener noreferrer">{handoff.length === 1 ? t('Open Telegram', 'Telegram ဖွင့်ရန်') : partLabel(index + 1, handoff.length)}<ArrowUpRight size={16}/></a> : null;
             })}
           </div>
-          {commerceEnabled && orderId && <a className="order-account-history" href="/account">{t('View my orders', 'ကျွန်ုပ်၏ အော်ဒါများ ကြည့်ရန်')}<ArrowUpRight size={15}/></a>}
+          {commerceEnabled && orderId && !guestOrder && <a className="order-account-history" href="/account">{t('View my orders', 'ကျွန်ုပ်၏ အော်ဒါများ ကြည့်ရန်')}<ArrowUpRight size={15}/></a>}
           {copyStatus === 'manual' && <p role="status">{t('Select and copy the order details above.', 'အပေါ်က အော်ဒါ အသေးစိတ်ကို ရွေးပြီး ကူးယူပါ။')}</p>}
         </div>}
       </div>

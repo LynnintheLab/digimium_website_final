@@ -112,13 +112,13 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
     },
     {
       title: t('Send your order.', 'Order တင်မယ်'),
-      detail: commerceEnabled ? <p>{t('Sign in and continue to Telegram. Your message includes your name, email and chosen plans. Digimium arranges payment and account delivery in the chat, then updates your purchase history.', 'အကောင့်ဝင်ပြီး Telegram မှာ ဆက်မှာယူပါ။ စာထဲမှာ သင့်နာမည်၊ email နဲ့ ရွေးထားတဲ့ Plan တွေ ပါဝင်ပါတယ်။ ငွေပေးချေမှုနဲ့ service အကောင့်ရယူမှုကို Telegram မှာ ဆောင်ရွက်ပြီး ဝယ်ယူမှုမှတ်တမ်းကို Website မှာ ကြည့်နိုင်ပါတယ်။')}</p> : <p>{t('Checkout opens your full order in our Telegram chat. Tap Send and we’ll confirm availability and payment details.', 'Check Out ကိုနှိပ်တဲ့အခါမှာ Order အပြည့်အစုံ နဲ့ Telegram Chat ပွင့်လာပါမယ်။ Send ကိုနှိပ်ပြီး Order ပို့ပါ။ ကြာချိန်၊ အာမခံ နှင့် Payment အသေးစိတ်ကိုပါ တစ်ခါတည်း မေးမြန်းလို့ရပါတယ်ခင်ဗျ။')}</p>,
+      detail: commerceEnabled ? <p>{t('Continue with a name or nickname, or sign in to save your purchase history. Send the prepared message in Telegram to arrange payment and service delivery.', 'နာမည်တစ်ခုထည့်ပြီး ဆက်ဝယ်နိုင်ပါတယ်။ ဝယ်ယူမှုမှတ်တမ်း သိမ်းချင်ရင် အကောင့်ဝင်ပါ။ ပြင်ဆင်ပေးထားတဲ့ စာကို Telegram မှာ ပို့ပြီး ငွေပေးချေမှုနဲ့ service အကောင့်ရယူမှုကို ဆက်လုပ်ပါ။')}</p> : <p>{t('Checkout opens your full order in our Telegram chat. Tap Send and we’ll confirm availability and payment details.', 'Check Out ကိုနှိပ်တဲ့အခါမှာ Order အပြည့်အစုံ နဲ့ Telegram Chat ပွင့်လာပါမယ်။ Send ကိုနှိပ်ပြီး Order ပို့ပါ။ ကြာချိန်၊ အာမခံ နှင့် Payment အသေးစိတ်ကိုပါ တစ်ခါတည်း မေးမြန်းလို့ရပါတယ်ခင်ဗျ။')}</p>,
     },
   ];
   const faqs = [
     [t('Can I order several services together?', 'ဝန်ဆောင်မှု အများအပြားကို တစ်ခါတည်း မှာလို့ရပါသလား။'), t('Yes. Choose a plan, add it to your cart and keep browsing. Checkout includes every item in your cart.', 'ရပါတယ်။ အစီအစဉ်ကို ရွေးပြီး ဈေးခြင်းထဲ ထည့်ပါ။ မှာယူတဲ့အခါ ဈေးခြင်းထဲက ပစ္စည်းအားလုံး အမှာစာထဲမှာ ပါဝင်ပါမယ်။')],
     [t('What does “Price on enquiry” mean?', '“ဈေးနှုန်း မေးရန်” ဆိုတာ ဘာကို ဆိုလိုပါသလဲ။'), t('You can add the plan to your order. Digimium will confirm its current price before you pay.', 'အဲဒီအစီအစဉ်ကိုလည်း ဈေးခြင်းထဲ ထည့်လို့ရပါတယ်။ ငွေမပေးချေမီ လက်ရှိဈေးနှုန်းကို Digimium က ပြောပြပါမယ်။')],
-    commerceEnabled ? [t('Where can I check my order?', 'ကျွန်တော့်အော်ဒါကို ဘယ်မှာကြည့်ရမလဲ။'), t('Open Account to check your saved orders and reopen their Telegram messages. After confirmation in Telegram, Digimium updates your purchase history and subscription dates.', 'Account ကိုနှိပ်ပြီး သိမ်းထားတဲ့ အော်ဒါတွေကို ကြည့်နိုင်သလို Telegram စာကိုလည်း ပြန်ဖွင့်နိုင်ပါတယ်။ Telegram မှာ အတည်ပြုပြီးတဲ့အခါ Digimium က ဝယ်ယူမှုမှတ်တမ်းနဲ့ သက်တမ်းရက်စွဲတွေကို ဖြည့်ပေးပါမယ်။')] :
+    commerceEnabled ? [t('Where can I check my order?', 'ကျွန်တော့်အော်ဒါကို ဘယ်မှာကြည့်ရမလဲ။'), t('If you ordered while signed in, open Account for pending orders or Order history for confirmed purchases and subscription dates. If you ordered without an account, use your Telegram order message.', 'အကောင့်ဝင်ပြီး ဝယ်ထားရင် စောင့်ဆိုင်းဆဲအော်ဒါကို Account မှာ၊ အတည်ပြုပြီး ဝယ်ယူမှုနဲ့ သက်တမ်းကို ဝယ်ယူမှု မှတ်တမ်းမှာ ကြည့်ပါ။ အကောင့်မရှိဘဲ ဝယ်ထားရင် Telegram က အော်ဒါစာမှာ ပြန်ကြည့်နိုင်ပါတယ်။')] :
     [t('When do I pay?', 'ဘယ်အချိန်မှာ ငွေပေးချေရမလဲ။'), t('Digimium will confirm your plan, price and payment options in Telegram after you send the order.', 'အမှာစာ ပို့ပြီးမှ ရွေးထားတဲ့ အစီအစဉ်၊ ဈေးနှုန်းနဲ့ ငွေပေးချေနိုင်တဲ့ နည်းလမ်းတွေကို Telegram မှာ အတည်ပြုပေးပါမယ်။')],
   ];
 
@@ -132,6 +132,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'en' }: {
         <a href="#services" onClick={() => setMenu(false)}>{t('Explore services', 'Product များ')}</a>
         <a href="#how-it-works" onClick={() => setMenu(false)}>{t('How to order', 'ဘယ်လိုဝယ်ယူရမလဲ')}</a>
         <a href="#contact" onClick={() => setMenu(false)}>{t('Contact', 'ဆက်သွယ်ရန်')}</a>
+        {commerceEnabled && <a href="/order-history" onClick={() => setMenu(false)}>{t('Order history', 'ဝယ်ယူမှု မှတ်တမ်း')}</a>}
       </nav>
       <div className="shop-header-tools">
         <div className="shop-language" role="group" aria-label={t('Language', 'ဘာသာစကား')}>

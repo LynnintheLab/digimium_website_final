@@ -70,6 +70,10 @@ Use Settings to edit Telegram, email, and Viber contacts, then save. Enter a Tel
 
 The website prepares and copies an order; it does not send the customer's message. Large orders may be split into numbered drafts. Customers send each part in the same conversation. Clipboard restrictions have a manual-copy fallback.
 
+## Guest and account orders
+
+Orders includes both registered customers and guests. A guest row shows the supplied nickname with **Guest** and has no email or customer account. Search by the name or order reference, match it to the customer’s Telegram message, and confirm payment and deliver access there. Approve the plan dates in admin afterward. Guest dates stay in the admin record; signed-in purchases appear in that customer’s Order history with time remaining. The customer’s Account panel previews three recent plans and links to the full history.
+
 ## Data and recovery
 
 Admin saves write a complete, versioned snapshot to MySQL on Hostinger or D1 on Sites. Seed JSON initializes an empty database only; changing seed files does not replace an existing saved catalog.

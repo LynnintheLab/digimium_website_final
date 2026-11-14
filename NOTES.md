@@ -2,7 +2,9 @@
 
 ## Current status
 
-Hostinger checkout saves a tracking record and opens the store’s Telegram chat with the customer name, email, order reference and saved plan details. Customers send the message and arrange payment and account delivery in Telegram. Admin confirms dates and approves the matching website record. The storefront Account button opens a panel with profile details, orders and password change. The standalone account route also remains available. See [the deployment guide](docs/HOSTINGER.md) for table creation, backups and the fulfillment encryption key.
+Hostinger checkout accepts a guest name/nickname without email, password or registration. A dismissible-by-continuing notice explains that guest purchases are tracked in admin and Telegram, without website account history. Signed-in checkout retains name/email and private purchase history. Customers send the prepared Telegram message and arrange payment and service access there; admin confirms dates and approves the matching order. Guest rows are labeled Guest and do not create customer accounts. See [the deployment guide](docs/HOSTINGER.md) for first-use order migration (ALTER privilege), backups and the fulfillment encryption key.
+
+Account opens inline and shows profile/password settings, a maximum of three recent approved subscription lines, and pending Telegram drafts. View all orders and the Order history navigation link beside Contact open `/order-history`. Both brief and full history show remaining days and a remaining-time bar. Calendar dates follow Myanmar time: an end date is Ends today until the next day, with separate upcoming, expired and unknown-date states. Historical access details are returned only by the full signed-in order view.
 
 Ten floating service-logo tiles surround all four edges of the showcase, with mixed sizes, clustered placements and open gaps. Best Seller badges use a bright gold background and filled star. Marked plans have a pale gold gradient and amber border; the selected plan has a blue outline and checked radio. The large watermark is stationary. A footer motion control, page visibility and the system reduced-motion preference govern animation. Phones support horizontal swipes, and multiple slides retain arrow and dash navigation.
 
@@ -27,6 +29,10 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Added name-only guest checkout, admin guest identification, safe retry identity, and optional sign-in. Split account history into a three-plan preview and a dedicated full history page with subscription duration visuals. Node 24 standalone build, types, 23 unit tests, focused ESLint (existing image warnings only), and the expanded MariaDB commerce integration suite passed. Integration covers an existing-schema migration, customer/guest isolation, concurrent retries, rate limits, admin approval and history response scoping. Chromium at 390px and WebKit at 320px verified English/Myanmar guest forms, Telegram identity without invented email, lost-response retry and repeat checkout. The guest retry also retained its original order after a page reload. History fixtures covered desktop 1440px, English 390px, Myanmar WebKit 320px, and header layout at 900/1024/1280px in both languages. Telegram navigation was intercepted; no real message was sent.
+
+Local iCloud duplicate source files with numbered names were preserved outside the build tree because TypeScript was compiling their stale copies. They are not part of the release. Runtime databases and test credentials remain outside Git.
 
 Restored signed-in Telegram checkout with the customer’s name, email, order reference and purchase snapshot. Restoring the draft from a pending order reuses the same record. The store account button now opens an anchored panel for profile details, password changes and purchase records. The admin order editor groups each plan with its dates. Verified in local Chromium and WebKit using English and Myanmar test accounts, including expired sessions after password change and retries after a lost checkout response.
 
@@ -91,6 +97,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+Check the name-only guest form on a physical phone with its software keyboard and Telegram app. Guests refer to the Telegram order message; there is no automatic later account linking. Keep ALTER privilege on the order table for the first deployment migration and retain database backups.
 
 Match the Telegram order reference with **Admin → Orders → Pending**, complete payment and account delivery in Telegram, then confirm subscription dates and approve its tracking record. Use **Customers** to look up the customer and their orders.
 

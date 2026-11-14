@@ -17,7 +17,7 @@ The Hostinger build protects `/admin` with a one-time code sent to the owner’s
 | Storefront | An automatic showcase of best sellers, gift promotions and discounts, with category collections when no promotion or discount is active. Includes search, category filters, FAQ, English/Myanmar and contact links. |
 | Product plans | Only published plans appear to customers. Unpriced products remain available for enquiries. |
 | Cart | The cart survives sign-in and clears when the server acknowledges the order. |
-| Customer account | Open Account in the store to register, sign in, view profile and purchase history, reopen Telegram order drafts or change your password. |
+| Customer account | Account is optional for buying. Open Account for profile, password, pending drafts and a three-plan history preview; Order history shows all approved purchases and remaining subscription time. |
 | Order administration | Review customers and saved orders in `/admin`. Match the Telegram reference, confirm dates and approve purchases after arranging delivery in the chat. |
 | Legacy Sites checkout | The Sites deployment opens a Telegram order draft. |
 | Admin | Create and edit products, plans, descriptions, categories, availability, featured state, publication, and contact settings. |
@@ -29,7 +29,7 @@ The Hostinger build protects `/admin` with a one-time code sent to the owner’s
 
 The starting catalog contains **54 products and 104 plan records**, with **50 plans selected for public display**. Admin edits can alter these counts. Keep the current plan visibility unless the owner explicitly changes it. Source and pricing decisions are documented in [data/IMPORT-SOURCES.md](data/IMPORT-SOURCES.md).
 
-Checkout opens a Telegram draft containing the authenticated customer’s name and email. Customers send the message themselves. Payment and service-account delivery happen in Telegram, followed by manual website approval. MySQL stores customer records and order snapshots separately from the editable catalog.
+Checkout accepts a guest name or nickname without registration, or uses the signed-in customer’s name and email. Guest orders appear in admin with a Guest label and are not linked to a website account. Checkout opens a Telegram draft with the order reference and that identity. Customers send the message themselves. Payment and service-account delivery happen in Telegram, followed by manual website approval. MySQL stores customer records and order snapshots separately from the editable catalog.
 
 ## Quick start
 

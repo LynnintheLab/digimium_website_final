@@ -119,3 +119,15 @@ test('Telegram checkout identifies the account and order in each draft without i
   const [unknown] = orderTelegramMessages({ ...order, totalMmk: null, lines }, customer, 'en');
   assert.ok(unknown.includes('Price on enquiry') && unknown.includes('Please confirm the total price.'));
 });
+
+test('guest Telegram drafts identify the nickname without an invented email or account', () => {
+  const order = { id: 'aa2d6549-fbd2-4602-a445-c6d99526afcb', totalMmk: 2000,
+    lines: [{ productName: 'Canva', planName: 'Monthly', duration: '1 month', price: '2,000 MMK', quantity: 1 }] };
+  const guest = { name: 'ဒေါ်မြ', email: null, guest: true };
+  for (const lang of ['en', 'my']) {
+    const [message] = orderTelegramMessages(order, guest, lang);
+    assert.ok(message.includes(guest.name) && message.includes(order.id.toUpperCase()));
+    assert.ok(message.includes(lang === 'my' ? 'အကောင့်မရှိဘဲ မှာယူခြင်း' : 'Guest order'));
+    assert.ok(!message.includes('null') && !message.includes('Email') && !message.includes('အီးမေးလ်'));
+  }
+});
