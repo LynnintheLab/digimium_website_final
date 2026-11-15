@@ -202,6 +202,23 @@ try {
   ]) {
     assert.equal((await save({ ...body, products: [...original.products, invalid] })).status, 400);
   }
+  // Migration regressions: strict boundaries and custom issue paths must survive
+  // the validation-library upgrade without accepting caller-controlled fields.
+  for (const invalid of [
+    { ...body, expectedRevision: Number.MAX_SAFE_INTEGER },
+    { ...body, ownerId: 'caller-selected' },
+    { ...body, settings: { ...body.settings, admin: true } },
+    { ...body, products: [{ ...product, admin: true }] },
+    { ...body, products: [{ ...product, plans: [{ ...product.plans[0], admin: true }] }] },
+    { ...body, settings: { ...body.settings, email: 'first@example.invalid\nsecond@example.invalid' } },
+  ]) assert.equal((await save(invalid)).status, 400);
+  const duplicatePlans = await json(await save({ ...body, products: [...original.products,
+    { ...product, plans: [product.plans[0], { ...product.plans[0] }] }] }), 400);
+  assert.ok(duplicatePlans.issues.some(issue => issue.path === `products.${original.products.length}.plans.1.id`
+    && issue.message === 'Each plan must have a unique ID within its product.'), 'Custom duplicate-plan issues retain their public path and message');
+  const oversizedCatalog = await json(await save({ ...body,
+    products: Array.from({ length: 101 }, (_, index) => ({ ...product, id: 'catalog-limit-' + index })) }), 400);
+  assert.ok(oversizedCatalog.issues.some(issue => issue.path === 'products'), 'Catalog collection bounds remain enforced');
   const firstSave = await Promise.all([save(body), save(body)]);
   assert.deepEqual(firstSave.map(r => r.status).sort(), [200, 409], 'Exactly one first save may win');
   const secondSave = await Promise.all([save({ ...body, expectedRevision: 1 }), save({ ...body, expectedRevision: 1 })]);

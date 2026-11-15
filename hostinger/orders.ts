@@ -18,7 +18,7 @@ import { limitGuestCheckout } from './guest-checkout';
 import { getPool } from './mysql';
 
 const MAX_ORDER_LINES = 3000;
-// Reject oversized collections before Zod 3 walks invalid elements and accumulates issues.
+// Reject oversized collections before schema parsing as defense in depth.
 function enforceCollectionLimit(body: unknown, field: 'items' | 'lines') {
   const collection = body && typeof body === 'object' && !Array.isArray(body)
     ? (body as Record<string, unknown>)[field] : undefined;

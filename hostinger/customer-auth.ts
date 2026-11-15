@@ -258,8 +258,9 @@ export async function issueTelegramCustomerSession(request: Request, identity: T
     } catch (error) {
       await connection.rollback();
       const code = error instanceof Error && 'code' in error ? String(error.code) : '';
-      if (attempt >= 2 || !['ER_DUP_ENTRY', 'ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT'].includes(code)) throw error;
-      // A simultaneous browser may create this Telegram user's identity first. Retry the entire atomic consumption.
+      if (attempt >= 2 || !['ER_DUP_ENTRY', 'ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT', 'ER_CHECKREAD'].includes(code)) throw error;
+      // A concurrent identity insert may also invalidate MariaDB's locking read (ER_CHECKREAD).
+      // Retry the entire atomic consumption with fresh session, challenge and ownership checks.
     } finally { connection.release(); }
   }
 }

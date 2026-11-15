@@ -1,5 +1,7 @@
 # Security review — 15 November 2026
 
+> Follow-up: the initial Zod finding is resolved by Zod 4.6.7, with matching React/DOM/RSC 19.2.9 patches. See the [Zod security follow-up](SECURITY-ZOD-FOLLOWUP-2026-11-15.md) for the new audits, regression tests, deployment status and remaining full-toolchain findings. The tables below retain the initial review history.
+
 ## Scope and status
 
 Review of the account/history changes, optional purchased-account fields, saved-receipt recovery, verified Telegram linking and giveaway. This is a focused source review, dependency audit and bounded application verification, not a penetration test or a guarantee that the entire hosting environment is secure.
@@ -38,7 +40,7 @@ Updated Next.js and eslint-config-next to **16.4.6**, sharp to **0.35.5** includ
 
 Next/sharp patches address published image-processing and cache-related advisories. Source inspection found no `next/og` ImageResponse, `use cache`, Server Actions or configured remote image allowlist in this application. That reduces exposure to some documented preconditions; upgrading is still appropriate because the package versions were affected and the framework's image endpoint can exist independently of visible UI usage. [Next image optimization advisory](https://github.com/advisories/GHSA-2464-fhr4-w9xw), [Next cache advisory](https://github.com/advisories/GHSA-673q-mjm6-r5xr), [sharp advisory](https://github.com/advisories/GHSA-wq5f-xc86-pv6w).
 
-**Remaining: Zod 3.25.76 — high severity.** No patched 3.x release was available during this check; the advisory identifies 4.6.6+ as patched. A v4 migration was not mixed into this release. The order handlers now reject `items`/`lines` arrays longer than 3,000 **before** Zod processes their elements. Existing request-byte limits remain in force. This mitigates the reachable oversized-order-array path but does **not** fix the library or clear the audit finding. Follow up with a tested v4 migration and fresh audit. [Zod resource-consumption advisory](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5).
+**Initial finding, now resolved: Zod 3.25.76 — high severity.** The follow-up pins Zod **4.6.7** and migrates both one-argument record schemas to the v4 API. The 3,000-item pre-schema order limits remain as defense in depth. The new production-dependency audit reports zero findings; the full build/preview graph still has separate open findings documented in the follow-up. [Zod resource-consumption advisory](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5).
 
 Local ignored evidence: [before audit](../outputs/security/runtime-audit-before-2026-11-15.json), [after audit](../outputs/security/runtime-audit-after-2026-11-15.json).
 
@@ -65,7 +67,7 @@ Evidence is local and ignored: [staging GET checks](../outputs/security/staging-
 
 ## Limits and follow-up
 
-- The Zod high-severity dependency finding remains open despite the collection guard.
+- The initial Zod finding is closed in the follow-up; separate full-toolchain findings remain open. See the follow-up for current counts and limits.
 - No exploit, load, brute-force or destructive test was run against the live service. Positive credential delivery, linking and giveaway entry must be validated with disposable fixtures; actual private Telegram delivery is outside the agent's no-app/link verification scope.
 - This review does not inspect Hostinger's operating system, database grants/backups, internal network or every CDN/WAF rule. Live headers alone cannot establish those controls.
 - Physical iOS Safari and assistive-technology coverage belong in the separate UI/UX report. These checks are not a participant usability study.
