@@ -40,7 +40,7 @@ export function ScrollRail({ lang }: { lang: "en" | "my" }) {
       if (!railBounds.height) return;
       // These are the storefront's dark surfaces. Use exact neutral colors rather
       // than inversion, which would turn the navy backdrop into a yellow tint.
-      const darkRegions = Array.from(document.querySelectorAll<HTMLElement>(".about, .showcase"), element => element.getBoundingClientRect());
+      const darkRegions = Array.from(document.querySelectorAll<HTMLElement>('.about, .showcase:not([data-kind="giveaway"]), .showcase[data-kind="giveaway"] .collection-link'), element => element.getBoundingClientRect());
       const onDarkSurface = (x: number, y: number) => darkRegions.some(bounds => x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom);
       const tickBounds = Array.from(railElement.querySelectorAll<HTMLSpanElement>(".scroll-rail-ticks span"), tick => ({ tick, bounds: tick.getBoundingClientRect() }));
       // Read all geometry before painting, including when the rail crosses a section edge.

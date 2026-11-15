@@ -62,7 +62,7 @@ Replace those markers only with verified values. Show campaign dates in **Myanma
 
 ## Visual direction
 
-Premium, minimalist, clear, confident. The Digimium brand palette is Persian blue **#1f45b8**, navy **#051650**, soft blue/lavender **#e2e7f6**, white and dark ink **#101113**. Preserve the current site's blue/lavender atmosphere and original service colors. Use the bundled **Manrope** for English and **Wa Lone** for Burmese; verify Burmese shaping and line breaking in the final render.
+Premium, minimalist, clear, confident. The Digimium brand palette is Persian blue **#1f45b8**, navy **#051650**, soft blue/lavender **#e2e7f6**, white and dark ink **#101113**. Preserve the current site's blue/lavender atmosphere and original service colors. The Giveaway card uses a distinct pale-gold to gold gradient (#fff1a8 → #ffd45a) with navy text and footer; retain this contrast when showing it beside the blue service offers. Use the bundled **Manrope** for English and **Wa Lone** for Burmese; verify Burmese shaping and line breaking in the final render.
 
 Make actual product UI the hero. Use clean phone/browser frames, deliberate detail crops, and restrained depth. Small service-logo tiles may drift independently around a composition, with calm perspective and soft shadows, without covering the logo, captions, prices or controls. No gift-box clutter, excessive confetti, spinning logos, bouncing type, neon rainbow, fake holographic dashboards, or a stock template aesthetic.
 
