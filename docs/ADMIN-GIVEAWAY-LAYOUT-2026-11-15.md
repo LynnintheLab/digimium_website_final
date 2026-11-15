@@ -1,6 +1,6 @@
 # Admin controls, giveaway visibility and desktop width
 
-Implemented on 15 November 2026. Final local verification passed; hosted rollout is pending.
+Runtime source **`3c43359`** reached **Hostinger Completed/Current on testing and production** on 15 November 2026. Final local and bounded hosted verification passed.
 
 ## Owner controls
 
@@ -31,3 +31,5 @@ At viewport widths of 1280px and above, the storefront header and main sections 
 - Fresh Myanmar browser load had no captured errors/warnings after correcting Node/browser locale differences. Dates use deterministic Myanmar-time formatting, including year rollover; countdown advances and joined confirmation appears once.
 
 Ignored evidence lives under `outputs/security/admin-giveaway-*`; screenshots are `outputs/admin-giveaway-desktop-final-local-2026-11-15.png` and `outputs/admin-giveaway-phone-final-local-2026-11-15.png`. Owned local app/database processes stopped and fake configuration was removed; unrelated review server remained untouched. Physical Windows/iOS/Android devices were not exercised. No Telegram app/provider links, real orders, giveaway entries/launch or Sites publication were triggered.
+
+Both hosts passed six bounded read-only GET checks: storefront, catalog (54 services), admin authorization redirect, private admin login, public giveaway and unauthorized customer route. Campaign ID/revision/dates/status/prizes matched the pre-release baseline. Production Chrome verified seven 80%-width sections, an advancing end-time countdown, one joined confirmation, customer Edit/Delete controls, eight pending Remove controls and none in Approved. Kosai Namti retained his displayed order. Existing production English preference, session and cart count of two were preserved; no captured application errors appeared. Final production screenshots are `outputs/desktop-80percent-live-2026-11-15.png` and `outputs/giveaway-countdown-live-2026-11-15.png`.
