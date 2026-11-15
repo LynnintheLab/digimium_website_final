@@ -102,3 +102,9 @@ Final automated gates pass: strict lint with zero errors/warnings, 98/98 unit te
 Browser acceptance and live delivery verification remain pending. Check the interface at 320px and desktop widths, both languages/themes, keyboard dismissal/focus, zero/unread badges, mark-one/all, pagination and signed-out gating. Confirm that no new analytics loads on private routes. Keep mutation/delivery verification on fresh disposable data and mocked Telegram unless a real action is separately authorized.
 
 Deploying this source and configuring a production owner chat/job are separate actions. Never trigger real Telegram delivery, create a real customer/order or delete live records as an incidental verification step.
+
+## Release status
+
+Runtime `42039be` is live on testing and production (Hostinger Completed/Current). The approved personal-chat recipient is applied in production using the existing bot; read-only Bot API verification confirmed the owner chat without sending a test message. No live order/account was created for testing. Website messages, the bell, dark appearance and order decisions were verified with disposable local accounts. The final portal fits 320px/390px viewports before and after scrolling.
+
+Private scheduler-key creation and the prepared five-minute job remain awaiting the owner’s explicit confirmation. Until activation, automatic expiry reminders and periodic outbox retries are not scheduled; post-commit new-order/new-account alerts use the configured bot immediately. The secret stays in a git-ignored private runtime file and must not be committed or put in a URL.

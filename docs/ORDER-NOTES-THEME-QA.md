@@ -1,6 +1,6 @@
 # Order notes, rejected orders and appearance QA
 
-Date: 15 November 2026. Status: implemented and verified locally; testing and production deployment are pending.
+Date: 15 November 2026. Status: runtime `42039be` is live on testing and production; private scheduler activation remains awaiting the owner’s explicit confirmation.
 
 ## Resulting behavior
 
@@ -81,3 +81,9 @@ Relevant implementation files are `hostinger/orders.ts`, `hostinger/order-schema
 Local Chrome verified optional approval/rejection notes, rejected records without dates/credentials/gauges, plain-text multiline rendering, Cancel focus restoration, stale-save input preservation and owner history. Admin website-message submission produced its success state and the owning customer’s unread bell; mark-all-read cleared the badge only after server success. A 320px popup initially extended below the viewport because of the blurred sticky header’s containing block. A body portal plus measured viewport bounds corrected it; final 320×700 and 390×844 checks leave 12px bottom clearance with no horizontal overflow. Strict lint, standalone build and typecheck pass after the two-file UI refinement; backend security results remain unchanged.
 
 Fresh full and production-only npm registry audits each report zero findings across all severities. This describes the current npm graph, not a separate hosting scanner’s cached badge. Testing runtime `90631cf` reached Completed/Current and passed the original six read-only checks plus three unauthenticated notification/cron isolation checks; production promotion and final private scheduler activation are still pending.
+
+## Release verification
+
+Runtime `42039be` reached testing and production Completed/Current. Both hosts pass bounded public catalog/health, admin redirect, unauthenticated customer/admin notification isolation and unauthorized scheduler checks; private responses remain no-store and giveaway dates/status/prizes match the pre-release baseline. A fixed 54-product assertion was stale for production: its published catalog is 51 products at revision 27, updated before this release. The public API filters unpublished products; verification records that observed count instead of resetting the owner’s catalog. Testing remains 54 published at revision 3.
+
+Live Chrome confirms the new theme and notification controls, existing English/session/cart2 state and no captured application errors. Collection was temporarily blocked for that public-page inspection, then the tab navigated to static content and the block was cleared before closure. Owned local fixture servers/databases/fake accounts/runtime secrets were cleaned up; the original unrelated review server remains unchanged. No live customer/order edits, test purchases, provider linking, giveaway entries or Telegram app launches were performed.
