@@ -1,5 +1,5 @@
 .customer-notifications { position: relative; flex: none; line-height: 1.7; }
-.customer-notifications button { font: inherit; text-decoration: none; }
+.customer-notifications button, .customer-notifications-panel button { font: inherit; text-decoration: none; }
 .customer-page .customer-notifications .customer-notifications-panel button:hover { text-decoration: none; }
 .customer-notifications button.customer-notifications-trigger,
 .customer-page .customer-notifications button.customer-notifications-trigger {
@@ -14,24 +14,25 @@
   border-radius: 999px; background: #b3263c; color: #fff; font: 700 10px/1 Manrope,sans-serif;
 }
 .customer-notifications-panel {
-  position: absolute; z-index: 31; inset-block-start: calc(100% + 14px); inset-inline-end: 0;
+  position: fixed; z-index: 31; top: 12px; left: 12px;
   display: flex; flex-direction: column; width: min(440px,calc(100vw - 32px));
-  max-height: min(720px,calc(100dvh - var(--shop-header-height,86px) - 32px));
-  overflow: hidden; border: 1px solid var(--line); border-radius: 16px;
+  max-height: calc(100dvh - 24px);
+  overflow: hidden; padding-bottom: env(safe-area-inset-bottom,0px); border: 1px solid var(--line); border-radius: 16px;
   background: var(--brand-surface); color: var(--ink);
   box-shadow: 0 16px 48px -12px rgb(5 22 80 / 28%); text-align: start;
 }
+.customer-notifications-panel[lang] { font-family: Manrope,Walone,sans-serif; line-height: 1.8; }
 .customer-notifications-panel:focus { outline: none; }
 .customer-notifications-panel :is(button,a):focus-visible { outline: 2px solid var(--blue); outline-offset: -3px; }
 .customer-notifications-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 12px 10px 20px; }
 .customer-notifications-heading h2,
 .customer-page .customer-notifications-heading h2 { font-size: 19px; font-weight: 700; line-height: 1.8; letter-spacing: 0; }
-.customer-notifications button.customer-notifications-close,
+.customer-notifications-panel button.customer-notifications-close,
 .customer-page .customer-notifications button.customer-notifications-close {
   display: grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0;
   border: 0; border-radius: 50%; background: transparent; color: var(--muted);
 }
-.customer-notifications button.customer-notifications-close:hover { background: var(--soft); color: var(--ink); }
+.customer-notifications-panel button.customer-notifications-close:hover { background: var(--soft); color: var(--ink); }
 .customer-notifications-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 14px; padding: 0 20px 10px; border-bottom: 1px solid var(--line); }
 .customer-notifications-toolbar > span { color: var(--muted); font-size: 13px; }
 .customer-notifications-toolbar button,
@@ -59,20 +60,17 @@
 .customer-notifications-empty { margin: 0; padding: 24px 20px; color: var(--muted); font-size: 14px; line-height: 1.95; }
 .customer-notifications-error { margin: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 9px; color: #a02535; font-size: 14px; }
 .customer-notifications-error p { margin: 0; }
-.customer-notifications button.customer-notifications-more,
+.customer-notifications-panel button.customer-notifications-more,
 .customer-page .customer-notifications button.customer-notifications-more {
   display: block; width: calc(100% - 32px); min-height: 44px; padding: 8px 14px; margin: 12px 16px;
   border: 1px solid var(--brand-line-strong); border-radius: 8px; background: transparent; color: var(--blue); font-size: 14px; text-decoration: none;
 }
 .customer-notifications-history { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: none; min-height: 52px; padding: 12px 20px; border-top: 1px solid var(--line); color: var(--blue); font-size: 14px; font-weight: 650; }
 .customer-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 14px; min-width: 0; }
-.storefront-shell:has(.customer-notifications-panel) .scroll-rail,
+body:has(.customer-notifications-panel) .scroll-rail,
 body:has(.customer-notifications-panel) .mobile-dock { display: none; }
 html[data-shop-theme="dark"] .customer-notifications-panel { box-shadow: 0 16px 48px -12px rgb(0 0 0 / 65%); }
 html[data-shop-theme="dark"] .customer-notifications-error { color: #ffb6c2; }
-@media (max-width: 800px) {
-  .customer-notifications-panel { position: fixed; inset-inline: max(12px,env(safe-area-inset-left)) max(12px,env(safe-area-inset-right)); inset-block-start: calc(var(--shop-header-height,68px) + 8px); width: auto; max-height: calc(100dvh - var(--shop-header-height,68px) - max(24px,env(safe-area-inset-bottom))); }
-}
 @media (max-width: 400px) {
   .customer-header-actions { gap: 6px; }
   .customer-header:has(.customer-notifications) .customer-brand img { width: 88px; }

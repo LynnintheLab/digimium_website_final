@@ -1,7 +1,8 @@
 'use client';
 
 import { ArrowRight, Bell, Check, CheckCheck, Clock3, Mail, RefreshCw, X } from 'lucide-react';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { CustomerNotificationPage } from '../lib/notification-types';
 import type { ShopLanguage } from '../lib/shop-language';
 import './customer-notifications.css';
@@ -162,13 +163,65 @@ export function CustomerNotifications({ lang, customerId, onOpen, onOpenChange }
     };
   }, [eligible, load, authRevision]);
 
+  useLayoutEffect(() => {
+    if (!open) return;
+    const anchor = trigger.current;
+    const surface = panel.current;
+    if (!anchor || !surface) return;
+    const header = anchor.closest('.header, .customer-header');
+    let frame = 0;
+    function place() {
+      frame = 0;
+      if (!anchor || !surface) return;
+      const viewport = window.visualViewport;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportWidth = viewport?.width ?? document.documentElement.clientWidth;
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const gutter = 12;
+      const narrow = window.matchMedia('(max-width: 800px)').matches;
+      const bounds = anchor.getBoundingClientRect();
+      const width = Math.min(narrow ? viewportWidth : 440, viewportWidth - 2 * gutter);
+      const preferredTop = narrow ? (header?.getBoundingClientRect().bottom ?? bounds.bottom) + 8 : bounds.bottom + 14;
+      const bottom = viewportTop + viewportHeight - gutter;
+      // Use the real header bottom, including a banner above it. In short viewports,
+      // move the sheet to the top gutter rather than leaving no readable list space.
+      const top = bottom - preferredTop < Math.min(280, viewportHeight - 2 * gutter)
+        ? viewportTop + gutter : Math.max(viewportTop + gutter, preferredTop);
+      const left = narrow ? viewportLeft + gutter
+        : Math.max(viewportLeft + gutter, Math.min(bounds.right - width, viewportLeft + viewportWidth - width - gutter));
+      surface.style.top = `${top}px`;
+      surface.style.left = `${left}px`;
+      surface.style.width = `${Math.max(0, width)}px`;
+      surface.style.maxHeight = `${Math.max(0, Math.min(narrow ? viewportHeight : 720, bottom - top))}px`;
+    }
+    function schedule() { if (!frame) frame = window.requestAnimationFrame(place); }
+    place();
+    const observer = new ResizeObserver(schedule);
+    observer.observe(anchor);
+    if (header) observer.observe(header);
+    observer.observe(document.body);
+    window.addEventListener('resize', schedule);
+    window.addEventListener('scroll', schedule, true);
+    window.visualViewport?.addEventListener('resize', schedule);
+    window.visualViewport?.addEventListener('scroll', schedule);
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('scroll', schedule, true);
+      window.visualViewport?.removeEventListener('resize', schedule);
+      window.visualViewport?.removeEventListener('scroll', schedule);
+    };
+  }, [open]);
+
   useEffect(() => {
     openRef.current = open;
     onOpenChange?.(open);
     if (!open) return;
     panel.current?.focus({ preventScroll: true });
     function outside(event: PointerEvent | FocusEvent) {
-      if (event.target instanceof Node && !wrapper.current?.contains(event.target)) close(false);
+      if (event.target instanceof Node && !wrapper.current?.contains(event.target) && !panel.current?.contains(event.target)) close(false);
     }
     document.addEventListener('pointerdown', outside);
     document.addEventListener('focusin', outside);
@@ -236,7 +289,7 @@ export function CustomerNotifications({ lang, customerId, onOpen, onOpenChange }
       <Bell size={20} aria-hidden="true"/>
       {current.unreadCount > 0 && <span className="customer-notifications-badge" aria-hidden="true">{current.unreadCount > 99 ? '99+' : current.unreadCount}</span>}
     </button>
-    {open && <div id={panelId} ref={panel} className="customer-notifications-panel" role="dialog" aria-labelledby={titleId} tabIndex={-1}
+    {open && createPortal(<div id={panelId} ref={panel} className="customer-notifications-panel" lang={lang} role="dialog" aria-labelledby={titleId} tabIndex={-1}
       onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); } }}>
       <div className="customer-notifications-heading"><h2 id={titleId}>{t('Notifications', 'အသိပေးချက်များ')}</h2>
         <button className="customer-notifications-close" type="button" onClick={() => close()} aria-label={t('Close notifications', 'အသိပေးချက် ပိတ်ရန်')}><X size={20} aria-hidden="true"/></button>
@@ -263,6 +316,6 @@ export function CustomerNotifications({ lang, customerId, onOpen, onOpenChange }
         {current.nextCursor && <button className="customer-notifications-more" type="button" disabled={waiting || !!marking} onClick={() => requestPage(current.nextCursor ?? undefined)}>{waiting ? t('Loading…', 'ဖော်ပြနေပါတယ်…') : t('Load more', 'ထပ်ကြည့်ရန်')}</button>}
       </div>
       <a className="customer-notifications-history" href="/order-history">{t('Order history', 'ဝယ်ယူမှု မှတ်တမ်း')}<ArrowRight size={17} aria-hidden="true"/></a>
-    </div>}
+    </div>, document.body)}
   </div>;
 }
