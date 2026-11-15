@@ -70,7 +70,8 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my', ini
   });
   const featured = matches.filter(product => product.featured);
   const browsingAll = all || category !== 0 || terms.length > 0;
-  const visible = browsingAll ? matches : featured.length ? featured : matches.slice(0, 6);
+  const preview = [...featured, ...matches.filter(product => !product.featured)].slice(0, 8);
+  const visible = browsingAll ? matches : preview;
   const cartLabel = t('Cart', 'ဈေးခြင်း');
 
   const selectDockSection = useCallback((section: 'services' | 'help') => {
@@ -276,7 +277,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my', ini
         })}</div>
         {!matches.length && <div className="empty"><Search size={30} /><h3>{t('No matching services', 'ကိုက်ညီသော Product မတွေ့ပါ')}</h3><button className="button secondary" onClick={() => { setQuery(''); setCategory(0); setAll(true); }}>{t('Show all services', 'Product အားလုံး ကြည့်ရန်')}</button></div>}
         <div className="catalog-footer"><p aria-live="polite" lang="en">{visible.length} of {matches.length} services</p>
-          {category === 0 && !query && matches.length > featured.length && <button className="text-link" onClick={() => setAll(!all)}>{all ? t('Show featured services', 'ရွေးချယ်ထားသော Product များ ကြည့်ရန်') : t(`Browse all ${products.length} services`, `Product ${products.length} ခုလုံး ကြည့်ရန်`)}<ChevronDown size={17} className={all ? 'rotate' : ''} /></button>}
+          {category === 0 && !query && matches.length > preview.length && <button className="text-link" onClick={() => setAll(!all)}>{all ? t('Show fewer services', 'Product အနည်းငယ်သာ ပြရန်') : t(`Browse all ${products.length} services`, `Product ${products.length} ခုလုံး ကြည့်ရန်`)}<ChevronDown size={17} className={all ? 'rotate' : ''} /></button>}
         </div>
       </section>
       <section id="about" className="about">

@@ -172,6 +172,10 @@ html:has(.storefront-shell) {
 @media (max-width: 900px) { .shop-account-link { min-width: 40px; } }
 
 .store-payment-strip { padding-block: 13px 15px; border-bottom: 1px solid var(--line); }
+@media (min-width: 801px) {
+  .store-payment-strip .payment-methods { justify-content: center; flex-wrap: wrap; gap: 16px 32px; }
+  .store-payment-strip .payment-methods ul { justify-content: center; }
+}
 @media (max-width: 800px) {
   .storefront-shell { padding-bottom: calc(var(--mobile-dock-clearance,104px) + env(safe-area-inset-bottom)); }
   .shop-header-tools > .shop-cart-button, .shop-header-tools .shop-account-link { display: none; }
@@ -205,4 +209,5 @@ html:has(.storefront-shell) {
   .storefront-shell .header { width: 100%; padding-inline: 10%; }
   .storefront-shell .hero-description { max-width: 60ch; }
   .storefront-shell .about-copy > p { max-width: 65ch; }
+  .storefront-shell .catalog-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }

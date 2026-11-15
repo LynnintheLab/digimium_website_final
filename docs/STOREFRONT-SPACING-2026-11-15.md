@@ -1,0 +1,12 @@
+# Storefront density and centered spacing
+
+Implemented on 15 November 2026; final hosted verification is pending.
+
+- Catalog uses four columns at 1280px+, three at 801–1279px and two at 800px or below. Initial preview shows up to eight services, featured first, then other catalog services in their existing order. Browse all remains available whenever more services exist; Show fewer returns to the preview. Search/category results remain complete.
+- The desktop page shell remains 80% wide. The payment heading and logo list sit together in the center with a 32px gap and wrap when necessary. Compact checkout payment logos keep their existing layout.
+- Giveaway heading/prizes are centered within 920px; dates, selection/countdown and participation within 760px. Countdown heading and digits sit close together on desktop and stack on phones.
+- Wide promotion bodies are centered within 584px. Prize quantities follow their plan with an 8–10px gap instead of stretching to the far edge. Existing logos, color palette, links, motion and dates are preserved.
+
+Verification uses an isolated Node 24 build and synthetic local data. Existing 87 tests, strict full lint (zero errors/warnings), standalone build/typecheck and separate Sites build pass. Chrome checked Myanmar at 320, 390, 800, 801, 1279, 1280, 1440 and 2560px, and English at 320, 801, 1280 and 2560px. No page, timer or promotion overflow appeared. Default preview has eight cards; Browse all expands to 54, Show fewer restores eight, and a Canva search returns one result. The joined state retains one confirmation. The final 584px wide-card cap also passed the standalone build/typecheck, strict lint and fresh Chrome checks: centered within 0.01px at 2560px, with no overflow at 320px. Hosted rollout is pending.
+
+No backend, dependency, authentication, payment or order logic changed. No real customers/orders, catalog data, campaign dates/status or entries were edited; provider apps/links were not opened. Physical Windows/iOS/Android devices were not tested. Ignored build/browser evidence is under `outputs/security/spacing-*`.
