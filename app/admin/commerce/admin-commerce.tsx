@@ -12,9 +12,10 @@ import './commerce.css';
 type CommerceData = { customers: CommerceCustomer[]; orders: CommerceOrder[] };
 const dateFormat = new Intl.DateTimeFormat('en-GB', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Yangon' });
 
-export default function AdminCommerce({ view, customerId, onDirtyChange, clearCustomer, showCustomerOrders }: {
+export default function AdminCommerce({ view, customerId, telegramContact, onDirtyChange, clearCustomer, showCustomerOrders }: {
   view: 'orders' | 'customers';
   customerId: string | null;
+  telegramContact: string | null;
   onDirtyChange: (dirty: boolean) => void;
   clearCustomer: () => void;
   showCustomerOrders: (id: string) => void;
@@ -129,6 +130,7 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
     </div>}
     {notice && <p role="status" className="admin-feedback admin-feedback-success"><Check size={17} />{notice}</p>}
     {view === 'customers' && editingCustomer ? <CustomerEditor key={editingCustomer.id} id={editingCustomer.id} startDeleting={editingCustomer.deleting}
+      telegramContact={telegramContact}
       onDirtyChange={onDirtyChange} onBack={() => { setEditingCustomer(null); requestAnimationFrame(() => listHeading.current?.focus()); }}
       onSaved={customer => {
         invalidateRefresh();

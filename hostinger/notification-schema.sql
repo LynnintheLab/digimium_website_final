@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS digimium_notifications (
   title VARCHAR(120) NOT NULL,
   body TEXT NOT NULL,
   body_my TEXT NULL,
+  action_label VARCHAR(60) NULL,
+  action_url VARCHAR(2048) NULL,
   order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   read_at DATETIME(3) NULL,

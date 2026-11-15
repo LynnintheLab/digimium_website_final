@@ -19,7 +19,9 @@ Open **Admin → Customers**, select a customer and use the website-message comp
 
 Messages are plain text, trimmed, at most 1,000 characters, with at most 20 newly created messages per customer per hour. Control/direction-override characters are rejected. Keep messages suitable for a customer to read; do not enter passwords, OTPs, private account credentials or secrets.
 
-Sending uses a request UUID. Retrying the same request with identical text returns the existing message; reusing that UUID with different text is a conflict. Repeated clicks/retries must not create duplicate queued messages. Admin can review that customer's message history through the same protected customer editor.
+The optional **Button** selector defaults to **No button**. Choose the saved Telegram contact, Store homepage, Order history, Account settings, Contact section, or **Custom link**. Edit **Button text** (up to 60 characters); a custom destination must be a complete HTTPS link. The customer sees the button below the message. External links open in a separate tab with `noopener noreferrer`; customer-page presets remain on the website. Facebook or another support page can be supplied through Custom link. Selecting a preset or viewing the preview never opens Telegram.
+
+Sending uses a request UUID. Retrying the same request with identical text and normalized button returns the existing message; reusing that UUID with different text, label or destination is a conflict. Repeated clicks/retries must not create duplicate queued messages. Admin can review that customer's message history through the same protected customer editor.
 
 ## Automatic expiry reminders
 
@@ -116,3 +118,11 @@ Hostinger invokes the runner through its version-switching `current` directory. 
 ## Final hosted scheduler verification
 
 Runner source `398381a` reached testing and production Hostinger Completed/Current. The actual five-minute production job at the 16:40 UTC interval produced `Notification maintenance completed.` in hPanel Cron output, confirming the packaged path, private env loading and authenticated job invocation. No secret appears in the cron command or its output. No fake live account/order or direct Telegram test message was created.
+
+## Optional-button and dark-mode follow-up
+
+The button schema adds nullable `action_label` and `action_url` columns without changing existing messages. The application guards each additive migration independently; old rows return no action. Both input and output validate the label/destination. Internal destinations are limited to customer routes without query redirects; executable, protocol-relative, credential-bearing, malformed and control-character URLs are rejected. Message/read APIs retain authentication, origin checks, bounded bodies, rate limits, owner isolation and private caching.
+
+Message/reminder creation and owner-alert queue insertion explicitly use UTC timestamps, including the initial alert eligibility time. This prevents a database session timezone from delaying an otherwise immediately due owner alert. Existing records are preserved; no historical timestamp conversion is attempted.
+
+Node 24 validation: 102 unit tests, strict lint with zero warnings, standalone build/typecheck, and fresh notification, commerce and customer-admin integrations. The notification suite also migrates a legacy table, checks button-aware retries and owner isolation, and runs with a UTC+7 database session to cover immediate queue delivery. Browser acceptance uses synthetic local accounts for preset/custom/no-button sends, unsafe-link rejection, readable message buttons, dark/light rendering and 320/390/768/1440px layout checks. No customer was contacted and no Telegram app or launch link was opened for verification.

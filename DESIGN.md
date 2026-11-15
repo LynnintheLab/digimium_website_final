@@ -186,3 +186,11 @@ The exact Myanmar checkout guidance is red (`#a02535`), with the extra price-enq
 
 - **Customer pages:** use 80vw content above 900px, with two history-order columns above 1200px. Full Account contains profile, connected methods and settings; history stays on its page. Credential details remain collapsed and passwords masked.
 - **Giveaway:** slim navy top banner and first promotion-carousel slide lead to the six-slot prize/entry section. Use verified campaign dates in Myanmar time; a draft says Coming soon. Unlinked customers see a clear explanation and illustrated guide. The guide uses three static pictorial steps; no actual code or successful link is fabricated.
+
+## Dark customer appearance
+
+Dark mode retains the blue brand, four desktop / two phone catalog columns, and the existing typography and geometry. The canvas uses a restrained charcoal-blue gradient (`#0d121c`, `#121b2a`, `#101722`) with a `#202d47` top tint. Resting product cards are `#1a2333`, hover surfaces `#202c40`, and raised panels `#1b2434`. Text is `#edf2fc`, secondary text `#aeb9ce`, links `#a9bfff`; saturated actions use `#315bd6` with `#4568d8` hover and white lettering. Keep strong input boundaries distinct from quiet section dividers.
+
+Service-logo plates use soft `#e0e7f3`, preserving the supplied colored/black marks. The full giveaway section has a warm charcoal-gold surface (`#29271e` to `#211f1b`), gold headings and readable dates, while the promotion slide retains its brighter gold identity. Selected Best Seller plan options retain their gold background and navy text. Upcoming, active, urgent and expired day gauges each have dark-compatible colors. The neutral scroll ruler stays white over the dark campaign and black over the bright gold slide.
+
+Website messages can include one optional text button below the body. The admin composer defaults to No button, offers saved Telegram/customer-page presets or a custom HTTPS destination, and shows a non-clickable preview. Keep a 44px target, wrapping Myanmar text and visible focus; external destinations open separately with opener/referrer protection. Admin itself retains its light workspace.

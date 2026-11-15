@@ -42,7 +42,7 @@ export function ScrollRail({ lang }: { lang: "en" | "my" }) {
       // These are the storefront's dark surfaces. Use exact neutral colors rather
       // than inversion, which would turn the navy backdrop into a yellow tint.
       const darkRegions = Array.from(document.querySelectorAll<HTMLElement>('.about, .giveaway-banner, .giveaway-selection, .showcase:not([data-kind="giveaway"]), .showcase[data-kind="giveaway"] .collection-link'), element => element.getBoundingClientRect());
-      const lightRegions = Array.from(document.querySelectorAll<HTMLElement>('.giveaway-section, .showcase[data-kind="giveaway"] .showcase-surface'), element => element.getBoundingClientRect());
+      const lightRegions = Array.from(document.querySelectorAll<HTMLElement>('.showcase[data-kind="giveaway"] .showcase-surface'), element => element.getBoundingClientRect());
       const darkCanvas = document.documentElement.dataset.shopTheme === 'dark';
       const contains = (bounds: DOMRect, x: number, y: number) => x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
       const onDarkSurface = (x: number, y: number) => darkRegions.some(bounds => contains(bounds, x, y)) || (darkCanvas && !lightRegions.some(bounds => contains(bounds, x, y)));

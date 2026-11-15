@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { categories, type Catalog, type CatalogSettings, type Product } from '@/lib/catalog';
 
-import { DEFAULT_TELEGRAM_CONTACT, validTelegramUsername } from '@/lib/telegram-contact';
+import { DEFAULT_TELEGRAM_CONTACT, resolveTelegramContact, validTelegramUsername } from '@/lib/telegram-contact';
 import { discountPriceError } from '@/lib/pricing';
 import { commerceEnabled } from '@/lib/commerce-enabled';
 import AdminCommerce from './commerce/admin-commerce';
@@ -279,6 +279,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
       </header>
 
       {commerceView ? <AdminCommerce key={commerceView} view={commerceView} customerId={orderCustomerId}
+        telegramContact={saved ? resolveTelegramContact(saved.settings) : null}
         onDirtyChange={setOrderDirty} clearCustomer={() => setOrderCustomerId(null)}
         showCustomerOrders={id => navigate('orders', id)} /> : view === 'giveaway' ? <AdminGiveaway onDirtyChange={setOrderDirty} /> : <>
       {feedback && <div className="admin-feedback admin-feedback-error" role="alert"><CircleAlert size={19} /><div><p>{feedback.message}</p>{feedback.kind === 'conflict' && <button type="button" onClick={reloadLatest}>Load latest catalog<RotateCcw size={14} /></button>}{feedback.kind === 'load' && <button type="button" disabled={loading} onClick={() => void loadCatalog()}>Try again<RotateCcw size={14} /></button>}{feedback.kind === 'auth' && <a href="/signin-with-chatgpt?return_to=%2Fadmin" target="_top" onClick={event => { if (dirty && !window.confirm('Sign in again? Your unsaved changes will be lost when you leave this page.')) event.preventDefault(); }}>Sign in again<ArrowUpRight size={14} /></a>}{feedback.kind === 'save' && <button type="button" disabled={saving} onClick={() => void saveCatalog()}>Try saving again<RotateCcw size={14} /></button>}</div></div>}

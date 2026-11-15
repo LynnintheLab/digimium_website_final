@@ -5,13 +5,18 @@ import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/prom
 import { z } from 'zod';
 import { CommerceError } from '../lib/commerce-http';
 import type { CustomerNotification, CustomerNotificationPage } from '../lib/notification-types';
+import { normalizeNotificationActionLabel, normalizeNotificationActionUrl } from '../lib/notification-action';
 import { getSubscriptionTerm, todayInMyanmar } from '../lib/subscription-term';
 import { getPool } from './mysql';
 
 const uuid = z.string().uuid();
 const message = z.string().max(1000).transform(value => value.replace(/\r\n?/g, '\n').trim())
   .refine(value => value.length > 0 && !/[\p{Cc}\u202a-\u202e\u2066-\u2069]/u.test(value.replace(/\n/g, '')));
-const sendSchema = z.object({ requestId: uuid, message }).strict();
+const actionSchema = z.object({
+  label: z.string().transform(normalizeNotificationActionLabel).refine(value => value !== null),
+  url: z.string().transform(normalizeNotificationActionUrl).refine(value => value !== null),
+}).strict();
+const sendSchema = z.object({ requestId: uuid, message, action: actionSchema.nullish() }).strict();
 const readSchema = z.union([
   z.object({ ids: z.array(uuid).min(1).max(20) }).strict(), z.object({ all: z.literal(true) }).strict(),
 ]);
@@ -22,19 +27,36 @@ export function ensureNotifications(): Promise<void> {
   return ready ??= (async () => {
     const sql = await readFile(join(process.cwd(), 'hostinger', 'notification-schema.sql'), 'utf8');
     for (const statement of sql.split(';').filter(value => value.trim())) await getPool().query(statement);
+    // Independently guarded nullable additions preserve old rows and partial migrations.
+    for (const [column, definition] of [['action_label', 'VARCHAR(60) NULL'], ['action_url', 'VARCHAR(2048) NULL']]) {
+      try { await getPool().query(`SELECT ${column} FROM digimium_notifications LIMIT 0`); }
+      catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'ER_BAD_FIELD_ERROR')) throw error;
+        try { await getPool().query(`ALTER TABLE digimium_notifications ADD ${column} ${definition}`); }
+        catch (migrationError) {
+          if (!(migrationError instanceof Error && 'code' in migrationError && migrationError.code === 'ER_DUP_FIELDNAME')) throw migrationError;
+        }
+        await getPool().query(`SELECT ${column} FROM digimium_notifications LIMIT 0`);
+      }
+    }
   })().catch(error => { ready = undefined; throw error; });
 }
 
 type NotificationRow = RowDataPacket & {
   id: string; kind: 'message' | 'expiry'; title: string; body: string; body_my: string | null;
   order_id: string | null; createdAt: string; readAt: string | null;
+  action_label: string | null; action_url: string | null;
 };
-const columns = `id, kind, title, body, body_my, order_id,
+const columns = `id, kind, title, body, body_my, order_id, action_label, action_url,
   DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS createdAt,
   DATE_FORMAT(read_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS readAt`;
 function present(row: NotificationRow): CustomerNotification {
+  // Validate persisted values too, so legacy/manual bad data never becomes an unsafe link.
+  const label = row.action_label ? normalizeNotificationActionLabel(row.action_label) : null;
+  const url = row.action_url ? normalizeNotificationActionUrl(row.action_url) : null;
   return { id: row.id, type: row.kind, title: row.title, body: row.body,
     ...(row.body_my ? { bodyMy: row.body_my } : {}), ...(row.order_id ? { orderId: row.order_id } : {}),
+    ...(label && url && row.kind === 'message' ? { action: { label, url } } : {}),
     createdAt: new Date(row.createdAt).toISOString(), readAt: row.readAt ? new Date(row.readAt).toISOString() : null };
 }
 function customerId(id: string) {
@@ -95,7 +117,8 @@ export async function adminCustomerNotifications(id: string, cursor: string | nu
 
 export async function sendCustomerNotification(id: string, body: unknown) {
   customerId(id); const input = sendSchema.safeParse(body);
-  if (!input.success) throw new CommerceError(400, 'Enter a message of at most 1,000 characters and a valid request ID.');
+  if (!input.success) throw new CommerceError(400, 'Enter a message of at most 1,000 characters. An optional button needs a label of at most 60 characters and a valid HTTPS or store link.');
+  const actionLabel = input.data.action?.label ?? null, actionUrl = input.data.action?.url ?? null;
   await ensureNotifications(); const connection = await getPool().getConnection();
   try {
     await connection.beginTransaction(); await assertCustomer(id, connection, true);
@@ -104,7 +127,9 @@ export async function sendCustomerNotification(id: string, body: unknown) {
       `SELECT ${columns} FROM digimium_notifications WHERE customer_id = ? AND dedupe_key = ?`, [id, dedupe],
     );
     if (existing[0]) {
-      if (existing[0].body !== input.data.message) throw new CommerceError(409, 'This message request was already sent with different text.');
+      if (existing[0].body !== input.data.message || existing[0].action_label !== actionLabel || existing[0].action_url !== actionUrl) {
+        throw new CommerceError(409, 'This message request was already sent with different text or button.');
+      }
       await connection.commit(); return { notification: present(existing[0]), created: false };
     }
     const [recent] = await connection.execute<(RowDataPacket & { total: number })[]>(
@@ -113,8 +138,9 @@ export async function sendCustomerNotification(id: string, body: unknown) {
     if (Number(recent[0].total) >= 20) throw new CommerceError(429, 'Wait before sending more messages to this customer.');
     const notificationId = randomUUID();
     await connection.execute(`INSERT INTO digimium_notifications
-      (id, customer_id, dedupe_key, kind, title, body) VALUES (?, ?, ?, 'message', 'Message from Digimium', ?)`,
-    [notificationId, id, dedupe, input.data.message]);
+      (id, customer_id, dedupe_key, kind, title, body, action_label, action_url, created_at)
+      VALUES (?, ?, ?, 'message', 'Message from Digimium', ?, ?, ?, UTC_TIMESTAMP(3))`,
+    [notificationId, id, dedupe, input.data.message, actionLabel, actionUrl]);
     const [rows] = await connection.execute<NotificationRow[]>(`SELECT ${columns} FROM digimium_notifications WHERE id = ?`, [notificationId]);
     await connection.commit(); return { notification: present(rows[0]), created: true };
   } catch (error) { await connection.rollback(); throw error; }
@@ -137,7 +163,8 @@ const alertSchema = z.object({
 export async function enqueueNotificationAlert(connection: PoolConnection, candidate: NotificationAlertInput): Promise<void> {
   const payload = alertSchema.parse(candidate);
   await connection.execute(`INSERT IGNORE INTO digimium_notification_outbox
-    (id, dedupe_key, kind, entity_id, payload) VALUES (?, ?, ?, ?, ?)`,
+    (id, dedupe_key, kind, entity_id, payload, created_at, next_attempt_at)
+    VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
   [randomUUID(), payload.dedupeKey, payload.kind, payload.entityId, JSON.stringify(payload)]);
 }
 
@@ -281,7 +308,8 @@ export async function createExpiryNotifications(now = new Date()) {
         const plan = cleanAlert(typeof line.planName === 'string' ? line.planName : '', 140);
         const label = [product, plan].filter(Boolean).join(' · ');
         const [inserted] = await connection.execute<ResultSetHeader>(`INSERT IGNORE INTO digimium_notifications
-          (id, customer_id, dedupe_key, kind, title, body, body_my, order_id) VALUES (?, ?, ?, 'expiry', 'Subscription ending soon', ?, ?, ?)`,
+          (id, customer_id, dedupe_key, kind, title, body, body_my, order_id, created_at)
+          VALUES (?, ?, ?, 'expiry', 'Subscription ending soon', ?, ?, ?, UTC_TIMESTAMP(3))`,
         [randomUUID(), row.customer_id, `expiry:${row.id}:${line.id}:${status.endDate}:${days}`,
           `${label} ends on ${status.endDate} (${days} ${days === 1 ? 'day' : 'days'} remaining).`,
           `${label} သက်တမ်း ${status.endDate} တွင် ကုန်ဆုံးပါမည်။ ${days} ရက် ကျန်ပါသည်။`, row.id]);

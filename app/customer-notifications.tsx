@@ -1,9 +1,10 @@
 'use client';
 
-import { ArrowRight, Bell, Check, CheckCheck, Clock3, Mail, RefreshCw, X } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Bell, Check, CheckCheck, Clock3, Mail, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CustomerNotificationPage } from '../lib/notification-types';
+import { normalizeNotificationActionLabel, normalizeNotificationActionUrl } from '../lib/notification-action';
 import type { ShopLanguage } from '../lib/shop-language';
 import './customer-notifications.css';
 
@@ -20,6 +21,8 @@ function isPage(value: unknown): value is CustomerNotificationPage {
       item && typeof item.id === 'string' && uuid.test(item.id) && (item.type === 'message' || item.type === 'expiry') &&
       typeof item.title === 'string' && typeof item.body === 'string' &&
       (item.bodyMy === undefined || typeof item.bodyMy === 'string') &&
+      (item.action === undefined || item.action && typeof item.action.label === 'string' && typeof item.action.url === 'string' &&
+        normalizeNotificationActionLabel(item.action.label) === item.action.label && normalizeNotificationActionUrl(item.action.url) === item.action.url) &&
       typeof item.createdAt === 'string' && Number.isFinite(Date.parse(item.createdAt)) &&
       (item.readAt === null || typeof item.readAt === 'string' && Number.isFinite(Date.parse(item.readAt))) &&
       (item.orderId === undefined || typeof item.orderId === 'string' && uuid.test(item.orderId)));
@@ -305,6 +308,10 @@ export function CustomerNotifications({ lang, customerId, onOpen, onOpenChange }
           <span className="customer-notification-icon" aria-hidden="true">{item.type === 'expiry' ? <Clock3 size={20}/> : <Mail size={20}/>}</span>
           <div className="customer-notification-copy"><h3>{item.type === 'expiry' ? t('Subscription ending soon', 'Plan သက်တမ်း ကုန်ဆုံးတော့မည်') : t('Message from Digimium', 'Digimium မှ စာ')}</h3>
             <p dir="auto">{lang === 'my' && item.bodyMy ? item.bodyMy : item.body}</p>
+            {item.action && <a className="customer-notification-button" href={item.action.url} dir="auto"
+              {...(item.action.url.startsWith('https://') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+              {item.action.label}{item.action.url.startsWith('https://') ? <ArrowUpRight size={17} aria-hidden="true"/> : <ArrowRight size={17} aria-hidden="true"/>}
+            </a>}
             <time dateTime={item.createdAt}>{new Intl.DateTimeFormat(lang === 'my' ? 'my-MM' : 'en-GB', { numberingSystem: 'latn', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Yangon' }).format(new Date(item.createdAt))}</time>
             {item.readAt === null && <span className="customer-notification-unread">{t('Unread', 'မဖတ်ရသေး')}</span>}
             <div className="customer-notification-actions">

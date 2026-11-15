@@ -1,20 +1,25 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, LoaderCircle, Save, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LoaderCircle, Save, Send, Trash2 } from 'lucide-react';
 import type { AdminCustomerRecord, CommerceCustomer } from '@/lib/commerce-types';
 import { customerContact } from '@/lib/customer-identity';
+import { normalizeNotificationActionLabel, normalizeNotificationActionUrl, type NotificationAction } from '@/lib/notification-action';
+import { validTelegramUsername } from '@/lib/telegram-contact';
 
 type Props = {
   id: string;
   startDeleting: boolean;
+  telegramContact: string | null;
   onBack: () => void;
   onSaved: (customer: CommerceCustomer) => void;
   onRemoved: (id: string) => void;
   onDirtyChange: (dirty: boolean) => void;
 };
 
-export default function CustomerEditor({ id, startDeleting, onBack, onSaved, onRemoved, onDirtyChange }: Props) {
+type ButtonDestination = 'none' | 'telegram' | 'store' | 'history' | 'account' | 'contact' | 'custom';
+
+export default function CustomerEditor({ id, startDeleting, telegramContact, onBack, onSaved, onRemoved, onDirtyChange }: Props) {
   const [record, setRecord] = useState<AdminCustomerRecord | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -26,6 +31,9 @@ export default function CustomerEditor({ id, startDeleting, onBack, onSaved, onR
   const [failureStatus, setFailureStatus] = useState(0);
   const [notice, setNotice] = useState('');
   const [message, setMessage] = useState('');
+  const [buttonDestination, setButtonDestination] = useState<ButtonDestination>('none');
+  const [buttonLabel, setButtonLabel] = useState('');
+  const [buttonUrl, setButtonUrl] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [messageError, setMessageError] = useState('');
   const [messageNotice, setMessageNotice] = useState('');
@@ -34,15 +42,27 @@ export default function CustomerEditor({ id, startDeleting, onBack, onSaved, onR
   const messageRequest = useRef<string | null>(null);
   const messageConflict = useRef(false);
   const messageInput = useRef<HTMLTextAreaElement>(null);
+  const buttonLabelInput = useRef<HTMLInputElement>(null);
+  const buttonUrlInput = useRef<HTMLInputElement>(null);
   const request = useRef<AbortController | null>(null);
   const mounted = useRef(true);
   const heading = useRef<HTMLHeadingElement>(null);
   const confirmationInput = useRef<HTMLInputElement>(null);
   const dirty = !!record && (name !== record.customer.name || email !== (record.customer.email ?? ''));
-  const messageDirty = message.length > 0;
+  const messageDirty = message.length > 0 || buttonDestination !== 'none';
   const unavailable = failureStatus === 404 || messageFailureStatus === 404;
   const messageStale = failureStatus === 409 || messageFailureStatus === 409;
   const endpoint = '/api/admin/customers/' + encodeURIComponent(id);
+  const hasTelegramContact = !!telegramContact && validTelegramUsername(telegramContact);
+  const destinations: { value: ButtonDestination; name: string; label: string; url: string }[] = [
+    ...(hasTelegramContact ? [{ value: 'telegram' as const, name: 'Telegram contact', label: 'Contact us on Telegram', url: 'https://t.me/' + telegramContact }] : []),
+    { value: 'store', name: 'Store homepage', label: 'Visit the store', url: '/' },
+    { value: 'history', name: 'Order history', label: 'View order history', url: '/order-history' },
+    { value: 'account', name: 'Account settings', label: 'Open account settings', url: '/account' },
+    { value: 'contact', name: 'Contact section', label: 'Contact Digimium', url: '/#contact' },
+  ];
+  const selectedDestination = destinations.find(item => item.value === buttonDestination);
+  const actionUrl = buttonDestination === 'custom' ? buttonUrl : selectedDestination?.url ?? '';
 
   const load = useCallback(async () => {
     request.current?.abort();
@@ -111,10 +131,25 @@ export default function CustomerEditor({ id, startDeleting, onBack, onSaved, onR
 
   function changeMessage(value: string) {
     setMessage(value); setMessageNotice('');
-    messageDraft.current = value.length > 0;
+    messageDraft.current = value.length > 0 || buttonDestination !== 'none';
     messageRequest.current = null;
     if (!messageStale && !unavailable) setMessageError('');
     onDirtyChange(dirty || messageDraft.current);
+  }
+
+  function changeButton(destination: ButtonDestination, label: string, url: string) {
+    setButtonDestination(destination); setButtonLabel(label); setButtonUrl(url); setMessageNotice('');
+    messageDraft.current = message.length > 0 || destination !== 'none';
+    messageRequest.current = null;
+    if (!messageStale && !unavailable) setMessageError('');
+    onDirtyChange(dirty || messageDraft.current);
+  }
+
+  function clearMessage() {
+    setMessage(''); setButtonDestination('none'); setButtonLabel(''); setButtonUrl(''); setMessageNotice('');
+    messageDraft.current = false; messageRequest.current = null;
+    if (!messageStale && !unavailable) setMessageError('');
+    onDirtyChange(dirty);
   }
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
@@ -125,16 +160,32 @@ export default function CustomerEditor({ id, startDeleting, onBack, onSaved, onR
       setMessageError(!body ? 'Enter a message before sending.' : 'Use at most 1,000 characters of plain text. Line breaks are allowed; tabs and special control characters are not.');
       messageInput.current?.focus(); return;
     }
+    let action: NotificationAction | undefined;
+    if (buttonDestination !== 'none') {
+      const label = normalizeNotificationActionLabel(buttonLabel);
+      const url = normalizeNotificationActionUrl(actionUrl);
+      if (!label) {
+        setMessageError('Enter a button label using 1–60 characters of plain text.');
+        buttonLabelInput.current?.focus(); return;
+      }
+      if (!url) {
+        setMessageError(buttonDestination === 'custom' ? 'Enter a complete HTTPS link, such as https://example.com/help.' : 'This saved destination is unavailable. Choose another destination or no button.');
+        if (buttonDestination === 'custom') buttonUrlInput.current?.focus();
+        return;
+      }
+      action = { label, url };
+    }
     messageRequest.current ??= crypto.randomUUID();
     setBusy(true); setSendingMessage(true); setMessageError(''); setMessageNotice(''); onDirtyChange(true);
     try {
       const response = await fetch(endpoint + '/notifications', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId: messageRequest.current, message: body }) });
-      const result = await response.json() as { notification?: { id: string; type: string; body: string }; created?: boolean; error?: string };
+        body: JSON.stringify({ requestId: messageRequest.current, message: body, ...(action ? { action } : {}) }) });
+      const result = await response.json() as { notification?: { id: string; type: string; body: string; action?: NotificationAction }; created?: boolean; error?: string };
       if (!mounted.current) return;
       if (!response.ok) { messageConflict.current = response.status === 409; setMessageFailureStatus(response.status); setMessageError(result.error || 'Could not send this website message.'); return; }
-      if (!result.notification?.id || result.notification.type !== 'message' || result.notification.body !== body || typeof result.created !== 'boolean') throw new Error('Unconfirmed message');
-      setMessage(''); messageDraft.current = false; messageRequest.current = null;
+      if (!result.notification?.id || result.notification.type !== 'message' || result.notification.body !== body || typeof result.created !== 'boolean' ||
+        (result.notification.action?.label ?? null) !== (action?.label ?? null) || (result.notification.action?.url ?? null) !== (action?.url ?? null)) throw new Error('Unconfirmed message');
+      clearMessage();
       setMessageFailureStatus(0); setMessageNotice('Website message sent to ' + record.customer.name + '.');
     } catch {
       if (mounted.current) setMessageError('Could not confirm delivery. Retry to check the same message without sending a duplicate.');
@@ -185,6 +236,30 @@ export default function CustomerEditor({ id, startDeleting, onBack, onSaved, onR
                 aria-describedby="customer-message-help customer-message-length" onChange={event => changeMessage(event.target.value)}/>
             </label>
             <div className="commerce-message-hints"><p id="customer-message-help">Visible to this customer. Use plain text; do not include passwords or private staff notes.</p><span id="customer-message-length">{message.length} / 1000</span></div>
+            <div className="commerce-message-button-fields">
+              <label className="admin-field" htmlFor="customer-message-destination">Button <small>Optional</small>
+                <select id="customer-message-destination" value={buttonDestination} onChange={event => {
+                  const destination = event.target.value as ButtonDestination;
+                  changeButton(destination, destinations.find(item => item.value === destination)?.label ?? '', '');
+                }}>
+                  <option value="none">No button</option>
+                  {destinations.map(item => <option key={item.value} value={item.value}>{item.name}</option>)}
+                  <option value="custom">Custom link</option>
+                </select>
+              </label>
+              {buttonDestination !== 'none' && <>
+                <label className="admin-field" htmlFor="customer-message-button-label">Button text
+                  <input ref={buttonLabelInput} id="customer-message-button-label" value={buttonLabel} maxLength={60} required dir="auto" autoComplete="off"
+                    onChange={event => changeButton(buttonDestination, event.target.value, buttonUrl)}/>
+                </label>
+                {buttonDestination === 'custom' ? <label className="admin-field commerce-message-button-url" htmlFor="customer-message-button-url">Destination link
+                  <input ref={buttonUrlInput} id="customer-message-button-url" type="url" inputMode="url" value={buttonUrl} maxLength={2048} required placeholder="https://example.com/help" autoComplete="off" autoCapitalize="none" spellCheck={false}
+                    aria-describedby="customer-message-button-help" onChange={event => changeButton(buttonDestination, buttonLabel, event.target.value)}/>
+                  <small id="customer-message-button-help">Use a complete HTTPS link. External links open in a new tab.</small>
+                </label> : <p className="commerce-message-button-url commerce-message-help">Destination: <span dir="ltr">{actionUrl}</span></p>}
+                <div className="commerce-message-button-preview"><span>Button preview</span><span className="commerce-message-preview-button" dir="auto">{buttonLabel.trim() || 'Button text'}<ArrowRight size={16} aria-hidden="true"/></span></div>
+              </>}
+            </div>
             <button type="submit" className="admin-button admin-button-primary" disabled={!message.trim()}>
               {sendingMessage ? <LoaderCircle size={16} className="admin-spinner"/> : <Send size={16}/>} {sendingMessage ? 'Sending…' : 'Send website message'}
             </button>
@@ -195,7 +270,7 @@ export default function CustomerEditor({ id, startDeleting, onBack, onSaved, onR
           {messageFailureStatus === 401 ? <a href="/admin/login">Sign in again</a> : (messageStale || unavailable) && <button type="button" className="admin-text-button" disabled={busy || loading} onClick={() => void load()}>Reload customer</button>}
         </div>}
         {messageNotice && <p className="admin-feedback admin-feedback-success" role="status">{messageNotice}</p>}
-        {messageDirty && <button type="button" className="admin-text-button" disabled={busy} onClick={() => { changeMessage(''); requestAnimationFrame(() => { if (!messageStale && !unavailable && !dirty) messageInput.current?.focus(); else heading.current?.focus(); }); }}>Clear message draft</button>}
+        {messageDirty && <button type="button" className="admin-text-button" disabled={busy} onClick={() => { clearMessage(); requestAnimationFrame(() => { if (!messageStale && !unavailable && !dirty) messageInput.current?.focus(); else heading.current?.focus(); }); }}>Clear message draft</button>}
       </section>
       <div className="commerce-customer-delete">
         <h3>Delete customer</h3>

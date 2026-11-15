@@ -101,6 +101,17 @@
 .commerce-customer-message textarea { width: 100%; min-width: 0; min-height: 110px; padding: 10px 12px; border: 1px solid var(--admin-line); border-radius: 6px; background: var(--canvas); color: var(--admin-ink); font: inherit; font-size: 16px; line-height: 1.7; resize: vertical; }
 .commerce-message-hints { display: flex; justify-content: space-between; align-items: start; gap: 8px 18px; }
 .commerce-message-hints > span { flex: none; color: var(--admin-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.commerce-message-button-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start; gap: 14px 18px; width: 100%; max-width: 44rem; padding-block: 8px 4px; }
+.commerce-message-button-fields .admin-field { min-width: 0; }
+.commerce-message-button-fields .admin-field > small { color: var(--admin-muted); font-weight: 400; }
+.commerce-message-button-fields :is(input,select) { width: 100%; min-width: 0; min-height: 44px; }
+.commerce-message-button-fields .admin-field:has(> select) { grid-template-columns: 1fr auto; }
+.commerce-message-button-fields select { grid-column: 1 / -1; }
+.commerce-message-button-url, .commerce-message-button-preview { grid-column: 1 / -1; }
+.commerce-message-button-preview { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; }
+.commerce-message-button-preview > span:first-child { color: var(--admin-muted); font-size: 12px; }
+.commerce-message-preview-button { display: inline-flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 100%; min-height: 44px; padding: 9px 14px; border-radius: 6px; background: var(--blue); color: #fff; font-size: 14px; overflow-wrap: anywhere; }
+.commerce-message-preview-button svg { flex: none; }
 .commerce-message-error { display: grid; justify-items: start; gap: 8px; color: #8d2630; font-size: 14px; line-height: 1.7; }
 .commerce-customer-message > .admin-feedback { margin: 0; }
 .commerce-customer-message > .admin-text-button { width: fit-content; min-height: 44px; }
@@ -123,5 +134,6 @@
   .commerce-row-actions { padding: 0 16px 12px; }
   .commerce-customer-form, .commerce-customer-delete, .commerce-customer-message, .commerce-remove-content { padding: 20px 16px; }
   .commerce-message-hints { flex-wrap: wrap; gap: 4px 12px; }
+  .commerce-message-button-fields { grid-template-columns: 1fr; }
   .commerce-customer-facts > div { grid-template-columns: 1fr; gap: 3px; }
 }

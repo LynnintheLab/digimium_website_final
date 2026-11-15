@@ -121,6 +121,12 @@ async function seedOrder(owner, productName, { status = 'approved', terms = [], 
 try {
   assert.equal((await db.query('SHOW TABLES'))[0].length, 0, 'Refusing to mutate a nonempty database.');
   for (const file of ['schema.sql','customer-auth-schema.sql','order-schema.sql','google-identity-schema.sql','telegram-identity-schema.sql','google-auth-schema.sql','telegram-auth-schema.sql','notification-schema.sql']) await db.query(await readFile(new URL('hostinger/' + file, root), 'utf8'));
+  // Recreate an existing deployment before optional buttons existed. Bootstrap must preserve rows.
+  await db.query('ALTER TABLE digimium_notifications DROP action_label, DROP action_url');
+  const legacyCustomer = randomUUID(), legacyMessage = randomUUID();
+  await db.execute('INSERT INTO digimium_customers (id,name,email,password_hash) VALUES (?,?,NULL,NULL)', [legacyCustomer, 'Legacy notification fixture']);
+  await db.execute(`INSERT INTO digimium_notifications (id,customer_id,dedupe_key,kind,title,body)
+    VALUES (?,?,?,'message','Message from Digimium','Legacy message without a button')`, [legacyMessage, legacyCustomer, 'message:' + randomUUID()]);
   await start();
   assert.equal((await get('/api/customer/notifications')).status, 401);
   const mail = once(server, 'message', { signal: AbortSignal.timeout(10000) });
@@ -128,9 +134,18 @@ try {
   const challenge = await login({ action: 'request', email: env.ADMIN_EMAIL });
   const [delivered] = await mail; assert.equal(delivered.type, 'otp-mail');
   const owner = cookie(await login({ action: 'verify', code: delivered.code }, cookie(challenge, 'digimium_local_challenge')), 'digimium_local_admin');
+  const legacy = await json(await get(api(legacyCustomer), owner));
+  assert.equal(legacy.notifications[0].id, legacyMessage); assert.equal(legacy.notifications[0].body, 'Legacy message without a button');
+  assert.equal(Object.hasOwn(legacy.notifications[0], 'action'), false);
+  assert.deepEqual((await db.execute('SELECT action_label,action_url FROM digimium_notifications WHERE id=?', [legacyMessage]))[0]
+    .map(row => [row.action_label, row.action_url]), [[null, null]]);
+  await db.execute('DELETE FROM digimium_customers WHERE id=?', [legacyCustomer]);
   const alice = await register('Notification Alice'), bob = await register('Notification Bob');
   assert.equal((await calls()).length, 0, 'Missing admin chat never sends externally or blocks signup.');
   assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM digimium_notification_outbox WHERE sent_at IS NULL'))[0][0].n), 2);
+  const [initialAlerts] = await db.query(`SELECT next_attempt_at <= UTC_TIMESTAMP(3) AS due,
+    ABS(TIMESTAMPDIFF(SECOND, created_at, UTC_TIMESTAMP(3))) AS age FROM digimium_notification_outbox`);
+  assert.ok(initialAlerts.every(row => row.due === 1 && Number(row.age) < 30), 'New alerts must be due immediately in UTC, including a database using a local time zone.');
   const send = (id, body, session = owner, origin = base.origin) => mutate(api(id), 'POST', body, session, origin);
   const payload = { requestId: randomUUID(), message: '  Website fixture\r\nမြန်မာ <b>plain text</b>  ' };
   for (const session of ['', alice.cookie, bob.cookie]) await json(await send(alice.id, payload, session), 401);
@@ -142,19 +157,41 @@ try {
     { ...payload, message: '' }, { ...payload, message: ' '.repeat(3) }, { ...payload, message: 'x'.repeat(1001) },
     { ...payload, message: 'bad\u0000text' }, { ...payload, message: 'bad\ttext' }, { ...payload, message: 'bad\u202etext' },
     { ...payload, message: 'bad\u2067text' }, { ...payload, requestId: 'not-a-uuid' }]) await json(await send(alice.id, body), 400);
+  for (const action of [false, [], {}, { label: 'Contact' }, { url: 'https://example.invalid/' },
+    { label: '', url: '/' }, { label: 'x'.repeat(61), url: '/' }, { label: 'Bad\u202elabel', url: '/' },
+    { label: 'Contact', url: 'javascript:alert(1)' }, { label: 'Contact', url: '//foreign.invalid' },
+    { label: 'Contact', url: 'https://owner:password@example.invalid/' }, { label: 'Contact', url: 'https://example.invalid/%0A' },
+    { label: 'Contact', url: '/admin' }, { label: 'Contact', url: '/', extra: true }]) {
+    await json(await send(alice.id, { ...payload, action }), 400);
+  }
   await json(await request(api(alice.id), { method: 'POST', headers: { Origin: base.origin, Cookie: owner, 'Content-Type': 'application/json' }, body: 'x'.repeat(8193) }), 413);
   const first = await json(await send(alice.id, payload), 201);
   assert.equal(first.notification.body, 'Website fixture\nမြန်မာ <b>plain text</b>'); assert.equal(first.created, true);
+  assert.ok(Math.abs(Date.now() - Date.parse(first.notification.createdAt)) < 30000, 'Message DTO timestamps must be actual UTC, not a local database clock labelled as UTC.');
+  assert.equal(Object.hasOwn(first.notification, 'action'), false);
   const retried = await json(await send(alice.id, payload)); assert.equal(retried.created, false); assert.equal(retried.notification.id, first.notification.id);
+  assert.equal((await json(await send(alice.id, { ...payload, action: null }))).created, false, 'Null and omitted buttons are the same retry.');
   await json(await send(alice.id, { ...payload, message: 'Changed content' }), 409);
-  const simultaneous = { requestId: randomUUID(), message: 'Concurrent exact retry' };
+  await json(await send(alice.id, { ...payload, action: { label: 'Contact', url: 'https://example.invalid/' } }), 409);
+  const simultaneous = { requestId: randomUUID(), message: 'Concurrent exact retry', action: { label: '  Contact us 👋  ', url: ' HTTPS://EXAMPLE.INVALID ' } };
   const duplicate = await Promise.all([send(alice.id, simultaneous), send(alice.id, simultaneous)]);
   assert.deepEqual(duplicate.map(value => value.status).sort(), [200, 201]);
   const results = await Promise.all(duplicate.map(value => json(value, value.status))); assert.equal(results[0].notification.id, results[1].notification.id);
-  for (let n = 0; n < 18; n++) await json(await send(alice.id, { requestId: randomUUID(), message: 'Manual website fixture ' + n }), 201);
+  assert.deepEqual(results[0].notification.action, { label: 'Contact us 👋', url: 'https://example.invalid/' });
+  assert.equal((await json(await send(alice.id, { ...simultaneous, action: results[0].notification.action }))).created, false, 'Normalized button retries are equivalent.');
+  for (const action of [null, { label: 'Different label', url: 'https://example.invalid/' }, { label: 'Contact us 👋', url: '/order-history' }]) {
+    await json(await send(alice.id, { ...simultaneous, action }), 409);
+  }
+  let internalButton;
+  for (let n = 0; n < 18; n++) {
+    const result = await json(await send(alice.id, { requestId: randomUUID(), message: 'Manual website fixture ' + n,
+      ...(n === 0 ? { action: { label: 'အော်ဒါကြည့်မည်', url: '/order-history' } } : {}) }), 201);
+    if (n === 0) internalButton = result.notification;
+  }
   await json(await send(alice.id, { requestId: randomUUID(), message: 'Rate-limited message' }), 429);
   assert.equal((await json(await send(alice.id, payload))).created, false, 'Exact retries still work at the new-message limit.');
-  const foreign = (await json(await send(bob.id, { requestId: randomUUID(), message: 'BOB-PRIVATE-NOTIFICATION-SENTINEL' }), 201)).notification;
+  const foreign = (await json(await send(bob.id, { requestId: randomUUID(), message: 'BOB-PRIVATE-NOTIFICATION-SENTINEL',
+    action: { label: 'Bob private action', url: 'https://example.invalid/BOB-PRIVATE-ACTION' } }), 201)).notification;
 
   const notifications = await import('../hostinger/notifications.ts');
   pool = (await import('../hostinger/mysql.ts')).getPool();
@@ -173,6 +210,8 @@ try {
   assert.equal((await notifications.createExpiryNotifications()).created, 0, 'Repeated scans dedupe by order, line, end date and threshold.');
   const [expiryRows] = await db.query("SELECT * FROM digimium_notifications WHERE kind='expiry'");
   assert.equal(expiryRows.length, 3); assert.ok(expiryRows.every(row => row.body_my && !row.body.includes('PRIVATE-')));
+  const [expiryClocks] = await db.query("SELECT ABS(TIMESTAMPDIFF(SECOND, created_at, UTC_TIMESTAMP(3))) AS age FROM digimium_notifications WHERE kind='expiry'");
+  assert.ok(expiryClocks.every(row => Number(row.age) < 30), 'Expiry notifications use the same UTC storage clock as messages and read markers.');
   assert.deepEqual(expiryRows.filter(row => row.customer_id === alice.id).map(row => row.dedupe_key).sort(),
     [0, 1].map((index) => `expiry:${expiryOrder.id}:${expiryOrder.lines[index].id}:${day(index ? 1 : 3)}:${index ? 1 : 3}`).sort());
 
@@ -182,6 +221,15 @@ try {
   const ownNotifications = [...page.notifications, ...next.notifications]; assert.equal(ownNotifications.length, 22);
   assert.equal(new Set(ownNotifications.map(value => value.id)).size, 22); assert.equal(next.nextCursor, null);
   assert.ok(ownNotifications.every(value => !value.body.includes('BOB-PRIVATE-')));
+  assert.doesNotMatch(JSON.stringify(ownNotifications), /BOB-PRIVATE-ACTION/);
+  assert.deepEqual(ownNotifications.find(value => value.id === internalButton.id).action, { label: 'အော်ဒါကြည့်မည်', url: '/order-history' });
+  assert.deepEqual(ownNotifications.find(value => value.id === results[0].notification.id).action, results[0].notification.action);
+  assert.ok(ownNotifications.filter(value => value.type === 'expiry').every(value => !Object.hasOwn(value, 'action')));
+  // Legacy/manual corruption cannot expose an executable URL even to the correct owner.
+  await db.execute('UPDATE digimium_notifications SET action_url=? WHERE id=?', ['javascript:alert(1)', internalButton.id]);
+  const filtered = await json(await get(api(alice.id), owner));
+  assert.equal(Object.hasOwn(filtered.notifications.find(value => value.id === internalButton.id), 'action'), false);
+  await db.execute('UPDATE digimium_notifications SET action_url=? WHERE id=?', ['/order-history', internalButton.id]);
   await json(await get(path + '?cursor=invalid!', alice.cookie), 400);
   await json(await get(path, alice.cookie, { 'Sec-Fetch-Site': 'cross-site' }), 403);
   await json(await get(path, alice.cookie, { Origin: 'https://foreign.invalid' }), 403);
@@ -323,7 +371,7 @@ try {
   await json(await get('/api/customer/notifications', bob.cookie), 401);
   const sentText = JSON.stringify(await calls());
   assert.doesNotMatch(sentText, /PRIVATE-NOTIFICATION-(?:DELIVERY|PASSWORD)|BOB-PRIVATE-NOTIFICATION|Website fixture|secret@example.invalid/);
-  console.log('Notification integration passed: owner-only messages/read state, strict bounded inputs, exact retry/rate limits, validated 3/1-day expiry, transactional leased alerts/retries/deletion, long-cart/astral-name/pool regressions and private-data isolation.');
+  console.log('Notification integration passed: optional safe buttons/legacy migration/normalized retry, owner-only messages/read state, strict bounded inputs, exact retry/rate limits, validated 3/1-day expiry, transactional leased alerts/retries/deletion, long-cart/astral-name/pool regressions and private-data isolation.');
 } finally {
   await stop(); if (pool) await pool.end(); await db.end(); await rm(scratch, { recursive: true, force: true });
 }
