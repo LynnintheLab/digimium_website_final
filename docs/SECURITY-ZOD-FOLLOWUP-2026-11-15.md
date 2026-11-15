@@ -2,7 +2,7 @@
 
 ## Result and scope
 
-The Zod finding is fixed in source and the final local verification passes. Hosted rollout is pending. This is a focused dependency and application regression check, not a penetration test or a clean bill of health for every deployment dependency.
+The Zod finding is fixed and runtime source `1a25b6b` reached Hostinger Completed/Current on testing and production. Final local and hosted verification passed. This is a focused dependency and application regression check, not a penetration test or a clean bill of health for every deployment dependency.
 
 ## Changes
 
@@ -37,6 +37,10 @@ All mutation tests used loopback-only disposable databases and fake Google/Teleg
 
 ## Hosted verification
 
-Pending: testing deployment, bounded read-only HTTP/browser smoke checks, production promotion and verification. Do not run exploit, load or mutation suites against either live service.
+Both hosts deployed runtime source `1a25b6b` as Completed/Current. Each passed **14 bounded, signed-out read-only checks**: public storefront/catalog/giveaway/session and private pages, unauthenticated admin/customer-order rejection, private no-store/noindex and security headers, no storefront analytics in private documents, plus source/config exposure checks. `/.env` and `/.git/config` returned 403; `/package.json` and `/package-lock.json` returned 404. Catalogs retain 54 products; giveaway remains draft with exact 2/3/1 allocation and no public participant data.
+
+Chrome smoke checks passed on staging (Myanmar) and production (English): plan dialog open/close, account chooser/profile open/close and no captured browser errors. The existing production sign-in, English preference and cart count of two were preserved. No provider login, sign-out or checkout was performed. Public storefront proof is ignored at `outputs/security-live-storefront-2026-11-15.png`.
+
+One first immediate staging check batch failed. A diagnostic ten-GET batch and the subsequent complete fourteen-check batch passed; the first wrapper did not retain the underlying response, so its cause is not established. Production's complete batch passed. These are bounded smoke checks, not exploit/load tests or proof against all attacks.
 
 Local audit, suite-summary and artifact-version evidence is ignored under `outputs/security/zod-*-2026-11-15.json`.
