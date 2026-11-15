@@ -272,13 +272,19 @@
 .customer-history-link, .customer-history-account { font-size: 14px; }
 .customer-history-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
 .customer-history-filters { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; flex: 1; min-width: min(100%,260px); }
-.customer-history-filters button {
+.customer-page .customer-history-filters button {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   min-width: 0; min-height: 48px; padding: 9px 12px; border: 1px solid var(--brand-line-strong);
   border-radius: 8px; background: #fff; color: var(--brand-navy); font: inherit; font-size: 16px;
-  font-weight: 600; line-height: 1.8; cursor: pointer;
+  font-weight: 600; line-height: 1.8; cursor: pointer; text-decoration: none;
+  transition: background-color 180ms ease-out, border-color 180ms ease-out;
 }
-.customer-history-filters button[aria-pressed="true"] { border-color: var(--brand-navy); background: var(--brand-navy); color: #fff; }
+.customer-page .customer-history-filters button:hover { color: var(--brand-navy); text-decoration: none; }
+.customer-page .customer-history-filters button[aria-pressed="true"],
+.customer-page .customer-history-filters button[aria-pressed="true"]:hover { border-color: var(--brand-navy); background: var(--brand-navy); color: #fff; }
+@media (hover: hover) {
+  .customer-page .customer-history-filters button:not([aria-pressed="true"]):hover { background: var(--soft); border-color: var(--blue); }
+}
 .customer-history-filters button span { font-family: Manrope, Walone, sans-serif; font-variant-numeric: tabular-nums; }
 .customer-history-orders .customer-refresh { min-height: 44px; font-size: 14px; }
 .customer-dashboard .customer-history-list-title { margin: 20px 0 0; font-size: 18px; line-height: 1.8; }
@@ -287,5 +293,5 @@
   .customer-page:not(.customer-embedded) { padding-bottom: calc(var(--mobile-dock-clearance,104px) + env(safe-area-inset-bottom,0px)); }
 }
 @media (max-width: 400px) {
-  .customer-history-filters button { padding-inline: 8px; gap: 5px; }
+  .customer-page .customer-history-filters button { padding-inline: 8px; gap: 5px; }
 }

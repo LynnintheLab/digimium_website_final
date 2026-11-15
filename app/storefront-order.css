@@ -20,6 +20,21 @@ html:has(.storefront-shell) {
 }
 .shop-header-tools, .shop-language, .shop-cart-button { display: inline-flex; align-items: center; }
 .shop-header-tools { gap: 14px; }
+.shop-header-tools .shop-account-link {
+  min-height: 44px;
+  padding: 8px 15px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--blue);
+  color: white;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 180ms ease-out;
+}
+.shop-header-tools .shop-account-link:is(:hover,[aria-expanded=true]) {
+  background: var(--brand-secondary);
+  color: white;
+}
 .shop-language { position: relative; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 132px; flex: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: color-mix(in srgb, var(--blue) 6%, white); }
 .shop-language::before { content: ''; position: absolute; inset-block: 3px; left: 3px; width: calc((100% - 6px) / 2); border-radius: inherit; background: white; box-shadow: 0 1px 4px rgb(5 22 80 / 10%); transition: transform 180ms ease-out; }
 .shop-language:has(button[lang=my][aria-pressed=true])::before { transform: translateX(100%); }
@@ -42,6 +57,8 @@ html:has(.storefront-shell) {
 .storefront-shell[lang=my] :is(.hero-description,.product p,.steps p,.faq details p,.about-copy p,.catalog-plan,.contact p) { line-height: 2; }
 .storefront-shell[lang=my] .collection-art h2 { font-size: clamp(28px,2.8vw,40px); }
 .storefront-shell[lang=my] .button { white-space: normal; }
+.storefront-shell .hero { padding-block: 24px 40px; align-items: start; }
+.hero-copy { padding-block-start: 32px; }
 @media(max-width:1000px) {
   .header { gap: 18px; }
   .shop-header-tools { gap: 7px; }
@@ -82,8 +99,8 @@ html:has(.storefront-shell) {
   .shop-header-tools { gap: 4px; margin: 0; }
   .shop-language button { min-width: 44px; min-height: 44px; padding-inline: 6px; }
   .shop-cart-button { min-height: 44px; min-width: 50px; justify-content: center; gap: 4px; }
-  .hero { grid-template-columns: minmax(0,1fr); padding-block: 32px; gap: 28px; }
-  .hero-copy { min-width: 0; }
+  .storefront-shell .hero { grid-template-columns: minmax(0,1fr); padding-block: 24px 32px; gap: 28px; }
+  .hero-copy { min-width: 0; padding-block-start: 0; }
   .hero h1 { font-size: clamp(36px,10.7vw,60px); }
   .hero-description { font-size: 15px; }
   .hero-actions { flex-wrap: wrap; gap: 12px 20px; margin-top: 22px; }

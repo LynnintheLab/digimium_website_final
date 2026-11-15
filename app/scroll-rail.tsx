@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import "./scroll-rail.css";
 
-const tickCount = 37;
+const tickCount = 21;
 const ticks = Array.from({ length: tickCount }, (_, i) => i);
 
 function scrollDistance() {
@@ -17,7 +17,9 @@ function moveToPercent(percent: number) {
 
 export function ScrollRail({ lang }: { lang: "en" | "my" }) {
   const slider = useRef<HTMLInputElement>(null);
+  const dragPointer = useRef<number | null>(null);
   const [activeTick, setActiveTick] = useState(-1);
+  const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
     let frame = 0;
@@ -44,6 +46,34 @@ export function ScrollRail({ lang }: { lang: "en" | "my" }) {
     };
   }, []);
 
+  function moveFromPointer(event: PointerEvent<HTMLDivElement>) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(100, (event.clientY - bounds.top) * 100 / bounds.height));
+    if (slider.current) slider.current.value = percent.toFixed(1);
+    setActiveTick(Math.round(percent * (tickCount - 1) / 100));
+    moveToPercent(percent);
+  }
+
+  function onPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (!event.isPrimary || event.button !== 0) return;
+    // Capture the gesture so touch and mouse keep working outside the narrow rail.
+    event.preventDefault();
+    slider.current?.focus({ preventScroll: true });
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragPointer.current = event.pointerId;
+    setDragging(true);
+    moveFromPointer(event);
+  }
+
+  function finishDrag(event: PointerEvent<HTMLDivElement>) {
+    if (dragPointer.current !== event.pointerId) return;
+    dragPointer.current = null;
+    setDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     // Vertical range arrow conventions differ from scrolling a document.
     const page = document.documentElement.clientHeight;
@@ -58,9 +88,14 @@ export function ScrollRail({ lang }: { lang: "en" | "my" }) {
   }
 
   return (
-    <div className="scroll-rail" hidden={activeTick < 0}>
+    <div className="scroll-rail" hidden={activeTick < 0} data-dragging={dragging || undefined}
+      onPointerDown={onPointerDown}
+      onPointerMove={event => { if (dragPointer.current === event.pointerId) moveFromPointer(event); }}
+      onPointerUp={finishDrag}
+      onPointerCancel={finishDrag}
+      onLostPointerCapture={finishDrag}>
       <div className="scroll-rail-ticks" aria-hidden="true">
-        {ticks.map(i => <span key={i} className={i === activeTick ? "current" : Math.abs(i - activeTick) === 1 ? "nearby" : undefined} />)}
+        {ticks.map(i => <span key={i} className={i === activeTick ? "current" : Math.abs(i - activeTick) === 1 ? "nearby" : Math.abs(i - activeTick) === 2 ? "approaching" : undefined} />)}
       </div>
       <input ref={slider} type="range" min={0} max={100} step={0.1} defaultValue={0}
         aria-label={lang === "my" ? "စာမျက်နှာပေါ်ရှိ နေရာ" : "Page scroll position"}

@@ -225,10 +225,10 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my' }: {
           <button type="button" aria-label="English" aria-pressed={lang === 'en'} onClick={() => switchLanguage('en')} lang="en">EN</button>
           <button type="button" aria-label="မြန်မာ" aria-pressed={lang === 'my'} onClick={() => switchLanguage('my')} lang="my">မြန်မာ</button>
         </div>
-        {commerceEnabled && <AccountMenu ref={account} lang={lang} onOpen={() => setMenu(false)} onOpenChange={setAccountOpen} />}
         <button type="button" className="shop-cart-button" aria-label={cartLabel + ' (' + cartCount + ')'} onClick={() => { setMenu(false); shop.current?.openCart(); }}>
           <ShoppingBag size={18} /><span className="shop-cart-word">{cartLabel}</span><span className="shop-cart-count">{cartCount}</span>
         </button>
+        {commerceEnabled && <AccountMenu ref={account} lang={lang} onOpen={() => setMenu(false)} onOpenChange={setAccountOpen} />}
       </div>
       <button ref={menuButton} type="button" className="menu-button" aria-controls="shop-nav" aria-label={menu ? t('Close menu', 'မီနူး ပိတ်ရန်') : t('Open menu', 'မီနူး ဖွင့်ရန်')} aria-expanded={menu} onClick={() => setMenu(!menu)}>{menu ? <X /> : <Menu />}</button>
     </header>

@@ -7,18 +7,23 @@ html:has(.storefront-shell)::-webkit-scrollbar {
 }
 
 .scroll-rail {
-  --rail-inset: max(3px, env(safe-area-inset-right));
+  --rail-inset: max(0px, env(safe-area-inset-right));
   position: fixed;
-  top: calc(var(--shop-header-height) + 3vh);
+  top: 50%;
   right: var(--rail-inset);
-  bottom: max(5vh, env(safe-area-inset-bottom));
   z-index: 6;
-  width: 28px;
-  pointer-events: none;
+  width: 44px;
+  height: 180px;
+  max-height: calc(100dvh - var(--shop-header-height) - 40px);
+  transform: translateY(-50%);
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  cursor: ns-resize;
 }
 
 .scroll-rail[hidden],
-.storefront-shell:has(.shop-order[open], .nav.open) .scroll-rail {
+.storefront-shell:has(dialog[open], .nav.open, .shop-account-panel) .scroll-rail {
   display: none;
 }
 
@@ -31,22 +36,42 @@ html:has(.storefront-shell)::-webkit-scrollbar {
 }
 
 .scroll-rail-ticks span {
-  width: 10px;
-  height: 2px;
+  --tick-length: 6px;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 4px;
   flex-shrink: 0;
+}
+
+.scroll-rail-ticks span::before {
+  content: "";
+  width: var(--tick-length);
+  height: 2px;
+  border-radius: 2px;
   background: color-mix(in srgb, var(--brand-navy) 36%, transparent);
-  box-shadow: 0 1px 0 rgb(255 255 255 / 35%);
+  transition: width 140ms ease-out, background-color 140ms ease-out;
+}
+
+.scroll-rail-ticks .approaching {
+  --tick-length: 13px;
 }
 
 .scroll-rail-ticks .nearby {
+  --tick-length: 20px;
+}
+
+.scroll-rail-ticks .nearby::before {
   background: color-mix(in srgb, var(--blue) 65%, white);
 }
 
 .scroll-rail-ticks .current {
-  width: 14px;
-  height: 3px;
+  --tick-length: 28px;
+}
+
+.scroll-rail-ticks .current::before {
+  height: 4px;
   background: var(--blue);
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 85%);
 }
 
 .scroll-rail input {
@@ -58,22 +83,31 @@ html:has(.storefront-shell)::-webkit-scrollbar {
   opacity: 0;
   writing-mode: vertical-lr;
   direction: ltr;
-  pointer-events: auto;
-  cursor: ns-resize;
+  pointer-events: none;
 }
 
 .scroll-rail:has(input:focus-visible) {
   outline: 2px solid var(--blue);
   outline-offset: -2px;
+  border-radius: 8px;
+}
+
+.scroll-rail[data-dragging] {
+  cursor: grabbing;
 }
 
 @media (max-width: 700px), (pointer: coarse) {
-  .scroll-rail { width: 8px; }
-  .scroll-rail-ticks span { width: 4px; }
-  .scroll-rail-ticks .current { width: 7px; }
-  .scroll-rail input { display: none; }
+  .scroll-rail { width: 28px; height: 160px; }
+  .scroll-rail-ticks span { --tick-length: 4px; }
+  .scroll-rail-ticks .approaching { --tick-length: 10px; }
+  .scroll-rail-ticks .nearby { --tick-length: 16px; }
+  .scroll-rail-ticks .current { --tick-length: 24px; }
 }
 
 @media (max-height: 480px) {
-  .scroll-rail-ticks span:nth-child(even):not(.current) { visibility: hidden; }
+  .scroll-rail { height: 132px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-rail-ticks span::before { transition: none; }
 }
