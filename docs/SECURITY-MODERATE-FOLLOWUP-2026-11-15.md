@@ -2,7 +2,7 @@
 
 ## Result
 
-All **15 Moderate dependency entries** from the previous [toolchain follow-up](SECURITY-TOOLCHAIN-FOLLOWUP-2026-11-15.md) are cleared. Fresh full and production-only npm audits both report **0 Critical, 0 High, 0 Moderate and 0 Low**. Local verification is complete; testing and production rollout verification is pending.
+All **15 Moderate dependency entries** from the previous [toolchain follow-up](SECURITY-TOOLCHAIN-FOLLOWUP-2026-11-15.md) are cleared. Fresh full and production-only npm audits both report **0 Critical, 0 High, 0 Moderate and 0 Low**. Source `ac0bcac` reached Hostinger **Completed/Current** on testing and production. Local and hosted verification passed.
 
 ## Changes and compatibility
 
@@ -22,7 +22,7 @@ Primary advisories: [esbuild development-server origin access](https://github.co
 
 `@vercel/og` 1.0.3 retains fflate 0.7.3 provenance comments inside its Node and Edge bundles. Both contain the tree-shaken DEFLATE/WOFF `inflateSync` routines; neither contains the advisory's vulnerable `unzipSync`/ZIP64 parser. The installed Satori dependency is patched to 0.7.5. No manual modification of unrelated bundled inflate code was made. A real compressed WOFF font renders identical SVG glyph paths to its original TTF, and OG produces a 640 × 320 PNG without network asset requests. The direct Node test harness supplies OG's expected require/asset bridges and restores them; application runtime code is unchanged.
 
-Before this rollout, Hostinger's testing scan (17:30) showed five entries: old fflate/esbuild/minimatch findings plus two High entries for **GHSA-gv7w-rqvm-qjhr** against esbuild 0.18.20 and 0.25.12. The [official GitHub advisory](https://github.com/advisories/GHSA-gv7w-rqvm-qjhr) was withdrawn because it identified the wrong package/ecosystem. This project uses npm/Node, not the referenced Deno module. Do not force unrelated esbuild consumers across major/minor ranges just to clear that withdrawn scanner label. Post-deploy scanner comparison is pending; npm audit and the hosting scanner have different advisory data.
+Before this rollout, Hostinger's testing scan (17:30) showed five entries: old fflate/esbuild/minimatch findings plus two High entries for **GHSA-gv7w-rqvm-qjhr** against esbuild 0.18.20 and 0.25.12. The [official GitHub advisory](https://github.com/advisories/GHSA-gv7w-rqvm-qjhr) was withdrawn because it identified the wrong package/ecosystem. This project uses npm/Node, not the referenced Deno module. Do not force unrelated esbuild consumers across major/minor ranges just to clear that withdrawn scanner label. After `ac0bcac` deployed, testing (17:44) and production (17:47) each report **one High / zero Moderate** in the hosting scanner: only this withdrawn advisory against esbuild 0.25.12 remains. All three active root findings are absent. npm audit reports zero; the hosting scanner retains a withdrawn label. This difference is documented rather than suppressed or presented as an active unpatched npm issue.
 
 ## Verification
 
@@ -36,6 +36,8 @@ Before this rollout, Hostinger's testing scan (17:30) showed five entries: old f
 - Actual Miniflare Worker GET, UTF-8 POST/header and local upstream requests passed. Its installed Undici 7.30.1 rejects a disposable self-signed TLS certificate; certificate validation was never disabled.
 - Owned app/database/preview processes stopped; fake canaries, development variables and certificates were removed. Existing review server was untouched. No live orders, provider messages, account linking, giveaway launch/entries or Sites publication occurred.
 
-Hosted read-only checks and browser verification are pending deployment. These results cover the tested dependency graph and bounded application paths, not an exhaustive penetration test or host operating-system audit. Native Windows was not exercised on this Mac.
+Both hosts passed all **14 bounded read-only checks** after deployment: public catalog/giveaway responses, private API authorization, no-store/noindex, browser security headers, analytics isolation and denied source/config paths. Catalogs retain 54 services; the giveaway remains draft with its 2/3/1 prize allocation. Chrome verified plan dialogs and account controls with no captured browser errors. The existing production account session, English preference and two-item cart were preserved. Public proof is ignored at `outputs/moderate-security-live-storefront-2026-11-15.png`.
 
-Ignored local evidence is under `outputs/security/`: `moderate-audit-before-2026-11-15.json`, `moderate-audit-after-2026-11-15.json`, `moderate-runtime-audit-2026-11-15.json`, unit/build/typecheck/Drizzle/lint logs, the Hostinger suite summary, and Sites/Miniflare/TLS evidence.
+These results cover the tested dependency graph and bounded application paths, not an exhaustive penetration test or host operating-system audit. Native Windows was not exercised on this Mac.
+
+Ignored local evidence is under `outputs/security/`: `moderate-audit-before-2026-11-15.json`, `moderate-audit-after-2026-11-15.json`, `moderate-runtime-audit-2026-11-15.json`, unit/build/typecheck/Drizzle/lint logs, the Hostinger suite summary, Sites/Miniflare/TLS evidence, both hosted read-only summaries and hosting-scanner comparisons.
