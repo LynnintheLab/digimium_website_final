@@ -11,9 +11,9 @@ export async function checkAdmin() {
   return authorizeAdmin(await getChatGPTUser(), env.ADMIN_EMAILS);
 }
 
-export async function createSession(_request: Request) {
+export const createSession: (request: Request) => Promise<Response> = async () => {
   return new Response(null, { status: 404 });
-}
-export async function endSession(_request: Request) {
+};
+export const endSession: (request: Request) => Promise<Response> = async () => {
   return new Response(null, { status: 404 });
-}
+};

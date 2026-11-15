@@ -32,13 +32,13 @@ export async function writeSnapshot(snapshot: CatalogSnapshot, expectedRevision:
   return result.affectedRows === 1;
 }
 
-export async function putLogo(key: string, bytes: Uint8Array<ArrayBuffer>, _contentType: string): Promise<void> {
+export const putLogo: (key: string, bytes: Uint8Array<ArrayBuffer>, contentType: string) => Promise<void> = async (key, bytes) => {
   // The shared upload validator has already verified image type, dimensions and size.
   await getPool().execute("INSERT INTO digimium_logos (object_key, image_bytes) VALUES (?, ?)", [
     key,
     Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength),
   ]);
-}
+};
 
 export async function logoExists(key: string): Promise<boolean> {
   const [rows] = await getPool().execute<RowDataPacket[]>(

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, ArrowUpRight, ChevronDown, Clapperboard, Globe2, LayoutGrid, Mail, Menu, PenTool, Search, ShoppingBag, Sparkles, X } from "lucide-react";
 import { categories, type Catalog, type ProductPlan } from "../lib/catalog";
@@ -217,7 +218,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my', ini
     <ScrollRail lang={lang} />
     {giveaway.data && <GiveawayBanner campaign={giveaway.data.campaign} lang={lang}/>}
     <header ref={header} className="header wrap">
-      <a className="brand" href="#" aria-label={t('Digimium home', 'Digimium ပင်မစာမျက်နှာ')}><img src="/assets/logo.png" alt="digimium." /></a>
+      <a className="brand" href="#" aria-label={t('Digimium home', 'Digimium ပင်မစာမျက်နှာ')}><Image src="/assets/logo.png" alt="digimium." width={1000} height={340} style={{height: 'auto'}} unoptimized loading="eager" /></a>
       <nav id="shop-nav" className={menu ? 'nav open' : 'nav'} aria-label={t('Main navigation', 'ပင်မမီနူး')}>
         <a href="#services" onClick={() => setMenu(false)}>{t('Explore services', 'Product များ')}</a>
         <a href="#how-it-works" onClick={() => setMenu(false)}>{t('How to order', 'ဘယ်လိုဝယ်ယူရမလဲ')}</a>
@@ -281,7 +282,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my', ini
       <section id="about" className="about">
         <div className="wrap about-inner">
           <div className="about-heading">
-            <img src="/assets/symbol-white.png" alt="" />
+            <Image src="/assets/symbol-white.png" alt="" width={402} height={400} style={{height: 'auto'}} unoptimized />
             <h2 lang="en">Digital.<br />Premium.<br /><span>Make Simple.</span></h2>
           </div>
           <div className="about-copy">
@@ -305,19 +306,19 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my', ini
       <section id="contact" className="contact wrap"><div><h2>{t('Talk to Digimium', 'digimium. ကို ဆက်သွယ်ရန်')}{lang === 'en' && <span className="blue">.</span>}</h2><p>{t('Ask about a subscription, availability, or an existing order.', 'ဝန်ဆောင်မှု၊ ရရှိနိုင်မှု သို့မဟုတ် မှာယူပြီးသား အမှာစာအကြောင်း မေးမြန်းနိုင်ပါတယ်။')}</p></div>
         <div className="contact-actions">
           {telegram && <a className="button contact-link contact-telegram" href={'https://t.me/' + telegram} target="_blank" rel="noopener noreferrer">
-            <img src="/assets/marks/telegram.svg" width="26" height="26" alt="" />
+            <Image src="/assets/marks/telegram.svg" width={26} height={26} alt="" unoptimized />
             <span>{t('Message us on Telegram', 'Telegram မှာ စာပို့ရန်')}</span>
             <ArrowUpRight size={18} aria-hidden="true" />
           </a>}
           <a className="button contact-link contact-viber" href={`viber://chat?number=${encodeURIComponent(settings.viber)}`}>
-            <img src="/assets/marks/viber.svg" width="26" height="26" alt="" />
+            <Image src="/assets/marks/viber.svg" width={26} height={26} alt="" unoptimized />
             <span>{t('Talk to us on Viber', 'Viber မှ ဆက်သွယ်ရန်')}</span>
             <ArrowUpRight size={18} aria-hidden="true" />
           </a>
           <span className="contact-number">Viber · {settings.viberLabel}</span><a className="email" href={`mailto:${settings.email}`}><Mail size={15} />{settings.email}</a>
         </div></section>
     </main>
-    <footer className="footer wrap"><a className="brand" href="#" aria-label={t('Back to top', 'အပေါ်သို့ ပြန်သွားရန်')}><img src="/assets/logo.png" alt="digimium." /></a><div><Globe2 size={14} />{t('Myanmar & English', 'မြန်မာနှင့် အင်္ဂလိပ်')}
+    <footer className="footer wrap"><a className="brand" href="#" aria-label={t('Back to top', 'အပေါ်သို့ ပြန်သွားရန်')}><Image src="/assets/logo.png" alt="digimium." width={1000} height={340} style={{height: 'auto'}} unoptimized /></a><div><Globe2 size={14} />{t('Myanmar & English', 'မြန်မာနှင့် အင်္ဂလိပ်')}
       <button type="button" className="store-motion-control" onClick={() => setMotionPaused(paused => !paused)}>
         {motionPaused ? t('Resume motion', 'လှုပ်ရှားမှု ပြန်ဖွင့်ရန်') : t('Pause motion', 'လှုပ်ရှားမှု ရပ်ရန်')}
       </button>

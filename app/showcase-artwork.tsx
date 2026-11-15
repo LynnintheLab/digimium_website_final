@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import Image from 'next/image';
 
 // Each service keeps the same placement and motion as the catalog or language changes.
 const edges = [
@@ -21,7 +22,7 @@ export function ServiceTiles() {
       '--scale': mark.scale, '--dx': mark.dx + 'px', '--dy': mark.dy + 'px',
       '--sway': mark.sway + 'deg', '--duration': mark.duration + 's', '--delay': mark.delay + 's',
     } as CSSProperties}>
-      <span className="service-tile"><img src={'/assets/marks/' + mark.icon + '.svg'} width="23" height="23" alt="" draggable={false} /></span>
+      <span className="service-tile"><Image src={'/assets/marks/' + mark.icon + '.svg'} width={23} height={23} alt="" unoptimized draggable={false} /></span>
     </span>)}
   </div>;
 }

@@ -2,6 +2,8 @@
 
 ## Current status
 
+All 17 remaining ESLint warnings are fixed locally. Fourteen native image sites now use `next/image` with explicit dimensions, unchanged logo sources/fallbacks and responsive aspect ratios; the header logo loads eagerly. Three unused implementation parameters are removed while retaining shared call signatures. Strict full lint (`--max-warnings=0`) reports 0 errors/0 warnings; all 82 tests, Node 24 standalone build/packaging, typecheck, the fresh Hostinger logo/storage integration and both legacy Sites integrations/build pass. Desktop/mobile checks preserve loaded logo proportions, two phone columns and letter fallbacks. Testing/production rollout is pending. See `docs/LINT-WARNINGS-FOLLOWUP-2026-11-15.md`.
+
 The remaining full-lint error is fixed and source `cb302ca` is live on testing and production (Hostinger Completed/Current): the logo path event handler is named `applyExistingPath` at its definition and Enter/button callsites, avoiding false Hook classification. Validation, disabled/uploading guards, callbacks and UI behavior are unchanged. Full lint exits zero (0 errors, 17 existing warnings), all 82 tests pass, and the Node 24 standalone build/packaging and typecheck pass. Both hosts passed four bounded read-only checks for storefront, catalog, admin redirect and login; no live data changed.
 
 All 15 remaining Moderate audit entries are fixed and source `ac0bcac` is live on testing and production (Hostinger Completed/Current). Scoped core-utils/esbuild 0.25.12, Satori/fflate 0.7.5 and Estree/minimatch 11.0.1 overrides plus Drizzle Kit 0.31.11 yield zero full and production-only npm audit findings. Clean install, 82 unit tests, standalone build/typecheck, four compatibility cases, Drizzle generate/check, all six fresh Hostinger security suites, separate Sites integrations, twelve preview probes and Miniflare/Undici/TLS checks passed. Focused lint passes; full lint retains a reproduced baseline logo-editor naming error plus 17 warnings. Both hosts passed all 14 bounded read-only checks and Chrome plan/account checks without browser errors; production English/session/cart were preserved. Hostinger scans show one High label each for the officially withdrawn Deno/esbuild advisory, with zero Moderate; this does not match the active npm graph and is documented in `docs/SECURITY-MODERATE-FOLLOWUP-2026-11-15.md`. No real provider/order/account/giveaway mutations occurred; owned local fixtures stopped.
@@ -67,6 +69,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Cleared all 17 warnings without lint suppressions or rule changes; independently reviewed image dimensions and shared API signatures. Verified strict lint, tests, typecheck, both target builds and local logo integrations. Browser testing covered desktop/390px images and blocked/missing-logo fallbacks in catalog, order dialog and admin. No real orders/provider links or live data were changed; rollout is pending.
 
 Renamed the ordinary logo-path handler and independently reviewed its three references. Verified full lint, the existing 82 tests, standalone build and typecheck in an isolated snapshot. No new tests or runtime/dependency/authentication changes were required. Testing and production deployed `cb302ca` and passed all four read-only checks each. Test logs and live summaries are ignored under `outputs/security/lint-fix-*`; final follow-up is documentation only.
 
@@ -192,7 +196,9 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Lint error fix and retest are complete and live. Full lint exits zero; the 17 existing non-blocking warnings remain separate future cleanup.
+- Deploy the validated warning cleanup to testing, verify it, then promote to production. ESLint is clean; keep the separate existing Vinext dependency bundler notice distinct from source warnings.
+
+- Lint error fix and retest are complete and live. The subsequent warning cleanup clears all 17 remaining warnings.
 
 - Moderate fixes and security retest are complete and live. Retain the four compatibility regressions and review scoped overrides when parent packages update. The hosting scanner retains one withdrawn esbuild advisory per host; do not force unrelated updates or suppress active advisories to hide it. The later lint follow-up resolves the logo-editor naming error.
 

@@ -4,6 +4,7 @@
 
 import { ArrowDown, ArrowRight, CheckCircle2, Gift, Link2, Users } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import type { GiveawayCampaign, GiveawayView } from '../lib/giveaway-types';
 import { durationText, type ShopLanguage } from '../lib/shop-language';
 import './giveaway.css';
@@ -88,7 +89,7 @@ export function GiveawayPromo({ campaign, lang }: { campaign: GiveawayCampaign; 
     <h2>Giveaway</h2>
     <p className="giveaway-promo-total"><strong>{total}</strong><span>{lang === 'my' ? 'ဦးစာ လက်ဆောင်' : 'prize slots'}</span></p>
     <ul className="giveaway-promo-prizes">{campaign.prizes.map(prize => <li key={prize.id}>
-      <span className="giveaway-promo-mark" aria-hidden><img src={'/assets/marks/' + prize.mark + '.svg'} alt=""/></span>
+      <span className="giveaway-promo-mark" aria-hidden><Image src={'/assets/marks/' + prize.mark + '.svg'} width={28} height={28} alt="" unoptimized/></span>
       <span className="giveaway-promo-plan"><strong>{prize.plan}</strong><span>{durationText(prize.duration, lang)}</span></span>
       <span className="giveaway-promo-winners">{lang === 'my' ? `${prizeNumber(prize.winners, lang)} ဦး` : `× ${prize.winners}`}</span>
     </li>)}</ul>
@@ -104,7 +105,7 @@ export function GiveawayDetails({ controller, lang }: { controller: GiveawayCont
   return <section className="giveaway-section wrap" id="giveaway" aria-labelledby="giveaway-title">
     <div className="giveaway-heading"><div><span className="giveaway-section-status">{statusText(campaign, lang)}</span><h2 id="giveaway-title">digimium. Giveaway</h2></div><span className="giveaway-winner-total"><Users size={19} aria-hidden/>{t('6 prize slots', 'လက်ဆောင် ၆ ဦးစာ')}</span></div>
     <div className="giveaway-prizes">{campaign.prizes.map(prize => <div className="giveaway-prize" key={prize.id}>
-      <img src={'/assets/marks/' + prize.mark + '.svg'} alt=""/><div><h3>{prize.plan}</h3><p>{durationText(prize.duration, lang)} <span>·</span> {lang === 'my' ? `${prizeNumber(prize.winners, lang)} ဦး` : `${prize.winners} ${prize.winners === 1 ? 'winner' : 'winners'}`}</p></div>
+      <Image src={'/assets/marks/' + prize.mark + '.svg'} width={40} height={40} alt="" unoptimized/><div><h3>{prize.plan}</h3><p>{durationText(prize.duration, lang)} <span>·</span> {lang === 'my' ? `${prizeNumber(prize.winners, lang)} ဦး` : `${prize.winners} ${prize.winners === 1 ? 'winner' : 'winners'}`}</p></div>
     </div>)}</div>
     {campaign.startsAt && campaign.endsAt && <dl className="giveaway-dates"><div><dt>{t('Starts', 'စတင်ချိန်')}</dt><dd><time dateTime={campaign.startsAt}>{campaignDate(campaign.startsAt, lang)}</time></dd></div><div><dt>{t('Ends', 'ပြီးဆုံးချိန်')}</dt><dd><time dateTime={campaign.endsAt}>{campaignDate(campaign.endsAt, lang)}</time></dd></div><div><dt>{t('Timezone', 'စံတော်ချိန်')}</dt><dd>{t('Myanmar Time (MMT)', 'မြန်မာစံတော်ချိန်')}</dd></div></dl>}
     <div className="giveaway-entry" aria-busy={controller.checking}>

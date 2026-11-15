@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent, type ReactNode } from 'react';
 import { ArrowRight, ArrowUpRight, AudioLines, ChevronLeft, ChevronRight, Gift, LayoutGrid, PenTool, Sparkles, Tag } from 'lucide-react';
 import type { Product } from '../lib/catalog';
@@ -142,7 +143,7 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
     <div className="showcase-surface">
       <div className="showcase-top">
         {!isGiveaway && slide.kind === 'best' ? <BestSellerBadge lang={lang} /> :
-          <span className="showcase-label">{collection ? <img src="/assets/symbol-white.png" alt="" /> : <Icon size={18} aria-hidden="true" />}{label}</span>}
+          <span className="showcase-label">{collection ? <Image src="/assets/symbol-white.png" alt="" width={20} height={20} unoptimized /> : <Icon size={18} aria-hidden="true" />}{label}</span>}
         {count > 1 && <div className="showcase-controls">
           <button type="button" aria-label={t('Previous slide', 'ရှေ့ပြကွက်')} onClick={() => step(-1)}><ChevronLeft size={18} /></button>
           <button type="button" aria-label={t('Next slide', 'နောက်ပြကွက်')} onClick={() => step(1)}><ChevronRight size={18} /></button>
@@ -156,7 +157,7 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
       <div role="group" aria-roledescription={t('slide', 'ပြကွက်')} aria-label={slideLabel(current)}
         className="showcase-slide" data-direction={page.direction}>
         <div className="showcase-backdrop" aria-hidden="true">
-          <img className="portal" src="/assets/symbol-white.png" alt="" />
+          <Image className="portal" src="/assets/symbol-white.png" alt="" width={402} height={400} style={{height: 'auto'}} unoptimized />
         </div>
         <div aria-live={rotating ? 'off' : 'polite'} aria-atomic="true">
           {isGiveaway ? giveaway : <>

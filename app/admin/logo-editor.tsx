@@ -1,6 +1,7 @@
 'use client';
 
 import { useLayoutEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { Copy, LoaderCircle, Upload, X } from 'lucide-react';
 import { markKeys, type Product } from '@/lib/catalog';
 import { LOGO_PATH_PATTERN, MAX_LOGO_BYTES, MAX_LOGO_DIMENSION } from '@/lib/logo-path';
@@ -21,7 +22,7 @@ export function ServiceMark({ product }: { product: LogoFields }) {
   const [failed, setFailed] = useState<string>();
   return <span className="admin-service-mark" aria-hidden="true">
     {src && failed !== src
-      ? <img src={src} alt="" onError={() => setFailed(src)} />
+      ? <Image src={src} width={28} height={28} alt="" unoptimized onError={() => setFailed(src)} />
       : <span className="admin-service-initial">{product.name.trim().slice(0, 1).toUpperCase() || 'D'}</span>}
   </span>;
 }

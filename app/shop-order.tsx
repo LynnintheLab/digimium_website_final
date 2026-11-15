@@ -1,6 +1,7 @@
 'use client';
 
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import { ArrowUpRight, Check, CheckCircle2, Copy, Minus, Plus, RefreshCw, ShoppingBag, Trash2, X } from 'lucide-react';
 import type { Product } from '../lib/catalog';
 import { CART_KEY, orderMessages, resolveOrder, restoreCart, sameItem, telegramDraft, totalMmk, withSelection, type CartItem, type OrderLine } from '../lib/cart-order';
@@ -34,7 +35,7 @@ function Logo({product}: {product: Product}) {
   const src = productLogoSrc(product);
   const [failed, setFailed] = useState('');
   return <span className="order-logo" aria-hidden="true">{src && failed !== src
-    ? <img src={src} alt="" onError={() => setFailed(src)} /> : product.name.slice(0, 1)}</span>;
+    ? <Image src={src} width={30} height={30} alt="" unoptimized onError={() => setFailed(src)} /> : product.name.slice(0, 1)}</span>;
 }
 
 function CheckoutNote({askAboutPrice, lang, compact = false}: {askAboutPrice: boolean; lang: Locale; compact?: boolean}) {
