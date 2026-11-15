@@ -2,11 +2,11 @@
 
 ## Result and scope
 
-The candidate lockfile clears all **eight High** dependency entries from the previous [Zod follow-up](SECURITY-ZOD-FOLLOWUP-2026-11-15.md). The full audit reports **0 Critical, 0 High, 15 Moderate and 0 Low**; it is **not completely clean**. Final local verification passed; hosted rollout is pending.
+The deployed lockfile clears all **eight High** dependency entries from the previous [Zod follow-up](SECURITY-ZOD-FOLLOWUP-2026-11-15.md). The full audit reports **0 Critical, 0 High, 15 Moderate and 0 Low**; it is **not completely clean**. Runtime source `830373c` reached Hostinger Completed/Current on testing and production. Final local and hosted verification passed.
 
 ## Changes
 
-| Previously High package | Previous lockfile | Candidate lockfile |
+| Previously High package | Previous lockfile | Patched lockfile |
 | --- | --- | --- |
 | brace-expansion | 1.1.14 / 5.0.6 | 1.1.22 / 5.0.13 |
 | browserslist | 4.28.2 | 4.29.5 |
@@ -33,7 +33,9 @@ Primary advisory references: [brace expansion](https://github.com/advisories/GHS
 - Sites/Worker build passed; fresh local D1/R2 catalog/admin and logo/plan integrations passed. Twelve development security checks verified raw Host/origin rejection, safe redirects, guarded bridge context/invoke, refused client import, and denied fake private/outside files. The client virtual module is refused with HTTP 500; unauthenticated bridge requests return 403. No bridge secret was exposed.
 - All six fresh disposable Hostinger security suites passed: catalog/admin, commerce, Telegram/link/history, giveaway, Google and direct identities. The Telegram race returned 200/409 with exactly one identity and owner. External provider fallback was blocked; providers used fake fixtures.
 - Fresh production-only audit: zero findings. The full `npm audit --audit-level=high` gate exits zero while retaining the 15 Moderate findings below. Focused ESLint for the new tests has zero errors/warnings.
-- Testing deployment, read-only hosted checks and production promotion: pending.
+- Testing and production deployed runtime `830373c` as Hostinger Completed/Current. Each passed 14 bounded read-only checks: public responses, private API authorization/cache/headers, analytics isolation and denied source/config files. `/.env` and `/.git/config` returned 403; package manifests returned 404. Catalogs retain 54 services and the giveaway remains draft.
+- Chrome verified plan dialogs and account controls on staging (Myanmar) and production (English), with no captured browser errors. The original production sign-in, English preference and two-item cart were preserved. Public proof is ignored at `outputs/toolchain-security-live-storefront-2026-11-15.png`.
+- An initial post-deploy staging batch returned 503 from `/api/admin/catalog` instead of 401. The subsequent complete batch passed all 14 checks; the initial cause was not established. Production's complete batch passed.
 
 Actual Miniflare Worker GET, UTF-8 POST/header roundtrips and loopback upstream fetch passed. Resolving Undici through Miniflare confirms 7.30.1, and a request through that installed copy rejected a disposable self-signed HTTPS certificate with `DEPTH_ZERO_SELF_SIGNED_CERT`; TLS validation was never disabled.
 
@@ -43,4 +45,4 @@ All mutation verification used disposable local fixtures. No real orders, accoun
 
 The **15 Moderate** audit entries remain in lint/parser dependencies, Drizzle's development loader, and Open Graph/Satori dependencies. They need separate review and compatible fixes; clearing the requested High entries does not resolve them. npm audit measures the package graph, not every reachable code path or vendored copy. A clean severity category is not a guarantee that the hosting environment or application is free of security issues.
 
-Local ignored evidence: `outputs/security/toolchain-audit-before-2026-11-15.json` and `outputs/security/toolchain-audit-after-2026-11-15.json`. These record the full audit moving from **26 entries / 8 High** to **15 entries / 0 High**.
+Local ignored evidence: `outputs/security/toolchain-audit-before-2026-11-15.json`, `outputs/security/toolchain-audit-after-2026-11-15.json`, the high-severity audit gate, runtime audit, Hostinger suite summary, Sites/Miniflare/TLS checks and both hosted read-only summaries in the same directory. These record the full audit moving from **26 entries / 8 High** to **15 entries / 0 High**.
