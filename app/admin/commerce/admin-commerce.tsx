@@ -34,10 +34,19 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
   const orderTrigger = useRef<HTMLButtonElement | null>(null);
   const listHeading = useRef<HTMLLabelElement>(null);
 
+  function invalidateRefresh() {
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    setRefreshing(false);
+    setError('');
+    setAuthExpired(false);
+  }
+
   const refresh = useCallback(async () => {
     activeRequest.current?.abort();
     const controller = new AbortController();
     activeRequest.current = controller;
+    const isCurrent = () => activeRequest.current === controller && !controller.signal.aborted;
     setRefreshing(true);
     setError('');
     setAuthExpired(false);
@@ -46,19 +55,21 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
         cache: 'no-store', credentials: 'same-origin', signal: controller.signal,
       });
       const result = await response.json() as CommerceData & { error?: string };
-      if (controller.signal.aborted) return;
+      if (!isCurrent()) return;
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) setData(null);
-        setAuthExpired(response.status === 401);
-        setError(result.error || 'Could not load the latest records.');
+        if (response.status === 401 || response.status === 403) setData(current => isCurrent() ? null : current);
+        setAuthExpired(current => isCurrent() ? response.status === 401 : current);
+        setError(current => isCurrent() ? result.error || 'Could not load the latest records.' : current);
         return;
       }
-      setData(result);
+      // Recheck inside queued state updates as well: a successful local mutation
+      // can invalidate this response before React applies an already queued update.
+      setData(current => isCurrent() ? result : current);
       return true;
     } catch {
-      if (!controller.signal.aborted) setError('Could not load the latest records. Check your connection and try again.');
+      if (isCurrent()) setError(current => isCurrent() ? 'Could not load the latest records. Check your connection and try again.' : current);
     } finally {
-      if (!controller.signal.aborted) setRefreshing(false);
+      if (isCurrent()) setRefreshing(current => isCurrent() ? false : current);
     }
   }, []);
 
@@ -117,8 +128,12 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
     {notice && <p role="status" className="admin-feedback admin-feedback-success"><Check size={17} />{notice}</p>}
     {view === 'customers' && editingCustomer ? <CustomerEditor key={editingCustomer.id} id={editingCustomer.id} startDeleting={editingCustomer.deleting}
       onDirtyChange={onDirtyChange} onBack={() => { setEditingCustomer(null); requestAnimationFrame(() => listHeading.current?.focus()); }}
-      onSaved={customer => setData(current => current ? { ...current, customers: current.customers.map(row => row.id === customer.id ? customer : row) } : current)}
+      onSaved={customer => {
+        invalidateRefresh();
+        setData(current => current ? { ...current, customers: current.customers.map(row => row.id === customer.id ? customer : row) } : current);
+      }}
       onRemoved={id => {
+        invalidateRefresh();
         setData(current => current ? { customers: current.customers.filter(row => row.id !== id), orders: current.orders.filter(order => order.customerId !== id) } : current);
         setEditingCustomer(null); if (customerId === id) clearCustomer(); setNotice('Customer and their associated records deleted.');
         requestAnimationFrame(() => listHeading.current?.focus());
@@ -126,6 +141,7 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
       onDirtyChange={onDirtyChange} onBack={backToList} onRemove={setRemovingOrder}
       onReload={async () => { if (await refresh()) onDirtyChange(false); }}
       onSaved={order => {
+        invalidateRefresh();
         setData(current => current ? { ...current, orders: current.orders.map(row => row.id === order.id ? order : row) } : current);
         setFilter('approved');
         setNotice(selected.status === 'pending' ? selected.customerId ? 'Order approved and added to the customer’s history.' : 'Guest order approved. Dates saved in the order record.' : 'Order details updated.');
@@ -191,6 +207,7 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
       onClose={() => { setRemovingOrder(null); requestAnimationFrame(() => removeTrigger.current?.focus()); }}
       onReload={() => { setRemovingOrder(null); setSelectedId(null); onDirtyChange(false); void refresh(); }}
       onRemoved={id => {
+        invalidateRefresh();
         setData(current => current ? { ...current, orders: current.orders.filter(order => order.id !== id) } : current);
         setRemovingOrder(null); if (selectedId === id) setSelectedId(null);
         onDirtyChange(false); setNotice('Pending order removed.');
