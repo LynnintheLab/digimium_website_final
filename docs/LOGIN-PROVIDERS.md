@@ -4,6 +4,30 @@ Customer login has a shared form in Account, Order history and the checkout popu
 
 Admin continues to use its separate owner-only email code. Customer Google or Telegram sign-in does not grant admin access.
 
+## Telegram message presentation
+
+The private bot sends the generated Digimium welcome photo on ordinary `/start`
+and a login deep link, then the existing message with four code choices and Reject.
+The photo is decoration: missing data or Telegram upload failures preserve the
+text login flow. Successful photo delivery is remembered within that challenge,
+so a text-send retry does not repeat the same welcome photo.
+
+Login notices show a native bold title, browser/device inferred from user-agent,
+approximate IP country when available, and the start time labelled MMT. Country
+comes from the bundled offline DB-IP Lite IPv4/IPv6 files; no IP is sent to a
+geolocation provider, and no city or GPS location is claimed. It is advisory and
+does not participate in authentication. Private/missing/proxy-only addresses
+show unknown, and caller-provided country/city headers are ignored. See
+[data provenance, license and update instructions](../hostinger/data/README.md).
+
+Selecting the code says only that the code was confirmed. A separate completed
+notice is sent after the original browser successfully consumes the challenge
+and receives its website session. This avoids a slow approval edit overwriting
+success. The completed notice's history/plan buttons are bound to its actual
+Telegram message ID. Notification failure is bounded to two seconds and never
+invalidates the website session; acknowledgement retries do not send it again.
+Account linking and logout-all-device functionality are outside this change.
+
 ## Email and Google account behavior
 
 - Email flow: enter an address → a password account asks for its existing password; a new address chooses a password of at least 10 characters, then a name. Customer creation happens only after final submission.

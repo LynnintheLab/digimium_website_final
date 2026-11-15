@@ -16,6 +16,7 @@ function moveToPercent(percent: number) {
 }
 
 export function ScrollRail({ lang }: { lang: "en" | "my" }) {
+  const rail = useRef<HTMLDivElement>(null);
   const slider = useRef<HTMLInputElement>(null);
   const dragPointer = useRef<number | null>(null);
   const [activeTick, setActiveTick] = useState(-1);
@@ -29,6 +30,28 @@ export function ScrollRail({ lang }: { lang: "en" | "my" }) {
       const percent = distance ? Math.max(0, Math.min(100, 100 * window.scrollY / distance)) : 0;
       if (slider.current) slider.current.value = percent.toFixed(1);
       setActiveTick(distance > 0 ? Math.round(percent * (tickCount - 1) / 100) : -1);
+
+      const railElement = rail.current;
+      if (!railElement || railElement.hidden) {
+        if (distance > 0) schedule();
+        return;
+      }
+      const railBounds = railElement.getBoundingClientRect();
+      if (!railBounds.height) return;
+      // These are the storefront's dark surfaces. Use exact neutral colors rather
+      // than inversion, which would turn the navy backdrop into a yellow tint.
+      const darkRegions = Array.from(document.querySelectorAll<HTMLElement>(".about, .showcase"), element => element.getBoundingClientRect());
+      const onDarkSurface = (x: number, y: number) => darkRegions.some(bounds => x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom);
+      const tickBounds = Array.from(railElement.querySelectorAll<HTMLSpanElement>(".scroll-rail-ticks span"), tick => ({ tick, bounds: tick.getBoundingClientRect() }));
+      // Read all geometry before painting, including when the rail crosses a section edge.
+      for (const { tick, bounds } of tickBounds) {
+        const surface = onDarkSurface((bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2) ? "dark" : "light";
+        if (tick.dataset.surface !== surface) tick.dataset.surface = surface;
+      }
+      const focusColor = onDarkSurface((railBounds.left + railBounds.right) / 2, (railBounds.top + railBounds.bottom) / 2) ? "#fff" : "#000";
+      if (railElement.style.getPropertyValue("--rail-focus-color") !== focusColor) {
+        railElement.style.setProperty("--rail-focus-color", focusColor);
+      }
     }
     function schedule() {
       if (!frame) frame = requestAnimationFrame(measure);
@@ -88,7 +111,7 @@ export function ScrollRail({ lang }: { lang: "en" | "my" }) {
   }
 
   return (
-    <div className="scroll-rail" hidden={activeTick < 0} data-dragging={dragging || undefined}
+    <div ref={rail} className="scroll-rail" hidden={activeTick < 0} data-dragging={dragging || undefined}
       onPointerDown={onPointerDown}
       onPointerMove={event => { if (dragPointer.current === event.pointerId) moveFromPointer(event); }}
       onPointerUp={finishDrag}

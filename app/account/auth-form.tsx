@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { ArrowLeft, ArrowRight, ArrowUpRight, Eye, EyeOff, Phone } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { CommerceCustomer } from '../../lib/commerce-types';
@@ -29,6 +28,14 @@ function GoogleMark() {
     <path fill="#34a853" d="M24 44c5.5 0 10.1-1.8 13.5-4.9l-6.6-5c-1.8 1.2-4.1 1.9-6.9 1.9-5.3 0-9.8-3.6-11.4-8.4H5.8v5.2A20.4 20.4 0 0 0 24 44Z"/>
     <path fill="#fbbc05" d="M12.6 27.6a12 12 0 0 1 0-7.2v-5.2H5.8a20 20 0 0 0 0 17.6l6.8-5.2Z"/>
     <path fill="#ea4335" d="M24 12c3 0 5.6 1 7.7 3l5.8-5.8A19.7 19.7 0 0 0 24 4 20.4 20.4 0 0 0 5.8 15.2l6.8 5.2A12 12 0 0 1 24 12Z"/>
+  </svg>;
+}
+
+function TelegramMark() {
+  // Keep the provider mark in the initial markup without an image-loading dependency.
+  return <svg width="20" height="20" viewBox="0 0 256 256" aria-hidden="true" focusable="false">
+    <circle cx="128" cy="128" r="128" fill="#2AABEE"/>
+    <path fill="#FFF" d="M57.94 126.648c37.32-16.256 62.2-26.974 74.64-32.152 35.56-14.786 42.94-17.354 47.76-17.441 1.06-.017 3.42.245 4.96 1.49 1.28 1.05 1.64 2.47 1.82 3.467.16.996.38 3.266.2 5.038-1.92 20.24-10.26 69.356-14.5 92.026-1.78 9.592-5.32 12.808-8.74 13.122-7.44.684-13.08-4.912-20.28-9.63-11.26-7.386-17.62-11.982-28.56-19.188-12.64-8.328-4.44-12.906 2.76-20.386 1.88-1.958 34.64-31.748 35.26-34.45.08-.338.16-1.598-.6-2.262-.74-.666-1.84-.438-2.64-.258-1.14.256-19.12 12.152-54 35.686-5.1 3.508-9.72 5.218-13.88 5.128-4.56-.098-13.36-2.584-19.9-4.708-8-2.606-14.38-3.984-13.82-8.41.28-2.304 3.46-4.662 9.52-7.072Z"/>
   </svg>;
 }
 
@@ -145,7 +152,7 @@ export function AuthForm({ checkout, embedded, history, resumeGoogle = false, t,
       <p className="customer-auth-intro">{t('Choose how you’d like to continue.', 'အကောင့်ဝင်ရန် နည်းလမ်းရွေးပါ။')}</p>
       <div className="customer-providers" aria-label={t('Sign-in methods', 'အကောင့်ဝင်ရန် နည်းလမ်းများ')}>
         <button type="button" className="customer-provider" data-ready={google.enabled || undefined} disabled={busy || !google.enabled} onClick={() => { telegram.cancel(); setError(''); void google.start(); }}><GoogleMark/><span>{t('Continue with Google', 'Google ဖြင့် ဝင်မယ်')}</span>{google.enabled === false && <small>Coming soon</small>}</button>
-        <button type="button" className="customer-provider" data-ready={telegram.enabled || undefined} disabled={busy || !telegram.enabled} onClick={() => { google.cancel(); setError(''); setPassword(''); setStep('email'); void telegram.start(); }}><Image src="/assets/marks/telegram.svg" alt="" width={20} height={20} unoptimized /><span>{t('Continue with Telegram', 'Telegram ဖြင့် ဝင်မယ်')}</span>{telegram.enabled === false && <small>Coming soon</small>}</button>
+        <button type="button" className="customer-provider" data-ready={telegram.enabled || undefined} disabled={busy || !telegram.enabled} onClick={() => { google.cancel(); setError(''); setPassword(''); setStep('email'); void telegram.start(); }}><TelegramMark/><span>{t('Continue with Telegram', 'Telegram ဖြင့် ဝင်မယ်')}</span>{telegram.enabled === false && <small>Coming soon</small>}</button>
         <button type="button" className="customer-provider" disabled><Phone size={20} aria-hidden/><span>{t('Continue with phone', 'ဖုန်းနံပါတ်ဖြင့် ဝင်မယ်')}</span><small>Coming soon</small></button>
       </div>
       <div className="customer-auth-divider"><span>{t('or use email', 'သို့မဟုတ် email ဖြင့်')}</span></div>

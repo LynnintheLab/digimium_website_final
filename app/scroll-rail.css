@@ -49,8 +49,12 @@ html:has(.storefront-shell)::-webkit-scrollbar {
   width: var(--tick-length);
   height: 2px;
   border-radius: 2px;
-  background: color-mix(in srgb, var(--brand-navy) 36%, transparent);
-  transition: width 140ms ease-out, background-color 140ms ease-out;
+  background: #000;
+  transition: width 140ms ease-out;
+}
+
+.scroll-rail-ticks span[data-surface="dark"]::before {
+  background: #fff;
 }
 
 .scroll-rail-ticks .approaching {
@@ -61,17 +65,8 @@ html:has(.storefront-shell)::-webkit-scrollbar {
   --tick-length: 20px;
 }
 
-.scroll-rail-ticks .nearby::before {
-  background: color-mix(in srgb, var(--blue) 65%, white);
-}
-
 .scroll-rail-ticks .current {
   --tick-length: 28px;
-}
-
-.scroll-rail-ticks .current::before {
-  height: 4px;
-  background: var(--blue);
 }
 
 .scroll-rail input {
@@ -87,7 +82,7 @@ html:has(.storefront-shell)::-webkit-scrollbar {
 }
 
 .scroll-rail:has(input:focus-visible) {
-  outline: 2px solid var(--blue);
+  outline: 2px solid var(--rail-focus-color, #000);
   outline-offset: -2px;
   border-radius: 8px;
 }

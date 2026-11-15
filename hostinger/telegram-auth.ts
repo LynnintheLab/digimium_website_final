@@ -8,13 +8,15 @@ import { customerMutationAllowed, currentCustomer, ensureCustomerSchema, issueTe
 import { ensureTelegramIdentitySchema, type TelegramIdentity } from './telegram-identity';
 import { getTelegramHistory } from './telegram-history';
 import { getPool } from './mysql';
+import { loginLocation } from './login-location';
+import { telegramBrowserContext, telegramLoginApproved, telegramLoginComplete, telegramLoginRequest, telegramLoginTitleEntities } from '../lib/telegram-login-presentation';
 
 const lifetime = 300;
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 type ReturnTo = 'account' | 'checkout' | 'history';
 type Binding = { id: string; browser: string; exp: number };
 type Stage = 'waiting' | 'sending' | 'sent' | 'approved' | 'rejected';
-type Flow = { id: string; returnTo: ReturnTo; code: string; options: string[]; created: number; context: string; identity?: TelegramIdentity; messageId?: number };
+type Flow = { id: string; returnTo: ReturnTo; code: string; options: string[]; created: number; context: string; location?: string; identity?: TelegramIdentity; messageId?: number; welcomed?: boolean };
 interface Challenge extends RowDataPacket { id_hash: Buffer; browser_hash: Buffer; stage: Stage; payload: string }
 let ready: Promise<void> | undefined;
 
@@ -88,12 +90,6 @@ function requestedFlow(request: Request) {
   if ([...params.keys()].some(key => key !== 'flow') || params.getAll('flow').length > 1 || (params.has('flow') && !tokenPattern.test(params.get('flow')!))) throw new CommerceError(400, 'invalid');
   return params.get('flow');
 }
-function browserContext(request: Request) {
-  const ua = (request.headers.get('user-agent') || '').slice(0, 1000);
-  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
-  const device = /iPhone|iPad/.test(ua) ? 'iPhone / iPad' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Macintosh|Mac OS/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Device';
-  return browser + ' · ' + device;
-}
 export function telegramCapabilities() { return commerceJson({ enabled: !!configuration() }); }
 export async function telegramStart(request: Request) {
   if (!customerMutationAllowed(request)) return commerceJson({ error: 'origin' }, 403);
@@ -109,7 +105,9 @@ export async function telegramStart(request: Request) {
     const code = String(randomInt(10000)).padStart(4, '0'), options = [code];
     while (options.length < 4) { const option = String(randomInt(10000)).padStart(4, '0'); if (!options.includes(option)) options.push(option); }
     for (let index = options.length - 1; index > 0; index--) { const next = randomInt(index + 1); [options[index], options[next]] = [options[next], options[index]]; }
-    const flow: Flow = { id, returnTo: (body as { returnTo: ReturnTo }).returnTo, code, options, created, context: browserContext(request) };
+    const location = await loginLocation(request);
+    const flow: Flow = { id, returnTo: (body as { returnTo: ReturnTo }).returnTo, code, options, created,
+      context: telegramBrowserContext(request.headers.get('user-agent') || ''), ...(location ? { location } : {}) };
     const browser: Binding = { id, browser: randomBytes(32).toString('base64url'), exp: created + lifetime };
     await getPool().execute("INSERT INTO digimium_telegram_auth_challenges (id_hash, browser_hash, stage, payload, expires_at) VALUES (?, ?, 'waiting', ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND))", [hash(id), hash(browser.browser), pack(flow), lifetime]);
     const response = commerceJson(publicFlow(flow)); response.headers.append('Set-Cookie', authCookie(seal(browser, 'browser'))); response.headers.append('Set-Cookie', receiptCookie()); return response;
@@ -160,7 +158,11 @@ export async function telegramComplete(request: Request) {
     await ensureTelegramIdentitySchema();
     const response = await issueTelegramCustomerSession(request, flow.identity, { idHash: hash(browser.id), browserHash: hash(browser.browser), stage: 'approved' });
     const data = await response.clone().json() as { customer?: { id?: string } }; if (!data.customer?.id) throw new Error('Missing customer.');
-    response.headers.append('Set-Cookie', receiptCookie(data.customer.id, flowId)); return response;
+    response.headers.append('Set-Cookie', receiptCookie(data.customer.id, flowId));
+    // This notice follows successful atomic consumption; acknowledgement retries do
+    // not send it again. A separate message cannot be overwritten by a slow approval edit.
+    await completedNotice(flow);
+    return response;
   } catch (error) { return errorReply(error); }
 }
 
@@ -175,8 +177,13 @@ function sender(user?: TelegramUser): TelegramIdentity | null {
   const username = typeof user.username === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(user.username) ? user.username : undefined;
   const lastName = safeName(user.last_name); return { id: String(user.id), firstName, ...(lastName ? { lastName } : {}), ...(username ? { username } : {}) };
 }
-async function botApi(method: 'sendMessage' | 'answerCallbackQuery' | 'editMessageText', fields: object) {
-  const response = await fetch(`https://api.telegram.org/bot${config().botToken}/${method}`, { method: 'POST', signal: AbortSignal.timeout(8000), redirect: 'error', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields) });
+async function botApi(method: 'sendMessage' | 'sendPhoto' | 'answerCallbackQuery' | 'editMessageText', fields: object | FormData, signal?: AbortSignal) {
+  const upload = fields instanceof FormData;
+  const response = await fetch(`https://api.telegram.org/bot${config().botToken}/${method}`, {
+    method: 'POST', signal: signal ?? AbortSignal.timeout(method === 'sendPhoto' ? 4000 : 8000), redirect: 'error',
+    ...(upload ? {} : { headers: { 'Content-Type': 'application/json' } }),
+    body: upload ? fields : JSON.stringify(fields),
+  });
   const reader = response.body?.getReader(); if (!reader) throw new Error('Missing bot response.');
   const chunks: Uint8Array[] = []; let bytes = 0;
   try { for (;;) { const part = await reader.read(); if (part.done) break; bytes += part.value.length; if (bytes > 65536) { await reader.cancel(); throw new Error('Oversized bot response.'); } chunks.push(part.value); } } finally { reader.releaseLock(); }
@@ -184,6 +191,34 @@ async function botApi(method: 'sendMessage' | 'answerCallbackQuery' | 'editMessa
   if (!response.ok || result.ok !== true) throw new Error('Bot request failed.'); return result.result;
 }
 async function bestEffort(method: 'answerCallbackQuery' | 'editMessageText', fields: object) { try { await botApi(method, fields); } catch { /* Auth state is authoritative; Telegram UI cleanup may be retried by the user. */ } }
+
+async function welcomePhoto(userId: string) {
+  try {
+    const photo = await readFile(join(process.cwd(), 'public/assets/telegram/login-welcome.jpg'));
+    if (photo.length < 100 || photo.length > 2 * 1024 * 1024) return false;
+    const fields = new FormData();
+    fields.set('chat_id', userId);
+    fields.set('photo', new Blob([new Uint8Array(photo)], { type: 'image/jpeg' }), 'digimium-welcome.jpg');
+    fields.set('caption', '👋 Digimium မှ ကြိုဆိုပါတယ်\nDigital. Premium. Make Simple.');
+    fields.set('protect_content', 'true');
+    return validSentMessage(await botApi('sendPhoto', fields), userId);
+  } catch { return false; /* A decorative image must not block sign-in. */ }
+}
+
+async function completedNotice(flow: Flow) {
+  if (!flow.identity) return;
+  // Both requests share a short deadline; Telegram availability cannot delay the
+  // already-issued website session beyond this best-effort notification window.
+  const signal = AbortSignal.timeout(2000), userId = flow.identity.id;
+  try {
+    const text = telegramLoginComplete({ ...flow, origin: config().origin });
+    const entities = telegramLoginTitleEntities(text);
+    const sent = await botApi('sendMessage', { chat_id: userId, text, entities, protect_content: true, link_preview_options: { is_disabled: true } }, signal);
+    if (!validSentMessage(sent, userId)) return;
+    await botApi('editMessageText', { chat_id: userId, message_id: sent.message_id, text, entities,
+      reply_markup: { inline_keyboard: mainButtons(userId, sent.message_id) }, link_preview_options: { is_disabled: true } }, signal);
+  } catch { /* The browser session and its receipt remain authoritative. */ }
+}
 
 type NavigationView = 'm' | 'h' | 'p';
 type BotButton = { text: string; callback_data?: string; url?: string };
@@ -264,6 +299,7 @@ async function startFromBot(message: TelegramMessage) {
     const menuCommand = new RegExp('^/(start|menu|help|history|plans)(?:@' + config().username + ')?$','i').exec(text.trim());
     if (menuCommand && await claim('menu:all', 1800) && await claim('menu:user:' + identity.id, 90)) {
       const requested = menuCommand[1].toLowerCase();
+      if (requested === 'start') await welcomePhoto(identity.id);
       await sendBotPage(identity.id, requested === 'history' ? 'h' : requested === 'plans' ? 'p' : 'm');
     }
     return;
@@ -283,8 +319,14 @@ async function startFromBot(message: TelegramMessage) {
   if (!flow) return;
   let sent: TelegramMessage | undefined;
   try {
+    if (!flow.welcomed && await welcomePhoto(identity.id)) {
+      flow.welcomed = true;
+      const [kept] = await getPool().execute<ResultSetHeader>("UPDATE digimium_telegram_auth_challenges SET payload = ? WHERE id_hash = ? AND callback_hash = ? AND stage = 'sending' AND expires_at > UTC_TIMESTAMP()", [pack(flow), idHash, hash(callback)]);
+      if (!kept.affectedRows) return;
+    }
     const buttons = flow.options.map((option, index) => ({ text: option, callback_data: `tg1.${callback}.${index}` }));
-    sent = await botApi('sendMessage', { chat_id: identity.id, text: `🔐 Digimium Website Login\n${new URL(config().origin).hostname}\n${flow.context}\n\nWebsite မှာ ပြထားတဲ့ code နဲ့ တူတဲ့ နံပါတ်ကို ရွေးပါ။\nကိုယ်တိုင် မစတင်ထားရင် Reject ကိုနှိပ်ပါ။`, reply_markup: { inline_keyboard: [buttons.slice(0, 2), buttons.slice(2), [{ text: '❌ ကျွန်ုပ် မဟုတ်ပါ / Reject', callback_data: `tg1.${callback}.4` }]] }, protect_content: true });
+    const text = telegramLoginRequest({ ...flow, origin: config().origin });
+    sent = await botApi('sendMessage', { chat_id: identity.id, text, entities: telegramLoginTitleEntities(text), reply_markup: { inline_keyboard: [buttons.slice(0, 2), buttons.slice(2), [{ text: '❌ ကျွန်ုပ် မဟုတ်ပါ / Reject', callback_data: `tg1.${callback}.4` }]] }, protect_content: true, link_preview_options: { is_disabled: true } });
     if (!sent || !telegramId(sent.message_id) || sent.chat?.type !== 'private' || String(sent.chat.id) !== identity.id || String(sent.from?.id) !== config().botId || sent.from?.is_bot !== true) throw new Error('Invalid bot response.');
     flow.messageId = sent.message_id;
     const [saved] = await getPool().execute<ResultSetHeader>("UPDATE digimium_telegram_auth_challenges SET stage = 'sent', payload = ? WHERE id_hash = ? AND callback_hash = ? AND stage = 'sending' AND expires_at > UTC_TIMESTAMP()", [pack(flow), idHash, hash(callback)]);
@@ -302,7 +344,7 @@ async function callbackFromBot(query: TelegramCallback) {
   if (query.data.startsWith('th1.')) { await navigationFromBot(query, identity, message); return; }
   const parsed = /^tg1\.([A-Za-z0-9_-]{43})\.([0-4])$/.exec(query.data); if (!parsed) return;
   if (!await claim('callback:all', 1800) || !await claim('callback:user:' + identity.id, 80)) return;
-  const connection = await getPool().getConnection(); let state: 'approved' | 'rejected' | 'expired' = 'expired';
+  const connection = await getPool().getConnection(); let state: 'approved' | 'rejected' | 'expired' = 'expired'; let approvedFlow: Flow | undefined;
   try {
     await connection.beginTransaction();
     const [rows] = await connection.execute<Challenge[]>('SELECT id_hash, browser_hash, stage, payload FROM digimium_telegram_auth_challenges WHERE callback_hash = ? AND expires_at > UTC_TIMESTAMP() FOR UPDATE', [hash(parsed[1])]);
@@ -310,6 +352,7 @@ async function callbackFromBot(query: TelegramCallback) {
       const flow = unpack(rows[0]);
       if (flow.identity?.id === identity.id && flow.messageId === message.message_id) {
         state = Number(parsed[2]) < 4 && flow.options[Number(parsed[2])] === flow.code ? 'approved' : 'rejected';
+        if (state === 'approved') approvedFlow = flow;
         await connection.execute('UPDATE digimium_telegram_auth_challenges SET stage = ? WHERE id_hash = ? AND stage = ?', [state, rows[0].id_hash, 'sent']);
       }
     }
@@ -318,8 +361,13 @@ async function callbackFromBot(query: TelegramCallback) {
   const notice = state === 'approved' ? 'အတည်ပြုပြီးပါပြီ။ Website ကို ပြန်သွားပါ။' : state === 'rejected' ? 'အကောင့်ဝင်ရန် request ကို ပယ်ဖျက်လိုက်ပါပြီ။' : 'ဒီ request ကို အသုံးပြုပြီးပါပြီ သို့မဟုတ် သက်တမ်းကုန်သွားပါပြီ။';
   await bestEffort('answerCallbackQuery', { callback_query_id: query.id, text: notice, show_alert: state !== 'approved' });
   // Do not edit a valid keyboard when a forged/mismatching callback points at it.
-  if (state !== 'expired') await bestEffort('editMessageText', { chat_id: identity.id, message_id: message.message_id, text: notice,
-    reply_markup: { inline_keyboard: state === 'approved' ? mainButtons(identity.id, message.message_id) : [] } });
+  if (state !== 'expired') {
+    const text = approvedFlow ? telegramLoginApproved({ ...approvedFlow, origin: config().origin }) : '❌ ' + notice;
+    await bestEffort('editMessageText', { chat_id: identity.id, message_id: message.message_id, text,
+      ...(approvedFlow ? { entities: telegramLoginTitleEntities(text) } : {}),
+      reply_markup: { inline_keyboard: state === 'approved' ? [[{ text: '🌐 Website သို့ ပြန်သွားမယ်', url: config().origin }]] : [] },
+      link_preview_options: { is_disabled: true } });
+  }
 }
 export async function telegramWebhook(request: Request) {
   const c = configuration(); if (!c) return commerceJson({ error: 'unavailable' }, 503);

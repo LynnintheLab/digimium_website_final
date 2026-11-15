@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: process.cwd(),
   poweredByHeader: false,
-  serverExternalPackages: ['mysql2'],
+  serverExternalPackages: ['mysql2', 'mmdb-lib'],
   experimental: { cpus: 2 },
 };
 
