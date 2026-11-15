@@ -112,3 +112,7 @@ The owner approved private scheduler-key creation and activation. Production has
 ## Hosted entry-path correction
 
 Hostinger invokes the runner through its version-switching `current` directory. Comparing the literal CLI path to Node’s resolved module URL skipped execution through that symlink. A local reproduction returned exit zero without a request; canonical file-path comparison fixes it. The actual packaged CLI now passes a symlinked-entry test with exactly one authenticated POST and the expected success output. Strict lint, 99 unit tests, build and typecheck pass; the server-side notification implementation is unchanged.
+
+## Final hosted scheduler verification
+
+Runner source `398381a` reached testing and production Hostinger Completed/Current. The actual five-minute production job at the 16:40 UTC interval produced `Notification maintenance completed.` in hPanel Cron output, confirming the packaged path, private env loading and authenticated job invocation. No secret appears in the cron command or its output. No fake live account/order or direct Telegram test message was created.

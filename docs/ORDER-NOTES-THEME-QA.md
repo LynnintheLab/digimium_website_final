@@ -91,3 +91,5 @@ Live Chrome confirms the new theme and notification controls, existing English/s
 ## Scheduler entry regression
 
 The hosted scheduler’s empty output prompted an exact symlink-path reproduction: the prior direct-entry guard exited successfully without running. The corrected canonical-path guard passes the regression through both source and packaged CLI, sends exactly one header-authenticated request and emits the fixed success line. The follow-up gates pass strict lint, 99 units, standalone build and typecheck. The six backend security suites remain valid because no backend/API behavior changed.
+
+The corrected runner source `398381a` reached Completed/Current on both environments. The actual hosted scheduled job at the 16:40 UTC interval emitted `Notification maintenance completed.`. Its private credential and owner recipient were configured only after the owner’s explicit choices/approval. Browser work is complete; temporary local cookies, viewport overrides and collection blocks were cleared, and no Telegram app was opened.
