@@ -6,6 +6,16 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ['mysql2', 'mmdb-lib'],
   experimental: { cpus: 2 },
+  async headers() {
+    const headers = [
+      { key: 'Content-Security-Policy', value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; upgrade-insecure-requests" },
+      { key: 'X-Frame-Options', value: 'DENY' },
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'Referrer-Policy', value: 'no-referrer' },
+      { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
+    ];
+    return ['/account/:path*', '/order-history/:path*', '/admin/:path*', '/api/:path*'].map(source => ({ source, headers }));
+  },
 };
 
 export default nextConfig;

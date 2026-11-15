@@ -21,6 +21,10 @@ At this report's initial write, the final Next.js 16.4.6 production build and Ty
 
 Relevant implementation: [orders](../hostinger/orders.ts), [customer orders API](../app/api/customer/orders/route.ts), [customer authentication](../hostinger/customer-auth.ts), [Telegram challenge](../hostinger/telegram-auth.ts), [Telegram identities](../hostinger/telegram-identity.ts), [giveaway](../hostinger/giveaway.ts), [receipt projection](../lib/order-receipt.ts).
 
+## Private-page response hardening
+
+The first staging check found only the CDN’s `upgrade-insecure-requests` policy; frame, content-type, referrer and HSTS headers were absent. Added route-scoped Next headers for Account, History, Admin and API responses: CSP `frame-ancestors none` / `object-src none` / `base-uri self`, X-Frame-Options DENY, nosniff, no-referrer, and HSTS max-age 31536000 without a subdomain/preload directive. The final build and a local packaged `/account` GET verified all five headers. Hosted propagation is checked below.
+
 ## Dependency audit and fixes
 
 Command: `npm audit --omit=dev --json` against the final lockfile. This audit excludes development-only dependencies; it does not prove that every installed/build dependency is free of advisories.
