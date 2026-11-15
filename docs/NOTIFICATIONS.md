@@ -1,6 +1,6 @@
 # Website notifications and owner alerts
 
-Status: implemented in source with the final 98-test automated round passing. Interface browser acceptance, deployment, private owner-chat/scheduler configuration and live delivery verification remain pending. This document does not claim that notification delivery or the new interface has been verified on a live website.
+Status: runtime `42039be` is live on testing and production with the final 98-test automated round passing. Local interface acceptance and live read-only controls/route checks are complete; the approved owner-chat recipient is configured. Private scheduler-key/job activation awaits the owner’s explicit confirmation. No live order/account was created to send a test Telegram alert; actual provider delivery is not claimed from the read-only hosted checks.
 
 ## What each recipient receives
 
