@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { SHOP_THEME_EVENT } from "../lib/shop-theme";
 import "./scroll-rail.css";
 
 const tickCount = 21;
@@ -40,8 +41,11 @@ export function ScrollRail({ lang }: { lang: "en" | "my" }) {
       if (!railBounds.height) return;
       // These are the storefront's dark surfaces. Use exact neutral colors rather
       // than inversion, which would turn the navy backdrop into a yellow tint.
-      const darkRegions = Array.from(document.querySelectorAll<HTMLElement>('.about, .showcase:not([data-kind="giveaway"]), .showcase[data-kind="giveaway"] .collection-link'), element => element.getBoundingClientRect());
-      const onDarkSurface = (x: number, y: number) => darkRegions.some(bounds => x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom);
+      const darkRegions = Array.from(document.querySelectorAll<HTMLElement>('.about, .giveaway-banner, .giveaway-selection, .showcase:not([data-kind="giveaway"]), .showcase[data-kind="giveaway"] .collection-link'), element => element.getBoundingClientRect());
+      const lightRegions = Array.from(document.querySelectorAll<HTMLElement>('.giveaway-section, .showcase[data-kind="giveaway"] .showcase-surface'), element => element.getBoundingClientRect());
+      const darkCanvas = document.documentElement.dataset.shopTheme === 'dark';
+      const contains = (bounds: DOMRect, x: number, y: number) => x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
+      const onDarkSurface = (x: number, y: number) => darkRegions.some(bounds => contains(bounds, x, y)) || (darkCanvas && !lightRegions.some(bounds => contains(bounds, x, y)));
       const tickBounds = Array.from(railElement.querySelectorAll<HTMLSpanElement>(".scroll-rail-ticks span"), tick => ({ tick, bounds: tick.getBoundingClientRect() }));
       // Read all geometry before painting, including when the rail crosses a section edge.
       for (const { tick, bounds } of tickBounds) {
@@ -61,10 +65,12 @@ export function ScrollRail({ lang }: { lang: "en" | "my" }) {
     observer.observe(document.body);
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
+    window.addEventListener(SHOP_THEME_EVENT, schedule);
     return () => {
       observer.disconnect();
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
+      window.removeEventListener(SHOP_THEME_EVENT, schedule);
       cancelAnimationFrame(frame);
     };
   }, []);

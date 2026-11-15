@@ -5,6 +5,7 @@ import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { CommerceError } from '../lib/commerce-http';
 import { ensureCustomerSchema, proveCustomerPasswordForGoogle, type Customer } from './customer-auth';
 import { getPool } from './mysql';
+import { drainAdminNotificationAlerts, enqueueNotificationAlert } from './notifications';
 
 /** These fields must come only from a fully verified Google ID token or server-held pending identity. */
 export type GoogleIdentity = { sub: string; email: string; name?: string };
@@ -98,6 +99,8 @@ async function resolveTransaction(identity: GoogleIdentity, completionName?: str
       [customer.id, name, customer.email, timestamp],
     );
     await connection.execute('INSERT INTO digimium_google_identities (google_sub, customer_id, created_at) VALUES (?, ?, ?)', [identity.sub, customer.id, timestamp]);
+    await enqueueNotificationAlert(connection, { kind: 'customer-created', dedupeKey: 'customer-created:' + customer.id,
+      entityId: customer.id, customerName: customer.name, authProvider: 'google' });
     await connection.commit();
     return { status: 'success', customer };
   } catch (error) { await connection.rollback(); throw error; }
@@ -107,7 +110,12 @@ async function resolveTransaction(identity: GoogleIdentity, completionName?: str
 async function resolveWithRetry(identity: GoogleIdentity, name?: string, proof?: PasswordProof): Promise<GoogleIdentityResult> {
   await ensureGoogleIdentitySchema();
   for (let attempt = 0; ; attempt++) {
-    try { return await resolveTransaction(identity, name, proof); }
+    try {
+      const result = await resolveTransaction(identity, name, proof);
+      // resolveTransaction releases its connection before the worker borrows another one.
+      if (result.status === 'success') await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000 }).catch(() => {});
+      return result;
+    }
     catch (error) {
       const code = error instanceof Error && 'code' in error ? error.code : '';
       if (attempt >= 2 || !['ER_DUP_ENTRY', 'ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT'].includes(String(code))) throw error;

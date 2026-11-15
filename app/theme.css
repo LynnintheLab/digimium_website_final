@@ -1,0 +1,189 @@
+/* Theme changes only color and surface roles; catalog density and page geometry stay shared. */
+.shop-theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--brand-surface);
+  color: var(--brand-text);
+}
+.shop-theme-toggle:hover { background: var(--soft); border-color: var(--brand-line-strong); }
+.shop-theme-toggle .theme-icon-dark { display: none; }
+html[data-shop-theme="dark"] .shop-theme-toggle .theme-icon-light { display: none; }
+html[data-shop-theme="dark"] .shop-theme-toggle .theme-icon-dark { display: block; }
+
+html[data-shop-theme="light"] { color-scheme: light; }
+html[data-shop-theme="dark"] {
+  color-scheme: dark;
+  --blue: #a7baff;
+  --brand-gradient: linear-gradient(100deg, #1f45b8, #051650);
+  --brand-on-dark: #f8faff;
+  --brand-on-dark-muted: #dbe5ff;
+  --brand-on-dark-line: #7181ad;
+  --brand-text: #f0f4ff;
+  --muted: #b4bfd8;
+  --brand-line-strong: #7085ae;
+  --line: #36435e;
+  --brand-selected: #28395a;
+  --soft: #1d2a43;
+  --canvas: #111b2e;
+  --brand-surface: #162238;
+  --ink: #f0f4ff;
+  --white: #0b1220;
+  --theme-action: #1f45b8;
+  --theme-action-hover: #123499;
+  background: #0b1220;
+}
+html[data-shop-theme="dark"] body {
+  background: radial-gradient(ellipse 80% 44% at 100% 0%, #1a2b4f 0%, transparent 72%),
+    linear-gradient(145deg, #0b1220, #111b2e 48%, #101a2d);
+  color: var(--ink);
+  scrollbar-color: var(--muted) var(--canvas);
+}
+html[data-shop-theme="dark"] :is(button,a,input,textarea,select,summary):focus-visible {
+  outline-color: #c4d0ff;
+}
+html[data-shop-theme="dark"] ::selection { background: #aec0ff; color: #051650; }
+html[data-shop-theme="dark"] input::placeholder,
+html[data-shop-theme="dark"] textarea::placeholder { color: var(--muted); opacity: 1; }
+
+/* Light lettering keeps the existing brand lockup legible; service marks retain their colors. */
+html[data-shop-theme="dark"] :is(.brand,.customer-brand) img { filter: brightness(0) invert(1); }
+html[data-shop-theme="dark"] .product .service-mark {
+  box-sizing: content-box;
+  padding: 5px;
+  border-radius: 8px;
+  background: #eef2fc;
+}
+html[data-shop-theme="dark"] :is(.showcase-logo,.order-logo,.customer-product-logo) {
+  background: #eef2fc;
+  color: #051650;
+}
+html[data-shop-theme="dark"] .collection-bottom .service-mark { background: #eef2fc; }
+html[data-shop-theme="dark"] .collection-switch button[aria-pressed="true"] { background: #e2e7f6; color: #051650; }
+html[data-shop-theme="dark"] .availability-available { color: #a7c2ff; }
+html[data-shop-theme="dark"] .availability-unavailable { color: #e4acbe; }
+html[data-shop-theme="dark"] .contact { background: linear-gradient(125deg, #243556, #19273f 75%, #15213a); }
+html[data-shop-theme="dark"] .about h2 span { color: #ccd8ff; }
+
+/* Keep white text on saturated blue actions; pale blue is reserved for links and focus. */
+html[data-shop-theme="dark"] :is(.primary,.order-primary,.customer-primary,.account-guide-connect),
+html[data-shop-theme="dark"] .filters button[aria-pressed="true"],
+html[data-shop-theme="dark"] .shop-header-tools .shop-account-link,
+html[data-shop-theme="dark"] .customer-dashboard .customer-telegram-link {
+  background: var(--theme-action);
+  color: #fff;
+}
+html[data-shop-theme="dark"] :is(.primary,.order-primary,.customer-primary):hover,
+html[data-shop-theme="dark"] .shop-header-tools .shop-account-link:is(:hover,[aria-expanded="true"]),
+html[data-shop-theme="dark"] .customer-dashboard .customer-telegram-link:hover {
+  background: var(--theme-action-hover);
+  color: #fff;
+}
+html[data-shop-theme="dark"] :is(.order-secondary,.shop-cart-count) { color: var(--brand-text); }
+html[data-shop-theme="dark"] .shop-language { background: #17233a; }
+html[data-shop-theme="dark"] .shop-language::before { background: #34476e; box-shadow: 0 1px 4px rgb(0 0 0 / 20%); }
+html[data-shop-theme="dark"] .shop-language button[aria-pressed="true"] { color: #fff; }
+html[data-shop-theme="dark"] .shop-account-panel { background: var(--brand-surface); border: 1px solid var(--line); box-shadow: 0 16px 48px -12px rgb(0 0 0 / 60%); }
+html[data-shop-theme="dark"] .shop-order::backdrop { background: rgb(2 7 18 / 72%); }
+html[data-shop-theme="dark"] .order-option { background: var(--brand-surface); }
+html[data-shop-theme="dark"] .order-option:has(input:checked) { background: var(--brand-selected); }
+html[data-shop-theme="dark"] .order-option[data-best-seller] {
+  --muted: #37446b;
+  --blue: #123499;
+  color: #051650;
+  background: linear-gradient(115deg, #fff8dc, #ffe7a0);
+}
+html[data-shop-theme="dark"] .order-option[data-best-seller]:has(input:checked) { border-color: #b9ccff; outline: 2px solid #b9ccff; outline-offset: 2px; }
+html[data-shop-theme="dark"] .order-option[data-best-seller] input:focus-visible { outline-color: #123499; }
+html[data-shop-theme="dark"] .order-checkout-note { color: #ffb6c2; }
+html[data-shop-theme="dark"] .order-guest-notice { background: #332b1c; border-color: #9f803e; color: #ffdea1; }
+html[data-shop-theme="dark"] :is(.order-account-notice,.order-receipt-reference > strong,.order-handoff .order-saved-status,.order-handoff > .order-send-instruction),
+html[data-shop-theme="dark"] .shop-order[data-screen="cart"] .order-total > strong,
+html[data-shop-theme="dark"] .order-handoff .order-total > strong { color: var(--brand-text); }
+
+/* Customer account, authentication and history use the same surface hierarchy as checkout. */
+html[data-shop-theme="dark"] .customer-page { color: var(--brand-text); }
+html[data-shop-theme="dark"] .customer-dashboard { --account-ink: #f0f4ff; --account-muted: #b4bfd8; }
+html[data-shop-theme="dark"] :is(.customer-auth,.customer-order,.account-guide-picture) { background: var(--brand-surface); }
+html[data-shop-theme="dark"] .customer-page.customer-embedded,
+html[data-shop-theme="dark"] :is(.customer-embedded,.shop-order) .customer-auth { background: transparent; }
+html[data-shop-theme="dark"] .customer-embedded .customer-main:has(.customer-dashboard) { background: var(--brand-surface); }
+html[data-shop-theme="dark"] :is(.customer-auth input,.customer-password input,.customer-telegram textarea) { background: var(--canvas); color: var(--ink); }
+html[data-shop-theme="dark"] .customer-auth.customer-auth-progressive input:not(:focus) { border-color: var(--brand-line-strong); }
+html[data-shop-theme="dark"] .customer-auth.customer-auth-progressive button.customer-provider,
+html[data-shop-theme="dark"] .customer-auth.customer-auth-progressive button.customer-provider[data-ready] { background: var(--canvas); color: var(--brand-text); }
+html[data-shop-theme="dark"] .customer-auth.customer-auth-progressive button.customer-provider[data-ready]:hover { background: var(--soft); }
+html[data-shop-theme="dark"] .customer-password-entry button { color: var(--brand-text); }
+html[data-shop-theme="dark"] .customer-dashboard :is(.customer-item-plan,.customer-heading h2) { color: var(--brand-text); }
+html[data-shop-theme="dark"] .customer-dashboard .customer-item-title > span { background: var(--soft); color: var(--muted); }
+html[data-shop-theme="dark"] :is(.customer-total strong,.customer-pending-item-meta > strong,.customer-account-settings,
+  .customer-telegram-login,.customer-telegram-code > span,.subscription-term-value,.subscription-term-expiry time,.subscription-term-dates dd) { color: var(--brand-text); }
+html[data-shop-theme="dark"] .customer-page .customer-history-filters button { background: var(--brand-surface); color: var(--brand-text); }
+html[data-shop-theme="dark"] .customer-page .customer-history-filters button:hover { color: var(--brand-text); }
+html[data-shop-theme="dark"] .customer-page .customer-history-filters button[aria-pressed="true"],
+html[data-shop-theme="dark"] .customer-page .customer-history-filters button[aria-pressed="true"]:hover { background: #294faf; border-color: #9db8ff; color: #fff; }
+html[data-shop-theme="dark"] :is(.customer-order-status,.customer-section-count) { background: #3c301c; color: #ffdb95; }
+html[data-shop-theme="dark"] .customer-order[data-status="approved"] .customer-order-status { background: #163a32; color: #a2e7c9; }
+html[data-shop-theme="dark"] .customer-order[data-status="rejected"] .customer-order-status { background: #412936; color: #ffb6c2; }
+html[data-shop-theme="dark"] :is(.customer-order-decision,.customer-order-note) { color: var(--brand-text); }
+html[data-shop-theme="dark"] .customer-order-note h4 { color: var(--brand-text); }
+html[data-shop-theme="dark"] :is(.account-method-state[data-connected],.account-link-success,.customer-google-connected),
+html[data-shop-theme="dark"] .customer-telegram-login[data-state="approved"] .customer-telegram-login-status { color: #a2e7c9; }
+html[data-shop-theme="dark"] :is(.customer-error,.customer-alert),
+html[data-shop-theme="dark"] .customer-telegram-login:is([data-state="rejected"],[data-state="error"]) .customer-telegram-login-status,
+html[data-shop-theme="dark"] .customer-telegram-login-note.customer-error { color: #ffb6c2; }
+html[data-shop-theme="dark"] .customer-telegram-login[data-state="expired"] .customer-telegram-login-status { color: #ffdb95; }
+html[data-shop-theme="dark"] .subscription-term { --term-color: #a7baff; --term-tint: #243354; --term-track: #3a4966; }
+html[data-shop-theme="dark"] .subscription-term[data-status="unknown"] { --term-color: #c4cde2; --term-tint: #28334a; }
+html[data-shop-theme="dark"] .subscription-term[data-status="expired"] { --term-color: #ffb6c2; --term-tint: #412936; }
+html[data-shop-theme="dark"] .subscription-term[data-urgent] { --term-color: #ffdb95; --term-tint: #3c301c; }
+
+/* The giveaway keeps its recognizable gold/light prize surface and navy lettering. */
+html[data-shop-theme="dark"] .giveaway-section {
+  --blue: #1f45b8;
+  --ink: #051650;
+  --brand-text: #051650;
+  --muted: #37446b;
+  --line: #d9d3ba;
+  --brand-surface: #fffdf3;
+  --soft: #f1f4fc;
+  --brand-selected: #dbe4ff;
+  color-scheme: light;
+  color: #051650;
+}
+html[data-shop-theme="dark"] .showcase[data-kind="giveaway"] .showcase-surface { color: #051650; }
+html[data-shop-theme="dark"] :is(.giveaway-section,.showcase[data-kind="giveaway"] .showcase-surface) :is(button,a,input,summary):focus-visible { outline-color: #1f45b8; }
+
+@media (max-width: 800px) {
+  html[data-shop-theme="dark"] .mobile-dock { background: #17233a; color: var(--brand-text); border-color: #465574; box-shadow: 0 6px 22px rgb(0 0 0 / 32%); }
+  html[data-shop-theme="dark"] .mobile-dock::before { background: #34476e; }
+  html[data-shop-theme="dark"] .mobile-dock-item:is([aria-current="page"],:active),
+  html[data-shop-theme="dark"] .mobile-dock-center { color: #fff; }
+  html[data-shop-theme="dark"] .mobile-dock-center .mobile-dock-icon { background: #1f45b8; border-color: #17233a; }
+  html[data-shop-theme="dark"] .mobile-dock-center[aria-current="page"] .mobile-dock-icon { background: #315bd6; }
+}
+@media (max-width: 700px) {
+  /* Keep the added 44px control beside language without squeezing phone tap targets. */
+  .header .shop-language { width: 112px; }
+  html .storefront-shell .header .brand { width: clamp(68px, 21vw, 140px); }
+}
+@media (min-width: 801px) and (max-width: 1000px) {
+  .header .shop-cart-word { display: none; }
+}
+@media (min-width: 1401px) and (max-width: 1600px) {
+  .storefront-shell .header { gap: 24px; }
+  .header .nav { gap: 20px; }
+}
+@media (min-width: 1101px) and (max-width: 1400px) {
+  .storefront-shell .header { gap: 18px; }
+  .header .nav { display: none; }
+  .header .nav.open { display: flex; position: absolute; inset: 100% 0 auto; max-height: calc(100dvh - var(--shop-header-height)); overflow-y: auto; margin: 0; padding: 12px 10%; gap: 0; background: var(--canvas); flex-direction: column; border-bottom: 1px solid var(--line); }
+  .header .nav a { display: flex; align-items: center; min-height: 48px; padding: 8px 12px; }
+  .header .menu-button { display: grid; place-items: center; flex: none; width: 44px; height: 44px; margin: 0; border: 0; background: transparent; padding: 0; }
+  .shop-header-tools { margin-left: auto; }
+}

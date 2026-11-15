@@ -16,6 +16,7 @@ import type { CatalogSnapshot } from '../lib/storage-types';
 import { ensureCustomerSchema, presentCustomer, type CustomerIdentityRow } from './customer-auth';
 import { limitGuestCheckout } from './guest-checkout';
 import { getPool } from './mysql';
+import { drainAdminNotificationAlerts, enqueueNotificationAlert } from './notifications';
 
 const MAX_ORDER_LINES = 3000;
 // Reject oversized collections before schema parsing as defense in depth.
@@ -54,12 +55,23 @@ const accountDetailsSchema = z.object({
   manager: deliveryField(500).default(''),
   username: deliveryField(500).default(''),
 }).strict();
+// This text is intentionally visible to the order's customer, never a private delivery field.
+const customerNoteSchema = z.string().max(1000)
+  .transform(value => value.replace(/\r\n?/g, '\n').trim())
+  .refine(value => !/[\p{Cc}\u202a-\u202e\u2066-\u2069]/u.test(value.replace(/\n/g, '')));
 const fulfillmentSchema = z.object({
   revision: z.number().int().positive().max(0xfffffffe),
+  customerNote: customerNoteSchema.optional(),
   lines: z.array(z.object({ id: z.string().uuid(), startDate: date, endDate: date,
     accountInfo: z.string().max(4000).optional(), accountDetails: accountDetailsSchema.optional() })
     .strict().refine(line => line.endDate >= line.startDate)).min(1).max(MAX_ORDER_LINES),
 }).strict();
+const orderDecisionSchema = z.union([
+  z.object({ action: z.literal('reject'), revision: z.number().int().positive().max(0xfffffffe),
+    customerNote: customerNoteSchema.optional() }).strict(),
+  z.object({ action: z.literal('note'), revision: z.number().int().positive().max(0xfffffffe),
+    customerNote: customerNoteSchema }).strict(),
+]);
 const orderRemovalSchema = z.object({
   revision: z.number().int().positive().max(0xffffffff),
   confirmation: z.string().uuid(),
@@ -74,6 +86,8 @@ interface OrderRow extends RowDataPacket {
   guest_name: string | null;
   created_at: string;
   approved_at: string | null;
+  rejected_at: string | null;
+  customer_note: string | null;
   revision: number;
   snapshot: string;
   fulfillment: string | null;
@@ -104,6 +118,21 @@ async function bootstrap() {
       if (!(migrationError instanceof Error && 'code' in migrationError && migrationError.code === 'ER_DUP_FIELDNAME')) throw migrationError;
       // Another server may have completed the same atomic migration first.
       await pool.query('SELECT guest_key, guest_name FROM digimium_orders LIMIT 0');
+    }
+  }
+  // Additive, independently guarded columns also repair a partially applied manual migration.
+  for (const [column, definition] of [
+    ['rejected_at', 'CHAR(24) CHARACTER SET ascii NULL'], ['customer_note', 'TEXT NULL'],
+  ]) {
+    try {
+      await pool.query(`SELECT ${column} FROM digimium_orders LIMIT 0`);
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ER_BAD_FIELD_ERROR')) throw error;
+      try { await pool.query(`ALTER TABLE digimium_orders ADD ${column} ${definition}`); }
+      catch (migrationError) {
+        if (!(migrationError instanceof Error && 'code' in migrationError && migrationError.code === 'ER_DUP_FIELDNAME')) throw migrationError;
+      }
+      await pool.query(`SELECT ${column} FROM digimium_orders LIMIT 0`);
     }
   }
 }
@@ -156,11 +185,13 @@ export function decryptOrderTermDates(row: Pick<OrderRow, 'id' | 'customer_id' |
 
 function present(row: OrderRow): CommerceOrder {
   const snapshot: OrderSnapshot = JSON.parse(row.snapshot);
-  const delivery = new Map(decryptFulfillment(row).map(line => [line.id, line]));
+  const approved = !!row.approved_at && !row.rejected_at;
+  const delivery = new Map((approved ? decryptFulfillment(row) : []).map(line => [line.id, line]));
   return {
-    id: row.id, customerId: row.customer_id, createdAt: row.created_at, approvedAt: row.approved_at,
+    id: row.id, customerId: row.customer_id, createdAt: row.created_at, approvedAt: approved ? row.approved_at : null,
+    rejectedAt: row.rejected_at ?? null, customerNote: row.customer_note ?? '',
     ...(row.guest_name ? { guestName: row.guest_name } : {}),
-    status: row.approved_at ? 'approved' : 'pending', revision: row.revision, totalMmk: snapshot.totalMmk,
+    status: row.rejected_at ? 'rejected' : approved ? 'approved' : 'pending', revision: row.revision, totalMmk: snapshot.totalMmk,
     lines: snapshot.lines.map(line => {
       const grant = delivery.get(line.id);
       return { ...line, startDate: grant?.startDate ?? null, endDate: grant?.endDate ?? null, accountInfo: grant?.accountInfo ?? '',
@@ -237,6 +268,7 @@ async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSc
   if (owner.guestKey && request) await limitGuestCheckout(request, owner.guestKey);
 
   const connection = await getPool().getConnection();
+  let createdOrder: { order: TelegramOrder; customerId: string | null; telegram: string; created: true } | undefined;
   try {
     await connection.beginTransaction();
     // Keep the selected catalog revision stable until this entire order is stored.
@@ -251,13 +283,26 @@ async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSc
       'INSERT INTO digimium_orders (id, customer_id, guest_key, guest_name, request_id, request_hash, created_at, snapshot) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [id, owner.customerId, owner.guestKey ?? null, owner.guestName ?? null, requestId, hash, new Date().toISOString(), JSON.stringify(snapshot)],
     );
+    // The alert is committed with the order; retries cannot create a second alert.
+    const [customers] = owner.customerId ? await connection.execute<(RowDataPacket & { name: string })[]>(
+      'SELECT name FROM digimium_customers WHERE id = ?', [owner.customerId],
+    ) : [[]];
+    await enqueueNotificationAlert(connection, { kind: 'order-created', dedupeKey: 'order-created:' + id, entityId: id,
+      customerName: owner.customerId ? customers[0]?.name : owner.guestName ?? 'Telegram guest',
+      orderReference: id.replaceAll('-', '').slice(0, 8).toUpperCase(),
+      productSummary: snapshot.lines.slice(0, 6).map(line => line.productName + (line.planName ? ' · ' + line.planName : '') + ' × ' + line.quantity).join('\n').slice(0, 350),
+      totalMmk: snapshot.totalMmk });
     await connection.commit();
-    return { order: telegramOrder(id, snapshot), customerId: owner.customerId, telegram, created: true };
+    createdOrder = { order: telegramOrder(id, snapshot), customerId: owner.customerId, telegram, created: true };
   } catch (error) {
     await connection.rollback();
     if (!(error instanceof Error && 'code' in error && error.code === 'ER_DUP_ENTRY')) throw error;
   } finally {
     connection.release();
+  }
+  if (createdOrder) {
+    await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000 }).catch(() => {});
+    return createdOrder;
   }
   // A simultaneous retry can win the unique key while this transaction is in flight.
   const winner = await existingCheckout(owner, requestId, hash);
@@ -265,7 +310,7 @@ async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSc
   return winner;
 }
 
-const orderColumns = 'id, customer_id, guest_key, guest_name, created_at, approved_at, revision, snapshot, fulfillment';
+const orderColumns = 'id, customer_id, guest_key, guest_name, created_at, approved_at, rejected_at, customer_note, revision, snapshot, fulfillment';
 
 export async function customerOrders(customerId: string) {
   await ensureOrders();
@@ -293,7 +338,7 @@ export async function saveFulfillment(id: string, body: unknown) {
   if (!z.string().uuid().safeParse(id).success) throw new CommerceError(404, 'Order not found.');
   enforceCollectionLimit(body, 'lines');
   const input = fulfillmentSchema.safeParse(body);
-  if (!input.success) throw new CommerceError(400, 'Check every item’s dates and optional account details.');
+  if (!input.success) throw new CommerceError(400, 'Check every item’s dates, optional account details and customer note (at most 1,000 characters).');
   await ensureOrders();
   const connection = await getPool().getConnection();
   try {
@@ -302,6 +347,7 @@ export async function saveFulfillment(id: string, body: unknown) {
     const row = rows[0];
     if (!row) throw new CommerceError(404, 'Order not found.');
     if (row.revision !== input.data.revision) throw new CommerceError(409, 'This order changed. Refresh before saving.');
+    if (row.rejected_at) throw new CommerceError(409, 'A rejected order cannot be approved. Edit its customer note instead.');
     const snapshot: OrderSnapshot = JSON.parse(row.snapshot);
     const grants = new Set(input.data.lines.map(line => line.id));
     if (snapshot.lines.length !== input.data.lines.length || !snapshot.lines.every(line => grants.has(line.id))) {
@@ -318,12 +364,16 @@ export async function saveFulfillment(id: string, body: unknown) {
       const hasDetails = details && Object.values(details).some(value => value.length > 0);
       return { id, startDate, endDate, accountInfo: saved, ...(hasDetails ? { accountDetails: details } : {}) };
     });
+    if (lines.some(line => previous.get(line.id)?.startDate !== line.startDate || previous.get(line.id)?.endDate !== line.endDate)) {
+      await connection.execute("DELETE FROM digimium_notifications WHERE order_id = ? AND kind = 'expiry'", [id]);
+    }
     row.approved_at ??= new Date().toISOString();
     row.fulfillment = encryptFulfillment(id, fulfillmentOwner(row), lines);
+    if (input.data.customerNote !== undefined) row.customer_note = input.data.customerNote;
     row.revision++;
     const order = present(row);
-    await connection.execute('UPDATE digimium_orders SET approved_at = ?, fulfillment = ?, revision = ? WHERE id = ?',
-      [row.approved_at, row.fulfillment, row.revision, id]);
+    await connection.execute('UPDATE digimium_orders SET approved_at = ?, fulfillment = ?, customer_note = ?, revision = ? WHERE id = ?',
+      [row.approved_at, row.fulfillment, row.customer_note, row.revision, id]);
     await connection.commit();
     return order;
   } catch (error) {
@@ -332,6 +382,44 @@ export async function saveFulfillment(id: string, body: unknown) {
   } finally {
     connection.release();
   }
+}
+
+/** Explicit note edits never approve an order or modify encrypted delivery information. */
+async function saveOrderDecision(id: string, body: unknown) {
+  if (!z.string().uuid().safeParse(id).success) throw new CommerceError(404, 'Order not found.');
+  const input = orderDecisionSchema.safeParse(body);
+  if (!input.success) throw new CommerceError(400, 'Enter a valid decision, current revision and customer note of at most 1,000 characters.');
+  await ensureOrders();
+  const connection = await getPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
+    const row = rows[0];
+    if (!row) throw new CommerceError(404, 'Order not found.');
+    if (row.revision !== input.data.revision) throw new CommerceError(409, 'This order changed. Refresh before saving.');
+    if (input.data.action === 'reject') {
+      if (row.approved_at || row.rejected_at) throw new CommerceError(409, 'Only a pending order can be rejected.');
+      row.rejected_at = new Date().toISOString();
+    }
+    if (input.data.customerNote !== undefined) row.customer_note = input.data.customerNote;
+    row.revision++;
+    const order = present(row);
+    await connection.execute('UPDATE digimium_orders SET rejected_at = ?, customer_note = ?, revision = ? WHERE id = ?',
+      [row.rejected_at, row.customer_note, row.revision, id]);
+    await connection.commit();
+    return order;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+/** Older callers still send fulfillment without an action; decisions are explicit new variants. */
+export async function updateOrder(id: string, body: unknown) {
+  const action = body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>).action : undefined;
+  return action === 'reject' || action === 'note' ? saveOrderDecision(id, body) : saveFulfillment(id, body);
 }
 
 /** Admin-only operation: approval, fulfillment edits and removal lock the same order row. */
@@ -351,6 +439,7 @@ export async function removeOrder(id: string, body: unknown) {
     const row = rows[0];
     if (!row) throw new CommerceError(404, 'Order not found.');
     if (row.revision !== input.data.revision) throw new CommerceError(409, 'This order changed. Refresh before removing it.');
+    await connection.execute('DELETE FROM digimium_notifications WHERE order_id = ?', [id]);
     const [removed] = await connection.execute<ResultSetHeader>(
       'DELETE FROM digimium_orders WHERE id = ? AND revision = ?', [id, row.revision],
     );

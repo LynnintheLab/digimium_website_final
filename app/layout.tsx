@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import { preferredShopLanguage } from "../lib/shop-language";
+import { SHOP_THEME_BOOTSTRAP } from "../lib/shop-theme";
+import { ShopThemeObserver } from "./theme-toggle";
 import "./globals.css";
 import "./input-focus.css";
+import "./theme.css";
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
@@ -17,5 +20,5 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const preferences = await cookies();
   const language = preferredShopLanguage(preferences.get("digimium-language")?.value);
-  return <html lang={language}><body>{children}</body></html>;
+  return <html lang={language} suppressHydrationWarning><head><script id="shop-theme" dangerouslySetInnerHTML={{ __html: SHOP_THEME_BOOTSTRAP }}/></head><body><ShopThemeObserver/>{children}</body></html>;
 }

@@ -18,6 +18,7 @@ export default function RemoveOrderDialog({ order, onClose, onRemoved, onReload 
   const [stale, setStale] = useState(false);
   const reference = orderReference(order.id);
   const approved = order.status === 'approved';
+  const rejected = order.status === 'rejected';
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
@@ -53,12 +54,15 @@ export default function RemoveOrderDialog({ order, onClose, onRemoved, onReload 
   return <dialog ref={dialog} className="commerce-remove-dialog" aria-labelledby="remove-order-title" aria-describedby="remove-order-description"
     onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
     <div className="commerce-remove-content">
-      <h2 id="remove-order-title">{approved ? 'Delete approved order ' : 'Remove pending order '}{reference}?</h2>
+      <h2 id="remove-order-title">{approved ? 'Delete approved order ' : rejected ? 'Remove rejected order ' : 'Remove pending order '}{reference}?</h2>
       <p id="remove-order-description">{approved
         ? order.customerId === null
           ? 'Permanently delete this approved guest order, including its saved plan dates and purchased account details. This cannot be undone.'
           : 'Permanently delete this approved order, including its saved plan dates and purchased account details. It will be removed from the customer’s order history and plan list. This cannot be undone.'
-        : 'Permanently remove this pending order and its tracking record. This cannot be undone.'}</p>
+        : rejected ? order.customerId === null
+          ? 'Permanently remove this rejected guest order and its customer note. This cannot be undone.'
+          : 'Permanently remove this rejected order and its customer note. It will no longer appear in the customer’s order history. This cannot be undone.'
+          : 'Permanently remove this pending order and its tracking record. This cannot be undone.'}</p>
       <p><strong>{orderTotal(order)}</strong> · {order.lines.map(line => line.productName).join(', ')}</p>
       <label className="admin-field"><span>Type <strong>{reference}</strong> to confirm</span><input value={confirmation} autoComplete="off" disabled={busy || stale} onChange={event => setConfirmation(event.target.value)} /></label>
       {error && <p className="commerce-form-error" role="alert">{error}</p>}

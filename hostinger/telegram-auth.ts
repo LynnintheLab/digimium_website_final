@@ -6,6 +6,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { CommerceError, commerceJson, readCommerceJson } from '../lib/commerce-http';
 import { customerMutationAllowed, customerSessionBindingHash, currentCustomer, ensureCustomerSchema, issueTelegramCustomerSession } from './customer-auth';
 import { ensureTelegramIdentitySchema, type TelegramIdentity } from './telegram-identity';
+import { drainAdminNotificationAlerts } from './notifications';
 import { getTelegramHistory } from './telegram-history';
 import { getPool } from './mysql';
 import { loginLocation } from './login-location';
@@ -180,6 +181,7 @@ export async function telegramComplete(request: Request) {
     // This notice follows successful atomic consumption; acknowledgement retries do
     // not send it again. A separate message cannot be overwritten by a slow approval edit.
     await completedNotice(flow);
+    await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000 }).catch(() => {});
     return response;
   } catch (error) { return errorReply(error); }
 }

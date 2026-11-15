@@ -227,6 +227,11 @@
 .customer-order-meta time { display: block; margin-top: 3px; font-size: 11px; color: var(--account-muted); }
 .customer-order-status { flex: none; padding: 3px 7px; border-radius: 5px; color: #7b5014; background: #fdf0d8; font-size: 11px; font-weight: 700; line-height: 1.7; }
 .customer-order[data-status="approved"] .customer-order-status { color: #17684f; background: #eaf6f0; }
+.customer-order[data-status="rejected"] .customer-order-status { color: var(--account-ink); background: var(--soft); }
+.customer-order-decision { margin-top: 12px; color: var(--account-muted); font-size: 14px; line-height: 1.85; }
+.customer-order-note { padding-block: 14px; border-top: 1px solid var(--line); }
+.customer-order-note > h4 { margin: 0; color: var(--account-ink); font-size: 14px; font-weight: 700; line-height: 1.8; }
+.customer-order-note > p { margin: 6px 0 0; color: var(--account-ink); font-size: 16px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
 .customer-dashboard .customer-lines { margin-top: 12px; }
 .customer-dashboard .customer-lines > li { padding-block: 14px; }
 .customer-dashboard .customer-total { padding-block: 12px; color: var(--account-muted); font-size: 12px; }
@@ -271,9 +276,9 @@
 .customer-dashboard .customer-telegram-link, .customer-dashboard .customer-telegram-actions > button { min-height: 44px; font-size: 14px; }
 .customer-history-link, .customer-history-account { font-size: 14px; }
 .customer-history-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
-.customer-history-filters { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; flex: 1; min-width: min(100%,260px); }
+.customer-history-filters { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; flex: 1; min-width: min(100%,360px); }
 .customer-page .customer-history-filters button {
-  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 7px;
   min-width: 0; min-height: 48px; padding: 9px 12px; border: 1px solid var(--brand-line-strong);
   border-radius: 8px; background: #fff; color: var(--brand-navy); font: inherit; font-size: 16px;
   font-weight: 600; line-height: 1.8; cursor: pointer; text-decoration: none;
@@ -293,7 +298,7 @@
   .customer-page:not(.customer-embedded) { padding-bottom: calc(var(--mobile-dock-clearance,104px) + env(safe-area-inset-bottom,0px)); }
 }
 @media (max-width: 400px) {
-  .customer-page .customer-history-filters button { padding-inline: 8px; gap: 5px; }
+  .customer-page .customer-history-filters button { padding-inline: 6px; gap: 3px 5px; font-size: 14px; }
 }
 
 /* The account popover is a read-only overview; settings live on /account. */

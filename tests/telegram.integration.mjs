@@ -213,6 +213,9 @@ try {
  const timestamp=offset=>new Date(Date.now()+offset*1000).toISOString();
  const own=completed.data.customer.id,other=separate.data.customer.id;
  await fixtureOrder(own,'A-Pending-Only',{approved:false,createdAt:timestamp(70)});
+ const rejectedOrder=await fixtureOrder(own,'A-Rejected-Only',{approved:false,createdAt:timestamp(68)});
+ await db.execute('UPDATE digimium_orders SET rejected_at=?, customer_note=? WHERE id=?',
+  [timestamp(69),'PRIVATE-CUSTOMER-NOTE-SENTINEL',rejectedOrder]);
  await fixtureOrder(own,'A-Multi-Only',{lineCount:5,createdAt:timestamp(65),startDate:day(-10),endDate:day(20)});
  await fixtureOrder(own,'A-Active-Only',{createdAt:timestamp(60),startDate:day(-10),endDate:day(20)});
  const sameCreated=timestamp(55);
@@ -229,12 +232,15 @@ try {
  let historyPage=await command('/history',human(undefined,{first_name:'New display name',username:'copied_name'}));
  assert.ok(historyPage);let allHistory=historyPage.fields.text,historyPages=1;
  assert.match(historyPage.fields.text,/A-Pending-Only/);assert.match(historyPage.fields.text,/A-Multi-Only/);
+ const rejectedHistory=historyPage.fields.text.split('အော်ဒါ #'+rejectedOrder.slice(0,8).toUpperCase())[1].split('\n\nအော်ဒါ #')[0];
+ assert.match(rejectedHistory,/❌ ငြင်းပယ်ထားသည်/);assert.match(rejectedHistory,/A-Rejected-Only/);
+ assert.doesNotMatch(rejectedHistory,/အတည်ပြုရန် စောင့်နေသည်|အတည်ပြုပြီးရင် သက်တမ်းရက်တွေ ပြပါမယ်|စရက် —|ကုန်ရက် —|ရက် ကျန်|▰|▱/);
  while(historyPage.buttons.some(button=>button.text.includes('နောက်ထပ်'))){
   assert.ok(historyPages++<10,'History pagination must terminate');
   historyPage=(await navigate(historyPage,historyPage.buttons.find(button=>button.text.includes('နောက်ထပ်')))).panel;
   assert.ok(historyPage);allHistory+='\n'+historyPage.fields.text;
  }
- assert.ok(historyPages>=3);for(const label of ['A-Pending-Only','A-Active-Only','A-EndsToday-Only','A-Expired-Only','A-Upcoming-Only','A-Undated-Only','A-Long-Only'])assert.ok(allHistory.includes(label),label+' must be reachable');
+ assert.ok(historyPages>=3);for(const label of ['A-Pending-Only','A-Rejected-Only','A-Active-Only','A-EndsToday-Only','A-Expired-Only','A-Upcoming-Only','A-Undated-Only','A-Long-Only'])assert.ok(allHistory.includes(label),label+' must be reachable');
  assert.equal(allHistory.match(/A-Multi-Only/g)?.length,5,'A multi-line order crosses page boundaries without skipping/duplicating lines');
  assert.ok(allHistory.indexOf('A-Tie-High')<allHistory.indexOf('A-Tie-Low'),'Equal timestamps use UUID descending tie-breaks');
  assert.ok(historyPage.buttons.some(button=>button.text==='အစမှ'));
@@ -245,11 +251,12 @@ try {
  let plansPage=await command('/plans'),allPlans=plansPage.fields.text,planPages=1;
  while(plansPage.buttons.some(button=>button.text.includes('နောက်ထပ်'))){assert.ok(planPages++<10);plansPage=(await navigate(plansPage,plansPage.buttons.find(button=>button.text.includes('နောက်ထပ်')))).panel;allPlans+='\n'+plansPage.fields.text;}
  assert.ok(!allPlans.includes('A-Pending-Only'),'Unapproved order is not a purchased plan');
+ assert.ok(!allPlans.includes('A-Rejected-Only'),'Rejected order is not a purchased plan');
  for(const label of ['A-Active-Only','A-EndsToday-Only','A-Expired-Only','A-Upcoming-Only','A-Undated-Only'])assert.ok(allPlans.includes(label));
  assert.ok(allPlans.includes(today));assert.match(allPlans,/20/,'Actual dates determine remaining days');
  assert.match(allPlans,/[█▓▰■]/u,'Plan term includes a remaining-time visual');
  const isolatedText=allHistory+'\n'+allPlans;
- for(const sentinel of ['PRIVATE-DELIVERY-PASSWORD-SENTINEL','B-PRIVATE-PURCHASE-SENTINEL','LOCAL-PRIVATE-PURCHASE-SENTINEL','GUEST-PRIVATE-PURCHASE-SENTINEL','PRIVATE-GUEST-SENTINEL','telegram-local@example.invalid'])assert.ok(!isolatedText.includes(sentinel),sentinel+' must never be included');
+ for(const sentinel of ['PRIVATE-CUSTOMER-NOTE-SENTINEL','PRIVATE-DELIVERY-PASSWORD-SENTINEL','B-PRIVATE-PURCHASE-SENTINEL','LOCAL-PRIVATE-PURCHASE-SENTINEL','GUEST-PRIVATE-PURCHASE-SENTINEL','PRIVATE-GUEST-SENTINEL','telegram-local@example.invalid'])assert.ok(!isolatedText.includes(sentinel),sentinel+' must never be included');
 
  const target=await command('/history'),targetNext=target.buttons.find(button=>button.callback_data);
  const forgedAttempts=[

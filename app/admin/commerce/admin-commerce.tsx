@@ -21,7 +21,7 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
 }) {
   const [data, setData] = useState<CommerceData | null>(null);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved'>(customerId ? 'all' : 'pending');
+  const [filter, setFilter] = useState<'all' | CommerceOrder['status']>(customerId ? 'all' : 'pending');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<{ id: string; deleting: boolean } | null>(null);
   const [removingOrder, setRemovingOrder] = useState<CommerceOrder | null>(null);
@@ -100,6 +100,8 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
 
   const scopedOrders = customerId ? orders.filter(order => order.customerId === customerId) : orders;
   const pendingCount = scopedOrders.filter(order => order.status === 'pending').length;
+  const approvedCount = scopedOrders.filter(order => order.status === 'approved').length;
+  const rejectedCount = scopedOrders.filter(order => order.status === 'rejected').length;
   const scopedCustomer = customerId ? customersById.get(customerId) : undefined;
   const selected = view === 'orders' ? orders.find(order => order.id === selectedId) : undefined;
   const term = search.trim().toLowerCase();
@@ -143,8 +145,10 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
       onSaved={order => {
         invalidateRefresh();
         setData(current => current ? { ...current, orders: current.orders.map(row => row.id === order.id ? order : row) } : current);
-        setFilter('approved');
-        setNotice(selected.status === 'pending' ? selected.customerId ? 'Order approved and added to the customer’s history.' : 'Guest order approved. Dates saved in the order record.' : 'Order details updated.');
+        setFilter(order.status);
+        setNotice(order.status === 'rejected'
+          ? selected.status === 'rejected' ? 'Customer note updated.' : order.customerId ? 'Order rejected. Status updated in the customer’s order history.' : 'Guest order rejected. Decision saved in the order record.'
+          : selected.status === 'pending' ? selected.customerId ? 'Order approved and added to the customer’s history.' : 'Guest order approved. Dates saved in the order record.' : 'Order details and customer note updated.');
         backToList();
       }} /> : data ? <section className="commerce-panel" aria-label={view === 'orders' ? 'Order list' : 'Customer directory'}>
       <div className="commerce-list-tools">
@@ -167,10 +171,10 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
           {search && <button type="button" aria-label="Clear search" onClick={() => setSearch('')}><X size={15} /></button>}
         </div>
         {view === 'orders' && <div className="commerce-filters" role="group" aria-label="Filter orders by status">
-          {(['pending', 'approved', 'all'] as const).map(status => <button key={status} type="button"
+          {(['pending', 'approved', 'rejected', 'all'] as const).map(status => <button key={status} type="button"
             aria-pressed={filter === status} onClick={() => setFilter(status)}>
-            {status === 'pending' ? 'Pending' : status === 'approved' ? 'Approved' : 'All'}
-            <span>{status === 'pending' ? pendingCount : status === 'approved' ? scopedOrders.length - pendingCount : scopedOrders.length}</span>
+            {status === 'pending' ? 'Pending' : status === 'approved' ? 'Approved' : status === 'rejected' ? 'Rejected' : 'All'}
+            <span>{status === 'pending' ? pendingCount : status === 'approved' ? approvedCount : status === 'rejected' ? rejectedCount : scopedOrders.length}</span>
           </button>)}
         </div>}
       </div>
@@ -193,15 +197,15 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
           setNotice('');
           requestAnimationFrame(() => document.getElementById('commerce-order-title')?.focus());
         }}>
-          <span className="commerce-row-main"><strong>{orderReference(order.id)} <span className="commerce-status" data-status={order.status}>{order.status === 'pending' ? 'Pending' : 'Approved'}</span></strong>
+          <span className="commerce-row-main"><strong>{orderReference(order.id)} <span className="commerce-status" data-status={order.status}>{order.status === 'rejected' ? 'Rejected' : order.status === 'pending' ? 'Pending' : 'Approved'}</span></strong>
             <span>{customer ? customer.name + ' · ' + customerContact(customer) : order.guestName ? order.guestName + ' · Guest' : order.customerId === null ? 'Telegram guest' : 'Customer'}</span>
             <span>{order.lines.map(line => line.productName + (line.planName ? ' · ' + line.planName : '')).join(', ')}</span>
           </span>
           <span className="commerce-row-end"><strong>{orderTotal(order)}</strong>
             <span>{dateFormat.format(new Date(order.createdAt))}</span></span>
           <ChevronRight size={18} aria-hidden="true" />
-        </button><div className="commerce-row-actions"><button type="button" className="admin-text-button commerce-danger-link" aria-label={(order.status === 'approved' ? 'Delete approved order ' : 'Remove pending order ') + orderReference(order.id)} onClick={event => { removeTrigger.current = event.currentTarget; setRemovingOrder(order); }}><Trash2 size={16}/>{order.status === 'approved' ? 'Delete' : 'Remove'}</button></div></li>;
-      })}</ul> : <p className="commerce-empty">{term ? 'No matching orders.' : filter === 'pending' ? 'No orders are waiting for approval.' : filter === 'approved' ? 'No approved orders yet.' : 'No orders yet.'}</p>}
+        </button><div className="commerce-row-actions"><button type="button" className="admin-text-button commerce-danger-link" aria-label={(order.status === 'approved' ? 'Delete approved order ' : order.status === 'rejected' ? 'Remove rejected order ' : 'Remove pending order ') + orderReference(order.id)} onClick={event => { removeTrigger.current = event.currentTarget; setRemovingOrder(order); }}><Trash2 size={16}/>{order.status === 'approved' ? 'Delete' : 'Remove'}</button></div></li>;
+      })}</ul> : <p className="commerce-empty">{term ? 'No matching orders.' : filter === 'pending' ? 'No orders are waiting for approval.' : filter === 'approved' ? 'No approved orders yet.' : filter === 'rejected' ? 'No rejected orders.' : 'No orders yet.'}</p>}
     </section> : refreshing && <p className="commerce-empty" role="status">Loading {view}…</p>}
     {removingOrder && <RemoveOrderDialog key={removingOrder.id} order={removingOrder}
       onClose={() => { setRemovingOrder(null); requestAnimationFrame(() => { if (removeTrigger.current?.isConnected) removeTrigger.current.focus(); else listHeading.current?.focus(); }); }}
@@ -210,7 +214,7 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
         invalidateRefresh();
         setData(current => current ? { ...current, orders: current.orders.filter(order => order.id !== id) } : current);
         setRemovingOrder(null); if (selectedId === id) setSelectedId(null);
-        onDirtyChange(false); setNotice(removingOrder.status === 'approved' ? 'Approved order and its saved plan details deleted.' : 'Pending order removed.');
+        onDirtyChange(false); setNotice(removingOrder.status === 'approved' ? 'Approved order and its saved plan details deleted.' : removingOrder.status === 'rejected' ? 'Rejected order removed.' : 'Pending order removed.');
         requestAnimationFrame(() => listHeading.current?.focus());
       }}/>}
   </div>;

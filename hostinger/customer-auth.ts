@@ -6,6 +6,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { isSameOriginMutation } from "../lib/admin-auth-policy";
 import { getPool } from "./mysql";
 import { CommerceError, readCommerceJson } from "../lib/commerce-http";
+import { drainAdminNotificationAlerts, ensureNotifications, enqueueNotificationAlert } from "./notifications";
 
 import type { TelegramIdentity } from "./telegram-identity";
 
@@ -46,6 +47,7 @@ export function ensureCustomerSchema(): Promise<void> {
       for (const statement of telegramSql.split(";").filter(part => part.trim())) await getPool().query(statement);
       const googleSql = await readFile(join(process.cwd(), "hostinger", "google-identity-schema.sql"), "utf8");
       for (const statement of googleSql.split(";").filter(part => part.trim())) await getPool().query(statement);
+      await ensureNotifications();
     })().catch(error => { schema = undefined; throw error; });
   }
   return schema;
@@ -371,6 +373,8 @@ export async function customerSession(request: Request): Promise<Response> {
       if (creating) {
         await connection.execute("INSERT INTO digimium_customers (id, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
           [customer.id, customer.name, customer.email, passwordHash, customer.createdAt.slice(0, 19).replace("T", " ")]);
+        await enqueueNotificationAlert(connection, { kind: 'customer-created', dedupeKey: 'customer-created:' + customer.id,
+          entityId: customer.id, customerName: customer.name, authProvider: 'email' });
       }
       if (!creating) {
         const [locked] = await connection.execute<(RowDataPacket & { password_hash: string })[]>(
@@ -395,6 +399,7 @@ export async function customerSession(request: Request): Promise<Response> {
       throw error;
     } finally { connection.release(); }
 
+    if (creating) await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000 }).catch(() => {});
     return reply({ customer }, creating ? 201 : 200, cookie(token, sessionSeconds));
   } catch (error) {
     if (error instanceof CommerceError) return reply({ error: "invalid" }, error.status);

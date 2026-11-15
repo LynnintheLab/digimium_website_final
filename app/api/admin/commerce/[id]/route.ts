@@ -12,8 +12,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (!isAllowedMutation(request)) return commerceJson({ error: 'Update orders from this website.' }, 403);
     const { id } = await context.params;
     const body = await readCommerceJson(request, 2 * 1024 * 1024);
-    const { saveFulfillment } = await import('../../../../../hostinger/orders');
-    return commerceJson({ order: await saveFulfillment(id, body) });
+    const { updateOrder } = await import('../../../../../hostinger/orders');
+    return commerceJson({ order: await updateOrder(id, body) });
   } catch (error) {
     return commerceErrorResponse(error);
   }

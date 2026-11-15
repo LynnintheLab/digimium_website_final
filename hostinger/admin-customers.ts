@@ -24,7 +24,7 @@ const removeSchema = z.object({ version, confirmation: uuid }).strict();
 type ProfileRow = CustomerIdentityRow & RowDataPacket;
 type TelegramRow = RowDataPacket & { telegram_id: string; username: string | null };
 type GoogleRow = RowDataPacket & { google_sub: string };
-type OrderVersionRow = RowDataPacket & { id: string; revision: number; approved_at: string | null };
+type OrderVersionRow = RowDataPacket & { id: string; revision: number; approved_at: string | null; rejected_at: string | null };
 type EntryVersionRow = RowDataPacket & { id: string };
 type ChallengeRow = RowDataPacket & { id_hash: Buffer; payload: string };
 type State = { profile: ProfileRow; orders: OrderVersionRow[]; entries: EntryVersionRow[]; record: AdminCustomerRecord };
@@ -69,22 +69,24 @@ async function readState(connection: PoolConnection, id: string, lock: boolean):
   profile.telegram_username = telegram[0]?.username ?? null;
   profile.google_connected = google.length > 0 ? 1 : 0;
   const [orders] = await connection.execute<OrderVersionRow[]>(
-    `SELECT id, revision, approved_at FROM digimium_orders WHERE customer_id = ? ORDER BY id${suffix}`, [id],
+    `SELECT id, revision, approved_at, rejected_at FROM digimium_orders WHERE customer_id = ? ORDER BY id${suffix}`, [id],
   );
   const [entries] = await connection.execute<EntryVersionRow[]>(
     `SELECT id FROM digimium_giveaway_entries WHERE customer_id = ? ORDER BY id${suffix}`, [id],
   );
   const customer = presentCustomer(profile);
-  const approved = orders.filter(order => order.approved_at !== null).length;
+  const approved = orders.filter(order => order.approved_at !== null && order.rejected_at === null).length;
+  const rejected = orders.filter(order => order.rejected_at !== null).length;
+  const pending = orders.length - approved - rejected;
   // Opaque concurrency token only: no password hashes, sessions or fulfillment data are projected.
   const currentVersion = createHash('sha256').update(JSON.stringify([
     'digimium/admin-customer/v1', customer, google.map(identity => identity.google_sub),
-    orders.map(order => [order.id, Number(order.revision), order.approved_at === null ? 'pending' : 'approved']),
+    orders.map(order => [order.id, Number(order.revision), order.rejected_at !== null ? 'rejected' : order.approved_at === null ? 'pending' : 'approved']),
     entries.map(entry => entry.id),
   ])).digest('hex');
   return { profile, orders, entries, record: {
     customer, version: currentVersion,
-    summary: { orders: orders.length, pending: orders.length - approved, approved, giveawayEntries: entries.length },
+    summary: { orders: orders.length, pending, approved, rejected, giveawayEntries: entries.length },
   } };
 }
 

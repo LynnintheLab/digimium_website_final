@@ -3,6 +3,7 @@ import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { CommerceError } from '../lib/commerce-http';
 import { ensureCustomerSchema, presentCustomer, type Customer, type CustomerIdentityRow } from './customer-auth';
 import { getPool } from './mysql';
+import { enqueueNotificationAlert } from './notifications';
 
 /** Accept only Telegram profile fields verified by the bot webhook, never browser-provided identity claims. */
 export type TelegramIdentity = { id: string; firstName: string; lastName?: string; username?: string };
@@ -49,6 +50,8 @@ async function resolveOnConnection(connection: PoolConnection, identity: ReturnT
     'INSERT INTO digimium_telegram_identities (telegram_id, customer_id, username, created_at) VALUES (?, ?, ?, ?)',
     [identity.id, customer.id, identity.username, timestamp],
   );
+  await enqueueNotificationAlert(connection, { kind: 'customer-created', dedupeKey: 'customer-created:' + customer.id,
+    entityId: customer.id, customerName: customer.name, authProvider: 'telegram' });
   return customer;
 }
 

@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS digimium_orders (
   request_hash BINARY(32) NOT NULL,
   created_at CHAR(24) CHARACTER SET ascii NOT NULL,
   approved_at CHAR(24) CHARACTER SET ascii NULL,
+  rejected_at CHAR(24) CHARACTER SET ascii NULL,
+  customer_note TEXT NULL,
   revision INT UNSIGNED NOT NULL DEFAULT 1,
   snapshot MEDIUMTEXT NOT NULL,
   fulfillment MEDIUMTEXT NULL,
@@ -16,5 +18,6 @@ CREATE TABLE IF NOT EXISTS digimium_orders (
   INDEX orders_customer_created (customer_id, created_at),
   CONSTRAINT orders_customer FOREIGN KEY (customer_id) REFERENCES digimium_customers (id),
   CHECK (JSON_VALID(snapshot)),
-  CHECK ((approved_at IS NULL AND fulfillment IS NULL) OR (approved_at IS NOT NULL AND fulfillment IS NOT NULL))
+  CHECK ((approved_at IS NULL AND fulfillment IS NULL) OR (approved_at IS NOT NULL AND fulfillment IS NOT NULL)),
+  CHECK (rejected_at IS NULL OR (approved_at IS NULL AND fulfillment IS NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

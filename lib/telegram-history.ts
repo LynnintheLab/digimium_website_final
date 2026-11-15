@@ -5,7 +5,7 @@ export type TelegramHistoryView = 'history' | 'plans';
 export type TelegramTrackingLine = {
   orderId: string;
   createdAt: string;
-  status: 'pending' | 'approved';
+  status: 'pending' | 'approved' | 'rejected';
   totalMmk: number | null;
   productName: string;
   planName: string | null;
@@ -84,7 +84,7 @@ export function formatTelegramHistory(input: {
   for (const line of lines) {
     if (line.orderId !== previousOrder) {
       output.push('', `အော်ဒါ #${telegramTrackingText(line.orderId.slice(0, 8).toUpperCase(), 8)} • ${orderDate(line.createdAt)}`,
-        line.status === 'pending' ? '⏳ အတည်ပြုရန် စောင့်နေသည်' : '✅ အတည်ပြုပြီး',
+        line.status === 'rejected' ? '❌ ငြင်းပယ်ထားသည်' : line.status === 'pending' ? '⏳ အတည်ပြုရန် စောင့်နေသည်' : '✅ အတည်ပြုပြီး',
         'အော်ဒါစုစုပေါင်း — ' + (line.totalMmk === null ? 'သတ်မှတ်ရန်' : line.totalMmk.toLocaleString('en-US') + ' ကျပ်'));
       previousOrder = line.orderId;
     }
@@ -93,7 +93,7 @@ export function formatTelegramHistory(input: {
     if (line.duration) output.push(telegramTrackingText(durationText(line.duration, 'my'), 60));
     output.push('အရေအတွက် ' + line.quantity + ' • တစ်ခုလျှင် ' + telegramTrackingText(priceText(line.price, 'my'), 60));
     if (line.status === 'approved') output.push(...telegramTermSummary(line.startDate, line.endDate, today));
-    else output.push('အတည်ပြုပြီးရင် သက်တမ်းရက်တွေ ပြပါမယ်။');
+    else if (line.status === 'pending') output.push('အတည်ပြုပြီးရင် သက်တမ်းရက်တွေ ပြပါမယ်။');
   }
   if (input.hasMore) output.push('', 'နောက်ထပ်မှတ်တမ်းတွေကို အောက်က ခလုတ်နဲ့ ကြည့်နိုင်ပါတယ်။');
   const result = output.join('\n');

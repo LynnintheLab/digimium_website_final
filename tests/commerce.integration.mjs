@@ -119,6 +119,36 @@ try {
   const [message] = await mail;
   assert.equal(message.type, 'otp-mail');
   const owner = cookie(await login({ action: 'verify', code: message.code }, cookie(challenge, 'digimium_local_challenge')), 'digimium_local_admin');
+  // Seed the old schema before its first authorized commerce read, including encrypted fulfillment.
+  const legacyRows = [];
+  for (const approved of [false, true]) {
+    const legacyId = randomUUID(), lineId = randomUUID();
+    const snapshot = JSON.stringify({ lines: [{ id: lineId, productId: 'legacy', productName: 'Legacy snapshot', planId: null,
+      planName: null, duration: '1 month', price: '100 MMK', quantity: 1 }], totalMmk: 100 });
+    let fulfillment = null;
+    if (approved) {
+      const iv = randomBytes(12), key = createHmac('sha256', env.ORDER_FULFILLMENT_SECRET).update('digimium/order-fulfillment/v1').digest();
+      const cipher = createCipheriv('aes-256-gcm', key, iv); cipher.setAAD(Buffer.from(legacyId + '/' + alice.id));
+      const encrypted = Buffer.concat([cipher.update(JSON.stringify([{ id: lineId, startDate: '2028-01-01', endDate: '2028-02-01', accountInfo: 'legacy-fixture-delivery' }])), cipher.final()]);
+      fulfillment = Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString('base64');
+    }
+    await db.execute('INSERT INTO digimium_orders (id, customer_id, request_id, request_hash, created_at, approved_at, snapshot, fulfillment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [legacyId, alice.id, randomUUID(), randomBytes(32), '2028-01-01T00:00:00.000Z', approved ? '2028-01-01T01:00:00.000Z' : null, snapshot, fulfillment]);
+    legacyRows.push({ id: legacyId, snapshot, fulfillment, approved });
+  }
+  const migrated = (await json(await get(adminCommerce, owner))).orders;
+  for (const legacy of legacyRows) {
+    const row = migrated.find(order => order.id === legacy.id);
+    assert.equal(row.status, legacy.approved ? 'approved' : 'pending');
+    assert.equal(row.customerNote, ''); assert.equal(row.rejectedAt, null);
+    assert.equal(row.lines[0].accountInfo, legacy.approved ? 'legacy-fixture-delivery' : '');
+    const [[savedLegacy]] = await db.execute('SELECT snapshot, fulfillment FROM digimium_orders WHERE id = ?', [legacy.id]);
+    assert.equal(savedLegacy.snapshot, legacy.snapshot, 'Additive migration preserves legacy snapshots byte-for-byte');
+    assert.equal(savedLegacy.fulfillment, legacy.fulfillment, 'Additive migration preserves encrypted credentials byte-for-byte');
+    await db.execute('DELETE FROM digimium_orders WHERE id = ?', [legacy.id]);
+  }
+  const [decisionColumns] = await db.query("SHOW COLUMNS FROM digimium_orders WHERE Field IN ('rejected_at', 'customer_note')");
+  assert.equal(decisionColumns.length, 2); assert.ok(decisionColumns.every(column => column.Null === 'YES'));
   const accountList = await json(await get(adminCommerce, owner));
   assert.equal(accountList.customers.length, 2);
   assert.deepEqual(accountList.orders, []);
@@ -651,7 +681,114 @@ try {
   assert.deepEqual(await allOrderRows(), beforeDuplicateRemoval.filter(row => row.id !== duplicateApproved.id),
     'Concurrent duplicate approved removals delete exactly one selected record');
 
-  console.log('Commerce integration passed: account sessions, Telegram checkout, guest schema migration, isolated guests, exact retries, guest limits, date approvals, password rotation, owner-only history and confirmed pending/approved order removal with approval/update/delete races.');
+  // Customer-facing decisions/notes are separate from deletion and encrypted delivery.
+  const readAdminOrder = async orderId => (await json(await get(adminCommerce, owner))).orders.find(order => order.id === orderId);
+  const createDecisionOrder = async () => {
+    const submission = { requestId: randomUUID(), items: [custom] };
+    const placed = await json(await submit(submission, activeCookie), 201);
+    return { placed, order: await readAdminOrder(placed.id), submission };
+  };
+  const patchOrder = (orderId, payload, session = owner, origin = base.origin) => mutate(adminCommerce + '/' + orderId, 'PATCH', payload, session, origin);
+  const orderRow = async orderId => (await db.execute('SELECT * FROM digimium_orders WHERE id = ?', [orderId]))[0][0];
+  const { placed: decisionCheckout, order: decisionPending, submission: decisionSubmission } = await createDecisionOrder();
+  const rejection = { action: 'reject', revision: decisionPending.revision, customerNote: '  Customer notice\r\nရှင်းလင်းချက်  ' };
+  for (const session of ['', activeCookie, bob.cookie, guestCookie]) await json(await patchOrder(decisionPending.id, rejection, session), 401);
+  await json(await patchOrder(decisionPending.id, rejection, owner, 'https://foreign.invalid'), 403);
+  for (const invalid of [{}, { ...rejection, revision: '1' }, { ...rejection, revision: 0 }, { ...rejection, revision: 0xffffffff },
+    { ...rejection, customerNote: null }, { ...rejection, customerNote: 1 }, { ...rejection, customerNote: 'x'.repeat(1001) },
+    { ...rejection, customerNote: 'bad\u0000note' }, { ...rejection, customerNote: 'bad\tnote' }, { ...rejection, customerNote: 'bad\u202enote' },
+    { ...rejection, customerNote: 'bad\u2067note' }, { ...rejection, lines: [] }, { ...rejection, ownerId: bob.id },
+    { action: 'note', revision: decisionPending.revision }, { action: 'approve', revision: decisionPending.revision }]) {
+    await json(await patchOrder(decisionPending.id, invalid), 400);
+  }
+  await json(await patchOrder('not-an-order', rejection), 404);
+  await json(await patchOrder(randomUUID(), rejection), 404);
+  await json(await request(adminCommerce + '/' + decisionPending.id, { method: 'PATCH', headers: { Cookie: owner, Origin: base.origin, 'Content-Type': 'application/json' }, body: 'x'.repeat(2 * 1024 * 1024 + 1) }), 413);
+  const beforeDecision = await orderRow(decisionPending.id);
+  for (const customerNote of ['x'.repeat(1001), 'bad\u0001note']) {
+    await json(await patchOrder(decisionPending.id, { revision: decisionPending.revision, customerNote,
+      lines: decisionPending.lines.map(line => ({ id: line.id, startDate: '2028-01-01', endDate: '2028-02-01' })) }), 400);
+  }
+  assert.deepEqual(await orderRow(decisionPending.id), beforeDecision, 'Invalid decisions/notes cannot partially change an order');
+  const rejected = (await json(await patchOrder(decisionPending.id, rejection))).order;
+  assert.equal(rejected.status, 'rejected'); assert.equal(rejected.approvedAt, null); assert.ok(rejected.rejectedAt);
+  assert.equal(rejected.customerNote, 'Customer notice\nရှင်းလင်းချက်'); assert.equal(rejected.revision, decisionPending.revision + 1);
+  assert.ok(rejected.lines.every(line => line.startDate === null && line.endDate === null && !line.accountInfo && !Object.hasOwn(line, 'accountDetails')));
+  const rejectedRow = await orderRow(rejected.id);
+  assert.equal(rejectedRow.fulfillment, null); assert.equal(rejectedRow.snapshot, beforeDecision.snapshot);
+  assert.equal(rejectedRow.customer_id, alice.id); assert.equal(rejectedRow.request_id, beforeDecision.request_id);
+  // The original checkout retry remains a purchase snapshot, never a decision note or fulfillment record.
+  assert.deepEqual(await json(await submit(decisionSubmission, activeCookie)), decisionCheckout);
+  assert.ok(!Object.hasOwn(decisionCheckout.order, 'customerNote'));
+  const rejectedHistory = (await json(await get(customerOrders + '?view=history', activeCookie))).orders;
+  assert.deepEqual(rejectedHistory.find(order => order.id === rejected.id), rejected);
+  assert.ok(!(await json(await get(customerOrders + '?view=overview', activeCookie))).orders.some(order => order.id === rejected.id));
+  assert.ok(!(await json(await get(customerOrders + '?view=history', bob.cookie))).orders.some(order => order.id === rejected.id));
+  await json(await patchOrder(rejected.id, { ...rejection, revision: rejected.revision }), 409);
+  await json(await patchOrder(rejected.id, { revision: rejected.revision,
+    lines: rejected.lines.map(line => ({ id: line.id, startDate: '2028-01-01', endDate: '2028-02-01' })) }), 409);
+  await json(await patchOrder(rejected.id, { action: 'note', revision: decisionPending.revision, customerNote: 'stale' }), 409);
+  const noteText = '<script>literal text only</script>\nမြန်မာ';
+  const revisedRejection = (await json(await patchOrder(rejected.id, { action: 'note', revision: rejected.revision, customerNote: noteText }))).order;
+  assert.equal(revisedRejection.status, 'rejected'); assert.equal(revisedRejection.rejectedAt, rejected.rejectedAt);
+  assert.equal(revisedRejection.customerNote, noteText); assert.equal((await orderRow(rejected.id)).fulfillment, null);
+  const clearedRejection = (await json(await patchOrder(rejected.id, { action: 'note', revision: revisedRejection.revision, customerNote: '  ' }))).order;
+  assert.equal(clearedRejection.customerNote, ''); assert.equal(clearedRejection.status, 'rejected');
+  const { order: noNotePending } = await createDecisionOrder();
+  const noNoteRejected = (await json(await patchOrder(noNotePending.id, { action: 'reject', revision: noNotePending.revision }))).order;
+  assert.equal(noNoteRejected.status, 'rejected'); assert.equal(noNoteRejected.customerNote, '', 'A rejection does not require a customer note');
+
+  const { order: approveWithNote } = await createDecisionOrder();
+  const noteLines = approveWithNote.lines.map(line => ({ id: line.id, startDate: '2028-01-01', endDate: '2028-02-01', accountDetails: deliveredAccount }));
+  const notedApproval = (await json(await patchOrder(approveWithNote.id, { revision: approveWithNote.revision, lines: noteLines, customerNote: 'Approval message' }))).order;
+  assert.equal(notedApproval.status, 'approved'); assert.equal(notedApproval.customerNote, 'Approval message');
+  const originalNotedEnvelope = (await orderRow(notedApproval.id)).fulfillment;
+  const noteOnlyApproval = (await json(await patchOrder(notedApproval.id, { action: 'note', revision: notedApproval.revision, customerNote: 'x'.repeat(1000) }))).order;
+  assert.equal(noteOnlyApproval.approvedAt, notedApproval.approvedAt); assert.equal(noteOnlyApproval.customerNote.length, 1000);
+  assert.equal((await orderRow(notedApproval.id)).fulfillment, originalNotedEnvelope, 'Note-only edits preserve encrypted fulfillment byte-for-byte');
+  assert.deepEqual(noteOnlyApproval.lines, notedApproval.lines);
+  await json(await patchOrder(notedApproval.id, { action: 'reject', revision: noteOnlyApproval.revision }), 409);
+  const preservedNote = (await json(await patchOrder(notedApproval.id, { revision: noteOnlyApproval.revision, lines: noteLines }))).order;
+  assert.equal(preservedNote.customerNote, noteOnlyApproval.customerNote, 'Legacy fulfillment PATCH without a note preserves it');
+  const noteOverview = (await json(await get(customerOrders + '?view=overview', activeCookie))).orders;
+  assert.ok(noteOverview.every(order => !Object.hasOwn(order, 'customerNote')), 'Brief account projections never return decision notes');
+
+  const guestDecisionCheckout = await json(await submit({ checkoutMode: 'guest', requestId: randomUUID(), items: [custom] }, anotherGuestCookie), 201);
+  const guestDecision = await readAdminOrder(guestDecisionCheckout.id);
+  const guestRejection = (await json(await patchOrder(guestDecision.id, { action: 'reject', revision: guestDecision.revision, customerNote: 'Guest admin-only notice' }))).order;
+  assert.equal(guestRejection.customerId, null); assert.equal(guestRejection.status, 'rejected');
+  await json(await get(customerOrders + '?view=history', anotherGuestCookie), 401);
+  assert.ok(!(await json(await get(customerOrders + '?view=history', activeCookie))).orders.some(order => order.id === guestRejection.id));
+
+  // Every decision/edit/removal takes the same order lock and exact optimistic revision.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { order: race } = await createDecisionOrder();
+    const results = await Promise.all([
+      patchOrder(race.id, { action: 'reject', revision: race.revision, customerNote: 'Reject winner' }),
+      patchOrder(race.id, { revision: race.revision, customerNote: 'Approve winner', lines: race.lines.map(line => ({ id: line.id, startDate: '2028-01-01', endDate: '2028-02-01' })) }),
+    ]);
+    assert.deepEqual(results.map(response => response.status).sort(), [200, 409]);
+    for (const response of results) await json(response, response.status);
+    const winner = await readAdminOrder(race.id), row = await orderRow(race.id);
+    assert.equal(winner.revision, race.revision + 1);
+    assert.ok(winner.status === 'approved' ? row.approved_at && row.fulfillment && !row.rejected_at : row.rejected_at && !row.approved_at && !row.fulfillment);
+    const competingNotes = await Promise.all(['first', 'second'].map(customerNote => patchOrder(race.id, { action: 'note', revision: winner.revision, customerNote })));
+    assert.deepEqual(competingNotes.map(response => response.status).sort(), [200, 409]);
+    for (const response of competingNotes) await json(response, response.status);
+    const noteWinner = await readAdminOrder(race.id);
+    const deleteRace = await Promise.all([
+      patchOrder(race.id, { action: 'note', revision: noteWinner.revision, customerNote: 'newer' }),
+      mutate(adminCommerce + '/' + race.id, 'DELETE', { revision: noteWinner.revision, confirmation: race.id }, owner),
+    ]);
+    assert.equal(deleteRace.filter(response => response.status === 200).length, 1);
+    assert.ok(deleteRace.every(response => [200, 404, 409].includes(response.status)));
+    for (const response of deleteRace) await json(response, response.status);
+  }
+  const rejectDelete = await mutate(adminCommerce + '/' + clearedRejection.id, 'DELETE', { revision: clearedRejection.revision, confirmation: clearedRejection.id }, owner);
+  assert.deepEqual(await json(rejectDelete), { removed: true, id: clearedRejection.id });
+  assert.equal(await orderRow(clearedRejection.id), undefined, 'Explicit DELETE also works for a rejected order');
+
+  console.log('Commerce integration passed: legacy order migration, accounts, checkout, owner isolation, encrypted fulfillment, customer-facing notes, retained rejections, safe state projections and approval/reject/note/delete revision races.');
 } finally {
   if (server && server.exitCode === null && !server.signalCode) {
     const exit = once(server, 'exit');

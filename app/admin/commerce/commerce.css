@@ -18,10 +18,12 @@
 .commerce-row-main > span, .commerce-row-end > span, .commerce-item-meta, .commerce-panel-heading p { color: var(--admin-muted); font-size: 13px; }
 .commerce-status { display: inline-flex; width: fit-content; border-radius: 5px; padding: 2px 8px; color: #754609; background: #fff0ce; font-size: 12px; font-weight: 650; }
 .commerce-status[data-status=approved] { color: #165b43; background: #def6ea; }
+.commerce-status[data-status=rejected] { color: var(--admin-ink); background: var(--soft); }
 .commerce-empty { padding: 24px; color: var(--admin-muted); }
 .admin-commerce .commerce-fieldset { margin: 0; min-width: 0; border: 0; padding: 0; }
 .commerce-item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .9fr); gap: 12px 30px; align-items: center; padding: 22px 28px; }
 .commerce-item + .commerce-item { border-top: 1px solid var(--admin-line); }
+.commerce-item[data-readonly] { grid-template-columns: minmax(0,1fr); }
 .admin-commerce .commerce-item h3 { font-size: 17px; line-height: 1.4; }
 .commerce-plan-name { margin-top: 3px; font-size: 14px; font-weight: 550; color: var(--admin-ink); }
 .commerce-item-meta { margin-top: 5px; }
@@ -49,6 +51,16 @@
 .commerce-save div { display: grid; gap: 3px; }
 .commerce-save div span { color: var(--admin-muted); font-size: 12px; }
 .commerce-save div strong { font-size: 18px; }
+.commerce-save .commerce-save-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.commerce-customer-note { display: grid; gap: 8px; padding: 22px 28px; border-top: 1px solid var(--admin-line); }
+.commerce-customer-note .admin-field { gap: 8px; }
+.commerce-customer-note .admin-field small { margin-inline-start: 8px; color: var(--admin-muted); font-weight: 400; }
+.commerce-customer-note textarea { width: 100%; min-width: 0; min-height: 110px; padding: 10px 12px; border: 1px solid var(--admin-line); border-radius: 6px; background: var(--canvas); color: var(--admin-ink); font: inherit; font-size: 16px; line-height: 1.7; resize: vertical; }
+.commerce-customer-note > p { margin: 0; max-width: 70ch; color: var(--admin-muted); font-size: 13px; line-height: 1.7; }
+.commerce-note-length { color: var(--admin-muted); font-size: 12px; text-align: end; font-variant-numeric: tabular-nums; }
+.commerce-reject-confirm { display: grid; gap: 12px; margin: 0 28px 22px; padding: 18px; border: 1px solid var(--admin-line); border-radius: 8px; background: var(--soft); }
+.commerce-reject-confirm > h3 { font-size: 17px; line-height: 1.5; }
+.commerce-reject-confirm > p { max-width: 70ch; color: var(--admin-muted); font-size: 14px; line-height: 1.7; }
 .commerce-form-error { padding: 12px; color: #8d2630; }
 @media (max-width: 1050px) {
   .commerce-item { grid-template-columns: 1fr; }
@@ -56,6 +68,8 @@
 @media (max-width: 620px) {
   .commerce-item { padding: 20px 16px; }
   .commerce-save { padding: 16px; }
+  .commerce-customer-note { padding: 20px 16px; }
+  .commerce-reject-confirm { margin-inline: 16px; padding: 16px; }
   .commerce-save button { min-height: 44px; }
   .admin-shell .admin-navigation[data-commerce=true] { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 2px 5px; }
   .admin-shell .admin-navigation[data-commerce=true] button { padding: 6px 8px; width: 100%; gap: 6px; }
@@ -79,6 +93,17 @@
 .commerce-customer-facts dt { color: var(--admin-muted); }
 .commerce-customer-facts dd { margin: 0; overflow-wrap: anywhere; }
 .commerce-customer-summary { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+.commerce-customer-message { display: grid; gap: 12px; padding: 24px 28px; border-top: 1px solid var(--admin-line); }
+.commerce-customer-message > h3 { font-size: 17px; }
+.commerce-customer-message > p, .commerce-message-hints > p, .commerce-message-help { margin: 0; max-width: 70ch; color: var(--admin-muted); font-size: 13px; line-height: 1.7; }
+.commerce-customer-message-fields { display: grid; justify-items: start; gap: 12px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.commerce-customer-message-fields > .admin-field, .commerce-message-hints { width: 100%; max-width: 44rem; }
+.commerce-customer-message textarea { width: 100%; min-width: 0; min-height: 110px; padding: 10px 12px; border: 1px solid var(--admin-line); border-radius: 6px; background: var(--canvas); color: var(--admin-ink); font: inherit; font-size: 16px; line-height: 1.7; resize: vertical; }
+.commerce-message-hints { display: flex; justify-content: space-between; align-items: start; gap: 8px 18px; }
+.commerce-message-hints > span { flex: none; color: var(--admin-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.commerce-message-error { display: grid; justify-items: start; gap: 8px; color: #8d2630; font-size: 14px; line-height: 1.7; }
+.commerce-customer-message > .admin-feedback { margin: 0; }
+.commerce-customer-message > .admin-text-button { width: fit-content; min-height: 44px; }
 .commerce-customer-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .commerce-customer-delete { display: grid; gap: 16px; border-top: 1px solid var(--admin-line); }
 .commerce-customer-delete > p { color: var(--admin-muted); max-width: 70ch; line-height: 1.7; }
@@ -96,6 +121,7 @@
 @media (max-width: 700px) {
   .commerce-action-row { display: block; }
   .commerce-row-actions { padding: 0 16px 12px; }
-  .commerce-customer-form, .commerce-customer-delete, .commerce-remove-content { padding: 20px 16px; }
+  .commerce-customer-form, .commerce-customer-delete, .commerce-customer-message, .commerce-remove-content { padding: 20px 16px; }
+  .commerce-message-hints { flex-wrap: wrap; gap: 4px 12px; }
   .commerce-customer-facts > div { grid-template-columns: 1fr; gap: 3px; }
 }

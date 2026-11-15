@@ -11,7 +11,7 @@ export type CommerceCustomer = {
 export type AdminCustomerRecord = {
   customer: CommerceCustomer;
   version: string;
-  summary: { orders: number; pending: number; approved: number; giveawayEntries: number };
+  summary: { orders: number; pending: number; approved: number; rejected: number; giveawayEntries: number };
 };
 
 export type CommerceAccountDetails = {
@@ -42,7 +42,9 @@ export type CommerceOrder = {
   guestName?: string;
   createdAt: string;
   approvedAt: string | null;
-  status: 'pending' | 'approved';
+  rejectedAt?: string | null;
+  customerNote?: string;
+  status: 'pending' | 'approved' | 'rejected';
   revision: number;
   lines: CommerceOrderLine[];
   totalMmk: number | null;

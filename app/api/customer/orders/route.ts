@@ -13,20 +13,26 @@ export async function GET(request: Request) {
     // A contact configuration issue should not hide a customer's purchase history.
     const [allOrders, telegram] = await Promise.all([customerOrders(customer.id), currentOrderContact().catch(() => '')]);
     const view = new URL(request.url).searchParams.get('view');
-    const withoutDelivery = (order: typeof allOrders[number]) => ({ ...order, lines: order.lines.map(line => {
-      const safe = { ...line, accountInfo: '' };
-      delete safe.accountDetails;
-      return safe;
-    }) });
+    const withoutDelivery = (order: typeof allOrders[number], includeNote = true) => {
+      const safeOrder = { ...order, lines: order.lines.map(line => {
+        const safe = { ...line, accountInfo: '' };
+        delete safe.accountDetails;
+        return safe;
+      }) };
+      if (!includeNote) delete safeOrder.customerNote;
+      return safeOrder;
+    };
     let remaining = 3;
-    const orders = view === 'history' ? allOrders.map(order => order.status === 'pending'
+    const orders = view === 'history' ? allOrders.map(order => order.status !== 'approved'
       ? withoutDelivery(order) : order) : view === 'overview'
       ? allOrders.flatMap(order => {
-          if (order.status === 'pending') return [withoutDelivery(order)];
-          const lines = withoutDelivery(order).lines.slice(0, remaining);
+          if (order.status === 'rejected') return [];
+          const safeOrder = withoutDelivery(order, false);
+          if (order.status === 'pending') return [safeOrder];
+          const lines = safeOrder.lines.slice(0, remaining);
           remaining -= lines.length;
-          return lines.length ? [{...order, lines}] : [];
-        }) : allOrders.map(order => order.status === 'pending' ? withoutDelivery(order) : order);
+          return lines.length ? [{...safeOrder, lines}] : [];
+        }) : allOrders.map(order => order.status !== 'approved' ? withoutDelivery(order) : order);
     return commerceJson({ orders, telegram, customer });
   } catch (error) {
     return commerceErrorResponse(error);

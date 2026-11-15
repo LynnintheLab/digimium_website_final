@@ -9,7 +9,7 @@ import { decryptOrderTermDates, ensureOrders } from './orders';
 import { ensureTelegramIdentitySchema } from './telegram-identity';
 import { getPool } from './mysql';
 
-type MetadataRow = RowDataPacket & { id: string; customer_id: string; created_at: string; approved_at: string | null };
+type MetadataRow = RowDataPacket & { id: string; customer_id: string; created_at: string; approved_at: string | null; rejected_at: string | null };
 type TrackingRow = MetadataRow & { snapshot: string; fulfillment: string | null };
 type PurchasedLine = { id: string; productName: string; planName: string | null; duration: string; price: string; quantity: number };
 const metadataLimit = 4;
@@ -50,14 +50,14 @@ export async function getTelegramHistory(telegramId: string, options: {
   await ensureOrders();
   const filters = ['t.telegram_id = ?'];
   const parameters: (string | number)[] = [telegramId];
-  if (options.view === 'plans') filters.push('o.approved_at IS NOT NULL');
+  if (options.view === 'plans') filters.push('o.approved_at IS NOT NULL AND o.rejected_at IS NULL');
   if (cursor) {
     filters.push(`(o.created_at < ? OR (o.created_at = ? AND o.id ${cursor.line === 3000 ? '<' : '<='} ?))`);
     parameters.push(cursor.createdAt, cursor.createdAt, cursor.orderId);
   }
   // Fetch only small position records first; large encrypted payloads are then read one order at a time.
   const [metadata] = await pool.execute<MetadataRow[]>(
-    `SELECT o.id, o.customer_id, o.created_at, o.approved_at FROM digimium_orders o
+    `SELECT o.id, o.customer_id, o.created_at, o.approved_at, o.rejected_at FROM digimium_orders o
      JOIN digimium_telegram_identities t ON t.customer_id = o.customer_id
      WHERE ${filters.join(' AND ')} ORDER BY o.created_at DESC, o.id DESC LIMIT ${metadataLimit}`, parameters,
   );
@@ -66,18 +66,19 @@ export async function getTelegramHistory(telegramId: string, options: {
   for (let index = 0; index < metadata.length; index++) {
     const position = metadata[index];
     const [details] = await pool.execute<TrackingRow[]>(
-      `SELECT o.id, o.customer_id, o.created_at, o.approved_at, o.snapshot, o.fulfillment FROM digimium_orders o
+      `SELECT o.id, o.customer_id, o.created_at, o.approved_at, o.rejected_at, o.snapshot, o.fulfillment FROM digimium_orders o
        JOIN digimium_telegram_identities t ON t.customer_id = o.customer_id
-       WHERE t.telegram_id = ? AND o.id = ?${options.view === 'plans' ? ' AND o.approved_at IS NOT NULL' : ''} LIMIT 1`, [telegramId, position.id],
+       WHERE t.telegram_id = ? AND o.id = ?${options.view === 'plans' ? ' AND o.approved_at IS NOT NULL AND o.rejected_at IS NULL' : ''} LIMIT 1`, [telegramId, position.id],
     );
     if (!details[0]) continue;
     const row = details[0], snapshot = snapshotOf(row.snapshot);
-    const terms = new Map((row.approved_at ? decryptOrderTermDates({ ...row, guest_key: null }) : []).map(term => [term.id, term]));
+    const approved = !!row.approved_at && !row.rejected_at;
+    const terms = new Map((approved ? decryptOrderTermDates({ ...row, guest_key: null }) : []).map(term => [term.id, term]));
     const start = cursor?.orderId === row.id && cursor.createdAt === row.created_at ? cursor.line : 0;
     const take = Math.min(TELEGRAM_HISTORY_PAGE_LINES - page.length, Math.max(0, snapshot.lines.length - start));
     for (const line of snapshot.lines.slice(start, start + take)) {
       const term = terms.get(line.id);
-      page.push({ orderId: row.id, createdAt: row.created_at, status: row.approved_at ? 'approved' : 'pending', totalMmk: snapshot.totalMmk,
+      page.push({ orderId: row.id, createdAt: row.created_at, status: row.rejected_at ? 'rejected' : approved ? 'approved' : 'pending', totalMmk: snapshot.totalMmk,
         productName: line.productName, planName: line.planName, duration: line.duration, price: line.price, quantity: line.quantity,
         startDate: term?.startDate ?? null, endDate: term?.endDate ?? null });
     }

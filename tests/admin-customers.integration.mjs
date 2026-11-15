@@ -164,7 +164,7 @@ try {
   let record = await read(alice.id);
   assert.deepEqual(Object.keys(record).sort(), ['customer', 'summary', 'version']);
   assert.match(record.version, /^[a-f0-9]{64}$/);
-  assert.deepEqual(record.summary, { orders: 2, pending: 1, approved: 1, giveawayEntries: 1 });
+  assert.deepEqual(record.summary, { orders: 2, pending: 1, approved: 1, rejected: 0, giveawayEntries: 1 });
   assert.deepEqual(record.customer.signInMethods, { emailPassword: true, google: true, telegram: true });
   assert.equal(record.customer.telegram.id, aliceTelegram);
   assert.ok(!JSON.stringify(record).includes('private-fixture-password'));
@@ -205,6 +205,24 @@ try {
   await json(await remove({ version: record.version, confirmation: bob.id }), 400);
   await json(await remove({ version: record.version, confirmation: alice.id, force: true }), 400);
   await json(await remove({ version: record.version }), 400);
+
+  // A rejection stays owned and counted, but can never inflate pending/approved totals.
+  const beforeRejectionVersion = record.version;
+  const rejectedOrder = (await json(await mutate('/api/admin/commerce/' + alicePending, 'PATCH',
+    { action: 'reject', revision: 1, customerNote: 'Customer-facing fixture notice' }, owner))).order;
+  assert.equal(rejectedOrder.status, 'rejected');
+  await json(await remove({ version: beforeRejectionVersion, confirmation: alice.id }), 409);
+  record = await read(alice.id);
+  assert.notEqual(record.version, beforeRejectionVersion);
+  assert.deepEqual(record.summary, { orders: 2, pending: 0, approved: 1, rejected: 1, giveawayEntries: 1 });
+  const beforeNoteVersion = record.version;
+  const noteOnly = (await json(await mutate('/api/admin/commerce/' + alicePending, 'PATCH',
+    { action: 'note', revision: rejectedOrder.revision, customerNote: 'Revised customer notice' }, owner))).order;
+  assert.equal(noteOnly.status, 'rejected');
+  await json(await remove({ version: beforeNoteVersion, confirmation: alice.id }), 409);
+  record = await read(alice.id);
+  assert.notEqual(record.version, beforeNoteVersion, 'Customer removal versions notice note-only order edits');
+  assert.deepEqual(record.summary, { orders: 2, pending: 0, approved: 1, rejected: 1, giveawayEntries: 1 });
 
   // A new purchase, approval revision or giveaway entry makes a previously reviewed removal stale.
   const stale = record.version;

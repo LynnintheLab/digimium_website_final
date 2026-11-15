@@ -16,6 +16,8 @@ import { BestSellerBadge } from "./best-seller-badge";
 import { CursorLight } from "./cursor-light";
 import { ScrollRail } from "./scroll-rail";
 import { MobileDock } from "./mobile-dock";
+import { ThemeToggle } from "./theme-toggle";
+import { CustomerNotifications } from "./customer-notifications";
 import { PaymentMethods } from "./payment-methods";
 import { GiveawayBanner, GiveawayDetails, GiveawayPromo, useGiveaway } from "./giveaway";
 import type { GiveawayView } from "../lib/giveaway-types";
@@ -50,6 +52,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my', ini
   const [cartCount, setCartCount] = useState(0);
   const [orderOpen, setOrderOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [dockSection, setDockSection] = useState<'services' | 'help'>('services');
   const dockNavigation = useRef<{ section: 'services' | 'help'; expiresAt: number } | null>(null);
   const refreshDock = useRef<(() => void) | null>(null);
@@ -231,6 +234,8 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my', ini
           <button type="button" aria-label="English" aria-pressed={lang === 'en'} onClick={() => switchLanguage('en')} lang="en">EN</button>
           <button type="button" aria-label="မြန်မာ" aria-pressed={lang === 'my'} onClick={() => switchLanguage('my')} lang="my">မြန်မာ</button>
         </div>
+        <ThemeToggle lang={lang}/>
+        {commerceEnabled && <CustomerNotifications lang={lang} onOpen={() => { setMenu(false); account.current?.close(); }} onOpenChange={setNotificationsOpen}/>}
         <button type="button" className="shop-cart-button" aria-label={cartLabel + ' (' + cartCount + ')'} onClick={() => { setMenu(false); shop.current?.openCart(); }}>
           <ShoppingBag size={18} /><span className="shop-cart-word">{cartLabel}</span><span className="shop-cart-count">{cartCount}</span>
         </button>
@@ -324,7 +329,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my', ini
         {motionPaused ? t('Resume motion', 'လှုပ်ရှားမှု ပြန်ဖွင့်ရန်') : t('Pause motion', 'လှုပ်ရှားမှု ရပ်ရန်')}
       </button>
       <a className="admin-link" href="/admin">{t('Manage catalog', 'စာရင်း စီမံရန်')}</a><span>© {new Date().getFullYear()} Digimium</span></div></footer>
-    <MobileDock lang={lang} active={dockSection} cartCount={cartCount} hidden={menu || accountOpen || orderOpen}
+    <MobileDock lang={lang} active={dockSection} cartCount={cartCount} hidden={menu || accountOpen || orderOpen || notificationsOpen}
       onSectionChange={selectDockSection}
       onCart={() => { setMenu(false); shop.current?.openCart(); }}
       onAccount={commerceEnabled ? () => account.current?.open() : undefined}/>

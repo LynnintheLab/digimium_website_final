@@ -33,6 +33,17 @@ test('pending orders never invent active dates; enquiry prices and null totals h
   assert.doesNotMatch(text, /2026-12-14|15 ရက် ကျန်|▰|▱/);
 });
 
+test('rejected history keeps the purchase snapshot without dates, remaining visuals, notes or approval guidance', () => {
+  const text = render([{...base, status:'rejected', startDate:'2031-04-05', endDate:'2031-05-05',
+    customerNote:'PRIVATE-CUSTOMER-NOTE-SENTINEL', accountInfo:'PRIVATE-DELIVERY-SENTINEL'}]);
+  assert.match(text, /❌ ငြင်းပယ်ထားသည်/);
+  assert.match(text, /ChatGPT/); assert.match(text, /Go Share/);
+  assert.match(text, /အော်ဒါစုစုပေါင်း — 32,000 ကျပ်/);
+  assert.doesNotMatch(text, /2031-04-05|2031-05-05|စရက် —|ကုန်ရက် —|ရက် ကျန်|▰|▱/);
+  assert.doesNotMatch(text, /အတည်ပြုရန် စောင့်နေသည်|အတည်ပြုပြီးရင် သက်တမ်းရက်တွေ ပြပါမယ်|✅ အတည်ပြုပြီး/);
+  assert.doesNotMatch(text, /PRIVATE-CUSTOMER-NOTE-SENTINEL|PRIVATE-DELIVERY-SENTINEL|customerNote|accountInfo/);
+});
+
 test('Myanmar midnight switches ends-today to expired, including same-day terms', () => {
   const before = todayInMyanmar(new Date('2026-11-14T17:29:59.999Z'));
   const after = todayInMyanmar(new Date('2026-11-14T17:30:00.000Z'));
