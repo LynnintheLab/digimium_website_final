@@ -295,3 +295,51 @@
 @media (max-width: 400px) {
   .customer-page .customer-history-filters button { padding-inline: 8px; gap: 5px; }
 }
+
+/* The account popover is a read-only overview; settings live on /account. */
+.customer-profile-details { display: grid; gap: 10px; margin: 16px 0; font-size: 14px; line-height: 1.8; }
+.customer-profile-details > div { display: grid; grid-template-columns: 96px minmax(0,1fr); gap: 12px; align-items: baseline; }
+.customer-profile-details dt { color: var(--account-muted); font-size: 13px; }
+.customer-profile-details dd { min-width: 0; margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.customer-profile-missing { color: var(--account-muted); font-weight: 400; }
+.customer-account-settings { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 9px 12px; border-radius: 8px; background: var(--brand-surface); color: var(--blue); font-size: 14px; font-weight: 600; text-decoration: none; }
+.customer-account-settings > svg:last-child { margin-inline-start: auto; }
+.customer-account-settings:hover { background: var(--soft); }
+.customer-page .customer-dashboard button.customer-signout { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 9px 13px; border: 0; border-radius: 8px; background: linear-gradient(135deg,#b3263c,#912637); color: #fff; font-size: 13px; font-weight: 600; line-height: 1.6; text-decoration: none; }
+.customer-page .customer-dashboard button.customer-signout:hover { background: linear-gradient(135deg,#9e2338,#7e1f2f); color: #fff; text-decoration: none; }
+.customer-page .customer-dashboard button.customer-signout:disabled { opacity: .65; cursor: wait; }
+.customer-pending-list { padding: 0; margin: 0; list-style: none; }
+.customer-pending-list > li { padding-block: 10px; border-bottom: 1px solid var(--line); }
+.customer-pending-item-heading, .customer-pending-item-meta { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.customer-pending-item-heading { font-size: 13px; }
+.customer-pending-item-heading time { color: var(--account-muted); font-size: 12px; }
+.customer-pending-list p { min-width: 0; margin: 0; flex: 1; font-size: 14px; line-height: 1.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.customer-pending-item-meta { margin-top: 4px; flex-wrap: nowrap; }
+.customer-pending-item-meta > strong { flex: none; color: var(--brand-navy); font-size: 14px; font-variant-numeric: tabular-nums; }
+.customer-embedded .customer-main:has(.customer-dashboard) { padding: 16px; }
+.customer-embedded .customer-dashboard .customer-summary { padding-bottom: 8px; }
+.customer-embedded .customer-profile-details { margin-block: 10px; gap: 4px; font-size: 13px; line-height: 1.65; }
+.customer-embedded .customer-profile-details dt { font-size: 12px; }
+.customer-embedded .customer-dashboard .customer-section { margin-top: 12px; }
+.customer-embedded .customer-dashboard .customer-heading h2 { font-size: 15px; }
+.customer-embedded .customer-dashboard .customer-history-link { font-size: 13px; }
+.customer-embedded .customer-dashboard .customer-recent-list > li { padding-block: 8px; }
+.customer-embedded .customer-recent-brief { display: grid; grid-template-columns: 64px minmax(0,1fr); column-gap: 12px; row-gap: 3px; }
+.customer-embedded .customer-recent-copy { grid-column: 2; min-width: 0; }
+.customer-embedded .customer-dashboard .customer-item-title { font-size: 15px; }
+.customer-embedded .customer-recent-copy .customer-item-title > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.customer-embedded .customer-recent-list .customer-item-plan { margin-top: 2px; font-size: 13px; line-height: 1.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.customer-embedded .customer-recent-list .customer-item-duration { font-size: 12px; }
+.customer-embedded .customer-recent-list .subscription-term-compact, .customer-embedded .customer-recent-list .subscription-term-visual { display: contents; }
+.customer-embedded .customer-recent-list .subscription-term-ring { grid-column: 1; grid-row: 1 / span 2; align-self: center; width: 64px; height: 64px; }
+.customer-embedded .customer-recent-list .subscription-term-status { grid-column: 2; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+.customer-embedded .customer-recent-list .subscription-term-core { width: 54px; height: 54px; }
+.customer-embedded .customer-recent-list .subscription-term-core strong { font-size: 22px; }
+.customer-embedded .customer-recent-list .subscription-term-core > span { font-size: 12px; }
+.customer-embedded .customer-recent-list .subscription-term-ring[data-long] .subscription-term-core strong { font-size: 18px; }
+.customer-embedded .customer-recent-list .subscription-term-ring[data-extra-long] .subscription-term-core strong { font-size: 14px; }
+.customer-embedded .customer-recent-list .subscription-term-label, .customer-embedded .customer-recent-list .subscription-term-expiry { font-size: 12px; }
+.customer-embedded .customer-recent-list .subscription-term-label { padding: 0; background: transparent; gap: 4px; }
+@media (max-width: 370px) {
+  .customer-profile-details > div { grid-template-columns: 80px minmax(0,1fr); gap: 10px; }
+}

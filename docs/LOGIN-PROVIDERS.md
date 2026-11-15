@@ -6,11 +6,13 @@ Admin continues to use its separate owner-only email code. Customer Google or Te
 
 ## Telegram message presentation
 
-The private bot sends the generated Digimium welcome photo on ordinary `/start`
-and a login deep link, then the existing message with four code choices and Reject.
-The photo is decoration: missing data or Telegram upload failures preserve the
-text login flow. Successful photo delivery is remembered within that challenge,
-so a text-send retry does not repeat the same welcome photo.
+The private bot keeps its generated welcome card for ordinary `/start`. A login
+deep link instead sends a blue/amber verification-lock image, with the login
+details as its caption and four code choices plus Reject attached to that same
+message. After actual website-session issuance, a separate emerald/checkmark
+success photo carries its details and menu. The two stages are visually distinct.
+Missing image data, upload failures or captions over Telegram's 1024-unit limit
+fall back to the existing text flow.
 
 Login notices show a native bold title, browser/device inferred from user-agent,
 approximate IP country when available, and the start time labelled MMT. Country
@@ -24,8 +26,12 @@ Selecting the code says only that the code was confirmed. A separate completed
 notice is sent after the original browser successfully consumes the challenge
 and receives its website session. This avoids a slow approval edit overwriting
 success. The completed notice's history/plan buttons are bound to its actual
-Telegram message ID. Notification failure is bounded to two seconds and never
-invalidates the website session; acknowledgement retries do not send it again.
+Telegram message ID. A photo-menu history/plan action opens a new signed text
+panel, preserving long order pages and their normal pagination without caption
+truncation. Older challenges and text fallbacks still use text edits; new photo
+prompts store their message kind and use caption edits for approval/rejection.
+Notification failure is bounded to two seconds and never invalidates the website
+session; acknowledgement retries do not send it again.
 Account linking and logout-all-device functionality are outside this change.
 
 ## Email and Google account behavior

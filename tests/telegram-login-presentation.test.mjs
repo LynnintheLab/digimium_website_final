@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  telegramBrowserContext, telegramLoginApproved, telegramLoginComplete, telegramLoginRequest, telegramLoginTitleEntities,
+  telegramBrowserContext, telegramLoginApproved, telegramLoginCaptionFits, telegramLoginComplete, telegramLoginRequest, telegramLoginTitleEntities,
 } from '../lib/telegram-login-presentation.ts';
 
 const notice = { origin: 'https://shop.example.invalid', context: 'Safari · iPhone', created: 1794675600 };
@@ -42,4 +42,16 @@ test('bold title entities use Telegram UTF-16 offsets and never include the cont
   }
   const request = telegramLoginRequest(notice);
   assert.equal(telegramLoginTitleEntities(request)[0].length, [...request.split('\n')[0]].length + 1, 'Lock emoji occupies two UTF-16 code units');
+});
+
+test('photo captions stay within 1024 UTF-16 units; oversized details select the text fallback', () => {
+  const longHost = Array(4).fill('a'.repeat(60)).join('.') + '.invalid';
+  const realistic = { ...notice, origin: 'https://' + longHost, context: 'Samsung Internet · Android',
+    location: 'South Georgia & South Sandwich Islands' };
+  for (const render of [telegramLoginRequest, telegramLoginApproved, telegramLoginComplete]) {
+    assert.ok(telegramLoginCaptionFits(render(realistic)));
+    assert.equal(telegramLoginCaptionFits(render({ ...realistic, context: 'Long device 🙂 '.repeat(100) })), false);
+  }
+  assert.equal(telegramLoginCaptionFits('a'.repeat(1024)), true);
+  assert.equal(telegramLoginCaptionFits('a'.repeat(1023) + '🙂'), false, 'Surrogate-pair emoji cannot overrun the caption limit');
 });

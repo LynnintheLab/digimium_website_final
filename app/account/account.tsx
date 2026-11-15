@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, LogOut, RefreshCw } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, LogOut, RefreshCw, Settings2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { telegramDraft } from "@/lib/cart-order";
 import { orderTelegramMessages } from "@/lib/order-telegram";
@@ -141,18 +141,41 @@ function OrderCard({ order, lang, t, customer, telegram, embedded, onClose }: {
   </article>;
 }
 
-function RecentOrders({ orders, lang, t, onClose }: { orders: CommerceOrder[]; lang: ShopLanguage; t: Translate; onClose?: () => void }) {
-  const recent = orders.flatMap(order => order.lines.map(line => ({ orderId: order.id, line }))).slice(0, 3);
+function RecentOrders({ orders, lang, t, brief = false, onClose }: { orders: CommerceOrder[]; lang: ShopLanguage; t: Translate; brief?: boolean; onClose?: () => void }) {
+  const recent = orders.flatMap(order => order.lines.map(line => ({ orderId: order.id, line }))).slice(0, brief ? 2 : 3);
   return <section className="customer-section customer-recent" aria-labelledby="order-history">
-    <div className="customer-heading"><h2 id="order-history">{t("Order history", "အော်ဒါမှတ်တမ်း")}</h2>
+    <div className="customer-heading"><h2 id="order-history">{brief ? t("Recent purchases", "လတ်တလော ဝယ်ယူမှုများ") : t("Order history", "အော်ဒါမှတ်တမ်း")}</h2>
       <Link className="customer-history-link" href="/order-history" onClick={onClose}>{t("View all orders", "အားလုံးကြည့်ရန်")}<ArrowRight size={15} aria-hidden /></Link>
     </div>
-    {recent.length ? <ul className="customer-recent-list">{recent.map(({ orderId, line }) => <li key={`${orderId}-${line.id}`}>
-      <div className="customer-item-title"><strong>{line.productName}</strong>{line.quantity > 1 && <span>{t("Qty", "အရေအတွက်")} {line.quantity}</span>}</div>
-      {line.planName && <p className="customer-item-plan">{line.planName}</p>}
-      {line.duration && <p className="customer-item-duration">{durationText(line.duration, lang)}</p>}
+    {recent.length ? <ul className="customer-recent-list">{recent.map(({ orderId, line }) => <li key={`${orderId}-${line.id}`} className={brief ? "customer-recent-brief" : undefined}>
+      <div className="customer-recent-copy"><div className="customer-item-title"><strong title={brief ? line.productName : undefined}>{line.productName}</strong>{line.quantity > 1 && <span>{t("Qty", "အရေအတွက်")} {line.quantity}</span>}</div>
+        {line.planName && <p className="customer-item-plan" title={brief ? line.planName : undefined}>{line.planName}</p>}
+        {!brief && line.duration && <p className="customer-item-duration">{durationText(line.duration, lang)}</p>}
+      </div>
       <SubscriptionTerm startDate={line.startDate} endDate={line.endDate} lang={lang} compact />
     </li>)}</ul> : <p className="customer-empty">{t("Approved orders and subscription dates will appear here.", "အော်ဒါ အတည်ပြုပြီးရင် ဝယ်ယူမှုမှတ်တမ်းနဲ့ ဝန်ဆောင်မှုသက်တမ်းကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>}
+  </section>;
+}
+
+function AccountDetails({ customer, lang, t }: { customer: Customer; lang: ShopLanguage; t: Translate }) {
+  return <dl className="customer-profile-details">
+    <div><dt>{t("Email", "အီးမေးလ်")}</dt><dd>{customer.email ? <bdi>{customer.email}</bdi> : <span className="customer-profile-missing">{t("Not provided", "ထည့်ထားခြင်း မရှိပါ")}</span>}</dd></div>
+    <div><dt>Telegram</dt><dd>{customer.telegram?.username ? <bdi>@{customer.telegram.username}</bdi> : <span className="customer-profile-missing">{customer.telegram ? t("No username", "Username မရှိပါ") : t("Not connected", "ချိတ်ထားခြင်း မရှိပါ")}</span>}</dd></div>
+    {customer.telegram && <div><dt>Telegram ID</dt><dd><bdi>{customer.telegram.id}</bdi></dd></div>}
+    <div><dt>{t("Joined", "ဖွင့်သည့်နေ့")}</dt><dd><time dateTime={customer.createdAt}>{formatDate(customer.createdAt, lang)}</time></dd></div>
+  </dl>;
+}
+
+function PendingPreview({ orders, lang, t, onClose }: { orders: CommerceOrder[]; lang: ShopLanguage; t: Translate; onClose?: () => void }) {
+  const number = (value: number) => new Intl.NumberFormat(lang === "my" ? "my-MM" : "en-GB").format(value);
+  return <section className="customer-section customer-pending-preview" aria-labelledby="pending-orders">
+    <div className="customer-heading"><h2 id="pending-orders">{t("Pending orders", "စောင့်ဆိုင်းဆဲ အော်ဒါများ")} <span className="customer-section-count">{number(orders.length)}</span></h2>
+      <Link className="customer-history-link" href="/order-history" onClick={onClose}>{t("View all", "အားလုံးကြည့်ရန်")}<ArrowRight size={15} aria-hidden /></Link>
+    </div>
+    {orders.length ? <ul className="customer-pending-list">{orders.slice(0, 2).map(order => <li key={order.id}>
+      <div className="customer-pending-item-heading"><strong><bdi>#{order.id.slice(0, 8).toUpperCase()}</bdi></strong><time dateTime={order.createdAt}>{formatDate(order.createdAt, lang)}</time></div>
+      <div className="customer-pending-item-meta"><p>{order.lines.slice(0, 2).map(line => line.productName).join(" · ")}{order.lines.length > 2 && <span> +{number(order.lines.length - 2)}</span>}</p>{order.totalMmk !== null && <strong>{priceText(order.totalMmk.toLocaleString("en-US") + " MMK", lang)}</strong>}</div>
+    </li>)}</ul> : <p className="customer-empty">{t("No orders are awaiting approval.", "အတည်ပြုရန် စောင့်ဆိုင်းနေသော အော်ဒါ မရှိပါ။")}</p>}
   </section>;
 }
 
@@ -278,15 +301,18 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
       </>}
       {customer && <div className="customer-dashboard">
         <div className="customer-summary">
-          <div>{!embedded && !history && <Title>{t("My account", "ကျွန်ုပ်၏အကောင့်")}</Title>}<p><strong className="customer-profile-name">{customer.name}</strong><span className="customer-profile-email">{customer.email || (customer.telegram?.username ? '@' + customer.telegram.username : 'Telegram')}</span></p>{!history && <small className="customer-member-since">{t("Joined", "အကောင့်ဖွင့်သည့်နေ့")} <time dateTime={customer.createdAt}>{formatDate(customer.createdAt, lang)}</time></small>}</div>
-          <button type="button" onClick={logout} disabled={loggingOut}><LogOut size={16} aria-hidden />{t("Sign out", "အကောင့်ထွက်ရန်")}</button>
+          <div>{!embedded && !history && <Title>{t("My account", "ကျွန်ုပ်၏အကောင့်")}</Title>}<p><strong className="customer-profile-name">{customer.name}</strong>{history && <span className="customer-profile-email">{customer.email || (customer.telegram?.username ? '@' + customer.telegram.username : 'Telegram')}</span>}</p></div>
+          <button className="customer-signout" type="button" onClick={logout} disabled={loggingOut}><LogOut size={16} aria-hidden />{loggingOut ? t("Signing out…", "ထွက်နေပါတယ်…") : t("Sign out", "အကောင့်ထွက်ရန်")}</button>
         </div>
-        {!history && customer.passwordAvailable !== false && <PasswordForm t={t} onUpdated={setCustomer} onSignedOut={() => { setCustomer(null); setOrders(null); refresh(); }} />}
-        {!history && customer.passwordAvailable === false && <p className="customer-google-connected">{customer.telegram ? t("Signed in with Telegram", "Telegram ဖြင့် ဝင်ထားသည်") : t("Signed in with Google", "Google ဖြင့် ဝင်ထားသည်")}</p>}
+        {!history && <AccountDetails customer={customer} lang={lang} t={t} />}
+        {embedded && !history && <Link className="customer-account-settings" href="/account" onClick={onClose}><Settings2 size={17} aria-hidden />{t("Account settings", "အကောင့် ဆက်တင်များ")}<ArrowRight size={16} aria-hidden /></Link>}
+        {!embedded && !history && customer.passwordAvailable !== false && <PasswordForm t={t} onUpdated={setCustomer} onSignedOut={() => { setCustomer(null); setOrders(null); refresh(); }} />}
+        {!embedded && !history && customer.passwordAvailable === false && <p className="customer-google-connected">{customer.telegram ? t("Telegram account", "Telegram အကောင့်") : t("Google account", "Google အကောင့်")}</p>}
         {!orders && !failed && <p role="status">{t("Loading orders…", "အော်ဒါများကို ဖော်ပြနေပါတယ်…")}</p>}
         {orders && <>
-          {!history && <RecentOrders orders={approved} lang={lang} t={t} onClose={onClose} />}
-          {!history && <section className="customer-section" aria-labelledby="pending-orders">
+          {!history && <RecentOrders orders={approved} lang={lang} t={t} brief={embedded} onClose={onClose} />}
+          {embedded && !history && <PendingPreview orders={pending} lang={lang} t={t} onClose={onClose} />}
+          {!embedded && !history && <section className="customer-section" aria-labelledby="pending-orders">
             <div className="customer-heading"><h2 id="pending-orders">{t("Pending orders", "စောင့်ဆိုင်းဆဲ အော်ဒါများ")} <span className="customer-section-count" data-pending>{pending.length}</span></h2>
               <button type="button" className="customer-refresh" onClick={refresh} disabled={loading}><RefreshCw size={15} aria-hidden />{t("Refresh", "ပြန်ကြည့်ရန်")}</button>
             </div>

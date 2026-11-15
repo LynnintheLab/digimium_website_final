@@ -9,14 +9,14 @@ import { ensureTelegramIdentitySchema, type TelegramIdentity } from './telegram-
 import { getTelegramHistory } from './telegram-history';
 import { getPool } from './mysql';
 import { loginLocation } from './login-location';
-import { telegramBrowserContext, telegramLoginApproved, telegramLoginComplete, telegramLoginRequest, telegramLoginTitleEntities } from '../lib/telegram-login-presentation';
+import { telegramBrowserContext, telegramLoginApproved, telegramLoginCaptionFits, telegramLoginComplete, telegramLoginRequest, telegramLoginTitleEntities } from '../lib/telegram-login-presentation';
 
 const lifetime = 300;
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 type ReturnTo = 'account' | 'checkout' | 'history';
 type Binding = { id: string; browser: string; exp: number };
 type Stage = 'waiting' | 'sending' | 'sent' | 'approved' | 'rejected';
-type Flow = { id: string; returnTo: ReturnTo; code: string; options: string[]; created: number; context: string; location?: string; identity?: TelegramIdentity; messageId?: number; welcomed?: boolean };
+type Flow = { id: string; returnTo: ReturnTo; code: string; options: string[]; created: number; context: string; location?: string; identity?: TelegramIdentity; messageId?: number; messageKind?: 'photo' | 'text' };
 interface Challenge extends RowDataPacket { id_hash: Buffer; browser_hash: Buffer; stage: Stage; payload: string }
 let ready: Promise<void> | undefined;
 
@@ -167,7 +167,7 @@ export async function telegramComplete(request: Request) {
 }
 
 type TelegramUser = { id: number; is_bot: boolean; first_name?: unknown; last_name?: unknown; username?: unknown };
-type TelegramMessage = { message_id: number; date: number; chat: { id: number; type: string }; from?: TelegramUser; text?: unknown };
+type TelegramMessage = { message_id: number; date: number; chat: { id: number; type: string }; from?: TelegramUser; text?: unknown; photo?: unknown };
 type TelegramCallback = { id?: unknown; from?: TelegramUser; data?: unknown; message?: TelegramMessage };
 function telegramId(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 && value <= 2 ** 52 - 1; }
 function safeName(value: unknown, fallback = '') { return typeof value === 'string' && value.trim().length <= 100 && !/\p{Cc}/u.test(value) ? value.trim() : fallback; }
@@ -177,7 +177,7 @@ function sender(user?: TelegramUser): TelegramIdentity | null {
   const username = typeof user.username === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(user.username) ? user.username : undefined;
   const lastName = safeName(user.last_name); return { id: String(user.id), firstName, ...(lastName ? { lastName } : {}), ...(username ? { username } : {}) };
 }
-async function botApi(method: 'sendMessage' | 'sendPhoto' | 'answerCallbackQuery' | 'editMessageText', fields: object | FormData, signal?: AbortSignal) {
+async function botApi(method: 'sendMessage' | 'sendPhoto' | 'answerCallbackQuery' | 'editMessageText' | 'editMessageCaption', fields: object | FormData, signal?: AbortSignal) {
   const upload = fields instanceof FormData;
   const response = await fetch(`https://api.telegram.org/bot${config().botToken}/${method}`, {
     method: 'POST', signal: signal ?? AbortSignal.timeout(method === 'sendPhoto' ? 4000 : 8000), redirect: 'error',
@@ -190,19 +190,45 @@ async function botApi(method: 'sendMessage' | 'sendPhoto' | 'answerCallbackQuery
   const result = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { ok?: boolean; result?: TelegramMessage };
   if (!response.ok || result.ok !== true) throw new Error('Bot request failed.'); return result.result;
 }
-async function bestEffort(method: 'answerCallbackQuery' | 'editMessageText', fields: object) { try { await botApi(method, fields); } catch { /* Auth state is authoritative; Telegram UI cleanup may be retried by the user. */ } }
+async function bestEffort(method: 'answerCallbackQuery' | 'editMessageText' | 'editMessageCaption', fields: object) { try { await botApi(method, fields); } catch { /* Auth state is authoritative; Telegram UI cleanup may be retried by the user. */ } }
 
-async function welcomePhoto(userId: string) {
+type LoginPhoto = 'login-welcome.jpg' | 'login-verify.jpg' | 'login-success.jpg';
+async function photoMessage(userId: string, asset: LoginPhoto, caption: string, replyMarkup?: object, signal?: AbortSignal) {
   try {
-    const photo = await readFile(join(process.cwd(), 'public/assets/telegram/login-welcome.jpg'));
-    if (photo.length < 100 || photo.length > 2 * 1024 * 1024) return false;
+    if (!telegramLoginCaptionFits(caption)) return;
+    const photo = await readFile(join(process.cwd(), 'public/assets/telegram', asset));
+    if (photo.length < 100 || photo.length > 2 * 1024 * 1024) return;
     const fields = new FormData();
     fields.set('chat_id', userId);
-    fields.set('photo', new Blob([new Uint8Array(photo)], { type: 'image/jpeg' }), 'digimium-welcome.jpg');
-    fields.set('caption', '👋 Digimium မှ ကြိုဆိုပါတယ်\nDigital. Premium. Make Simple.');
+    fields.set('photo', new Blob([new Uint8Array(photo)], { type: 'image/jpeg' }), 'digimium-' + asset);
+    fields.set('caption', caption);
+    if (asset !== 'login-welcome.jpg') fields.set('caption_entities', JSON.stringify(telegramLoginTitleEntities(caption)));
+    if (replyMarkup) fields.set('reply_markup', JSON.stringify(replyMarkup));
     fields.set('protect_content', 'true');
-    return validSentMessage(await botApi('sendPhoto', fields), userId);
-  } catch { return false; /* A decorative image must not block sign-in. */ }
+    const sent = await botApi('sendPhoto', fields, signal);
+    return validSentMessage(sent, userId) ? sent : undefined;
+  } catch { return; /* A decorative image must not block sign-in. */ }
+}
+async function welcomePhoto(userId: string) {
+  await photoMessage(userId, 'login-welcome.jpg', '👋 Digimium မှ ကြိုဆိုပါတယ်\nDigital. Premium. Make Simple.');
+}
+
+async function editLoginPrompt(flow: Flow, userId: string, text: string, replyMarkup: object) {
+  if (!flow.messageId) return;
+  // Only encrypted challenge metadata selects the edit method. Older challenges
+  // omitted messageKind and remain editable as text during a rolling deployment.
+  if (flow.messageKind === 'photo') {
+    if (!telegramLoginCaptionFits(text)) {
+      await bestEffort('editMessageCaption', { chat_id: userId, message_id: flow.messageId,
+        caption: text.split('\n')[0], reply_markup: { inline_keyboard: [] } });
+      try { await botApi('sendMessage', { chat_id: userId, text, entities: telegramLoginTitleEntities(text), reply_markup: replyMarkup,
+        protect_content: true, link_preview_options: { is_disabled: true } }); } catch { /* Full details are best effort. */ }
+      return;
+    }
+    await bestEffort('editMessageCaption', { chat_id: userId, message_id: flow.messageId, caption: text,
+      caption_entities: telegramLoginTitleEntities(text), reply_markup: replyMarkup });
+  } else await bestEffort('editMessageText', { chat_id: userId, message_id: flow.messageId, text,
+    entities: telegramLoginTitleEntities(text), reply_markup: replyMarkup, link_preview_options: { is_disabled: true } });
 }
 
 async function completedNotice(flow: Flow) {
@@ -213,6 +239,14 @@ async function completedNotice(flow: Flow) {
   try {
     const text = telegramLoginComplete({ ...flow, origin: config().origin });
     const entities = telegramLoginTitleEntities(text);
+    const photo = await photoMessage(userId, 'login-success.jpg', text, undefined,
+      AbortSignal.any([signal, AbortSignal.timeout(1200)]));
+    if (photo) {
+      await botApi('editMessageCaption', { chat_id: userId, message_id: photo.message_id, caption: text, caption_entities: entities,
+        reply_markup: { inline_keyboard: mainButtons(userId, photo.message_id) } }, signal);
+      return;
+    }
+    signal.throwIfAborted();
     const sent = await botApi('sendMessage', { chat_id: userId, text, entities, protect_content: true, link_preview_options: { is_disabled: true } }, signal);
     if (!validSentMessage(sent, userId)) return;
     await botApi('editMessageText', { chat_id: userId, message_id: sent.message_id, text, entities,
@@ -273,12 +307,12 @@ function validSentMessage(message: TelegramMessage | undefined, userId: string):
   return !!message && telegramId(message.message_id) && message.chat?.type === 'private' && String(message.chat.id) === userId &&
     String(message.from?.id) === config().botId && message.from?.is_bot === true;
 }
-async function sendBotPage(userId: string, view: NavigationView) {
+async function sendBotPage(userId: string, view: NavigationView, cursor?: string) {
   // Bind buttons to the actual Telegram message ID. The initial text contains no reusable navigation capability.
-  const initial = view === 'm' ? undefined : await getTelegramHistory(userId, { view: view === 'h' ? 'history' : 'plans' });
+  const initial = view === 'm' ? undefined : await getTelegramHistory(userId, { view: view === 'h' ? 'history' : 'plans', ...(cursor ? { cursor } : {}) });
   const sent = await botApi('sendMessage', { chat_id: userId, text: initial?.text ?? menuText, protect_content: true, link_preview_options: { is_disabled: true } });
   if (!validSentMessage(sent, userId)) throw new Error('Invalid bot response.');
-  const page = await botPage(userId, sent.message_id, view, undefined, initial);
+  const page = await botPage(userId, sent.message_id, view, cursor, initial);
   await bestEffort('editMessageText', { chat_id: userId, message_id: sent.message_id, ...page, link_preview_options: { is_disabled: true } });
 }
 async function navigationFromBot(query: TelegramCallback, identity: TelegramIdentity, message: TelegramMessage) {
@@ -287,6 +321,12 @@ async function navigationFromBot(query: TelegramCallback, identity: TelegramIden
   if (!selected) return;
   if (!await claim('navigation:all', 3600) || !await claim('navigation:user:' + identity.id, 120)) return;
   await bestEffort('answerCallbackQuery', { callback_query_id: query.id, ...(selected.expired ? { text: 'Menu အသစ် ပြန်ဖွင့်ပေးလိုက်ပါတယ်။' } : {}) });
+  // Success photos have a 1024-unit caption limit. Open their authenticated menu
+  // actions in a new text panel so long history pages keep full details/pagination.
+  if (Array.isArray(message.photo) && message.photo.length > 0) {
+    await sendBotPage(identity.id, selected.expired ? 'm' : selected.view, selected.expired ? undefined : selected.cursor);
+    return;
+  }
   const page = await botPage(identity.id, message.message_id, selected.expired ? 'm' : selected.view, selected.expired ? undefined : selected.cursor);
   await bestEffort('editMessageText', { chat_id: identity.id, message_id: message.message_id, ...page, link_preview_options: { is_disabled: true } });
 }
@@ -319,21 +359,19 @@ async function startFromBot(message: TelegramMessage) {
   if (!flow) return;
   let sent: TelegramMessage | undefined;
   try {
-    if (!flow.welcomed && await welcomePhoto(identity.id)) {
-      flow.welcomed = true;
-      const [kept] = await getPool().execute<ResultSetHeader>("UPDATE digimium_telegram_auth_challenges SET payload = ? WHERE id_hash = ? AND callback_hash = ? AND stage = 'sending' AND expires_at > UTC_TIMESTAMP()", [pack(flow), idHash, hash(callback)]);
-      if (!kept.affectedRows) return;
-    }
     const buttons = flow.options.map((option, index) => ({ text: option, callback_data: `tg1.${callback}.${index}` }));
     const text = telegramLoginRequest({ ...flow, origin: config().origin });
-    sent = await botApi('sendMessage', { chat_id: identity.id, text, entities: telegramLoginTitleEntities(text), reply_markup: { inline_keyboard: [buttons.slice(0, 2), buttons.slice(2), [{ text: '❌ ကျွန်ုပ် မဟုတ်ပါ / Reject', callback_data: `tg1.${callback}.4` }]] }, protect_content: true, link_preview_options: { is_disabled: true } });
+    const replyMarkup = { inline_keyboard: [buttons.slice(0, 2), buttons.slice(2), [{ text: '❌ ကျွန်ုပ် မဟုတ်ပါ / Reject', callback_data: `tg1.${callback}.4` }]] };
+    sent = await photoMessage(identity.id, 'login-verify.jpg', text, replyMarkup);
+    flow.messageKind = sent ? 'photo' : 'text';
+    if (!sent) sent = await botApi('sendMessage', { chat_id: identity.id, text, entities: telegramLoginTitleEntities(text), reply_markup: replyMarkup, protect_content: true, link_preview_options: { is_disabled: true } });
     if (!sent || !telegramId(sent.message_id) || sent.chat?.type !== 'private' || String(sent.chat.id) !== identity.id || String(sent.from?.id) !== config().botId || sent.from?.is_bot !== true) throw new Error('Invalid bot response.');
     flow.messageId = sent.message_id;
     const [saved] = await getPool().execute<ResultSetHeader>("UPDATE digimium_telegram_auth_challenges SET stage = 'sent', payload = ? WHERE id_hash = ? AND callback_hash = ? AND stage = 'sending' AND expires_at > UTC_TIMESTAMP()", [pack(flow), idHash, hash(callback)]);
-    if (!saved.affectedRows) await bestEffort('editMessageText', { chat_id: identity.id, message_id: sent.message_id, text: 'ဒီ login request ကို ပယ်ဖျက်ထားပါတယ် သို့မဟုတ် သက်တမ်းကုန်သွားပါပြီ။', reply_markup: { inline_keyboard: [] } });
+    if (!saved.affectedRows) await editLoginPrompt(flow, identity.id, 'ဒီ login request ကို ပယ်ဖျက်ထားပါတယ် သို့မဟုတ် သက်တမ်းကုန်သွားပါပြီ။', { inline_keyboard: [] });
   } catch (error) {
     // A lost send acknowledgement must never leave an approveable but unbound keyboard.
-    const retry: Flow = { ...flow }; delete retry.identity; delete retry.messageId;
+    const retry: Flow = { ...flow }; delete retry.identity; delete retry.messageId; delete retry.messageKind;
     await getPool().execute("UPDATE digimium_telegram_auth_challenges SET stage = 'waiting', callback_hash = NULL, payload = ? WHERE id_hash = ? AND callback_hash = ? AND stage = 'sending'", [pack(retry), idHash, hash(callback)]);
     throw error;
   }
@@ -344,7 +382,7 @@ async function callbackFromBot(query: TelegramCallback) {
   if (query.data.startsWith('th1.')) { await navigationFromBot(query, identity, message); return; }
   const parsed = /^tg1\.([A-Za-z0-9_-]{43})\.([0-4])$/.exec(query.data); if (!parsed) return;
   if (!await claim('callback:all', 1800) || !await claim('callback:user:' + identity.id, 80)) return;
-  const connection = await getPool().getConnection(); let state: 'approved' | 'rejected' | 'expired' = 'expired'; let approvedFlow: Flow | undefined;
+  const connection = await getPool().getConnection(); let state: 'approved' | 'rejected' | 'expired' = 'expired'; let resolvedFlow: Flow | undefined;
   try {
     await connection.beginTransaction();
     const [rows] = await connection.execute<Challenge[]>('SELECT id_hash, browser_hash, stage, payload FROM digimium_telegram_auth_challenges WHERE callback_hash = ? AND expires_at > UTC_TIMESTAMP() FOR UPDATE', [hash(parsed[1])]);
@@ -352,7 +390,7 @@ async function callbackFromBot(query: TelegramCallback) {
       const flow = unpack(rows[0]);
       if (flow.identity?.id === identity.id && flow.messageId === message.message_id) {
         state = Number(parsed[2]) < 4 && flow.options[Number(parsed[2])] === flow.code ? 'approved' : 'rejected';
-        if (state === 'approved') approvedFlow = flow;
+        resolvedFlow = flow;
         await connection.execute('UPDATE digimium_telegram_auth_challenges SET stage = ? WHERE id_hash = ? AND stage = ?', [state, rows[0].id_hash, 'sent']);
       }
     }
@@ -361,12 +399,10 @@ async function callbackFromBot(query: TelegramCallback) {
   const notice = state === 'approved' ? 'အတည်ပြုပြီးပါပြီ။ Website ကို ပြန်သွားပါ။' : state === 'rejected' ? 'အကောင့်ဝင်ရန် request ကို ပယ်ဖျက်လိုက်ပါပြီ။' : 'ဒီ request ကို အသုံးပြုပြီးပါပြီ သို့မဟုတ် သက်တမ်းကုန်သွားပါပြီ။';
   await bestEffort('answerCallbackQuery', { callback_query_id: query.id, text: notice, show_alert: state !== 'approved' });
   // Do not edit a valid keyboard when a forged/mismatching callback points at it.
-  if (state !== 'expired') {
-    const text = approvedFlow ? telegramLoginApproved({ ...approvedFlow, origin: config().origin }) : '❌ ' + notice;
-    await bestEffort('editMessageText', { chat_id: identity.id, message_id: message.message_id, text,
-      ...(approvedFlow ? { entities: telegramLoginTitleEntities(text) } : {}),
-      reply_markup: { inline_keyboard: state === 'approved' ? [[{ text: '🌐 Website သို့ ပြန်သွားမယ်', url: config().origin }]] : [] },
-      link_preview_options: { is_disabled: true } });
+  if (state !== 'expired' && resolvedFlow) {
+    const text = state === 'approved' ? telegramLoginApproved({ ...resolvedFlow, origin: config().origin }) : '❌ ' + notice;
+    await editLoginPrompt(resolvedFlow, identity.id, text,
+      { inline_keyboard: state === 'approved' ? [[{ text: '🌐 Website သို့ ပြန်သွားမယ်', url: config().origin }]] : [] });
   }
 }
 export async function telegramWebhook(request: Request) {

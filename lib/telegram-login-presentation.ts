@@ -5,6 +5,12 @@ type LoginNotice = {
   location?: string;
 };
 
+export const TELEGRAM_LOGIN_CAPTION_LIMIT = 1024;
+export function telegramLoginCaptionFits(text: string) {
+  // Telegram entity offsets and our safe caption limit both use UTF-16 code units.
+  return text.length <= TELEGRAM_LOGIN_CAPTION_LIMIT;
+}
+
 export function telegramLoginTitleEntities(text: string) {
   const newline = text.indexOf('\n');
   return [{ type: 'bold' as const, offset: 0, length: newline < 0 ? text.length : newline }];
