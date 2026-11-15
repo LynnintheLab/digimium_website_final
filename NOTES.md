@@ -220,7 +220,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Finish and record the separate local browser review for order notes, Rejected history, light/dark appearance and notification bell/message/read/pagination behavior, then stop the owned UI/database fixtures and remove their synthetic runtime configuration. Commit/push the reviewed combined source, deploy to testing, verify it read-only, and promote to production only after testing is confirmed. This combined change is not yet live; preserve live customers/orders, Kosai Namti, campaign settings and provider configuration.
+- The combined order-note, Rejected-history, light/dark and notification release is live and verified. Local fixtures/runtime secrets are cleaned up; the hosted five-minute job has emitted its success output. Continue normal customer/order administration and monitor job/outbox failures without generating fake live orders. Preserve Kosai Namti, campaign settings and provider configuration.
 
 - The production owner chat and protected five-minute Node.js notification job are configured. Keep testing owner-chat delivery disabled, preserve the existing bot webhook, and investigate failed outbox attempts without creating fake live orders/accounts. Follow `docs/NOTIFICATIONS.md`; keep real IDs/secrets out of Git, URLs and cron commands.
 
