@@ -11,7 +11,7 @@
     "build": "next build --webpack && node scripts/package-hostinger.mjs",
     "start": "node .next/standalone/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/cart-order.test.mjs tests/shop-language.test.mjs tests/showcase.test.mjs tests/subscription-term.test.mjs tests/configure-telegram.test.mjs tests/telegram-history.test.mjs tests/order-receipt.test.mjs tests/telegram-login-presentation.test.mjs tests/login-location.test.mjs tests/giveaway.test.mjs tests/validation-security.test.mjs tests/preview-binding-security.test.mjs",
+    "test": "node --test tests/cart-order.test.mjs tests/shop-language.test.mjs tests/showcase.test.mjs tests/subscription-term.test.mjs tests/configure-telegram.test.mjs tests/telegram-history.test.mjs tests/order-receipt.test.mjs tests/telegram-login-presentation.test.mjs tests/login-location.test.mjs tests/giveaway.test.mjs tests/validation-security.test.mjs tests/preview-binding-security.test.mjs tests/toolchain-compatibility.test.mjs",
     "test:integration": "node tests/catalog.integration.mjs && node tests/logo-plans.integration.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
@@ -66,7 +66,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.34",
-    "drizzle-kit": "0.31.10",
+    "drizzle-kit": "0.31.11",
     "eslint": "9.39.4",
     "eslint-config-next": "16.4.6",
     "json-rpc-2.0": "1.7.1",
@@ -84,6 +84,15 @@
     "miniflare": {
       "sharp": "0.35.5",
       "undici": "7.30.1"
+    },
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    },
+    "satori": {
+      "fflate": "0.7.5"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "11.0.1"
     }
   },
   "description": "Bilingual digital subscription storefront, customer accounts and order administration."

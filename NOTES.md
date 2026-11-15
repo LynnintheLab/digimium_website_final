@@ -2,6 +2,8 @@
 
 ## Current status
 
+All 15 remaining Moderate audit entries are patched locally through scoped core-utils/esbuild 0.25.12, Satori/fflate 0.7.5 and Estree/minimatch 11.0.1 overrides; Drizzle Kit is 0.31.11. Full and production-only audits are zero. Clean install, 82 unit tests, standalone build/typecheck, four compatibility cases, Drizzle generate/check, all six fresh Hostinger security suites, separate Sites integrations, twelve preview probes and Miniflare/Undici/TLS checks passed. Focused lint passes; full lint retains a reproduced baseline logo-editor naming error plus 17 warnings. Testing/production rollout and live checks are pending. See `docs/SECURITY-MODERATE-FOLLOWUP-2026-11-15.md`; do not confuse the withdrawn Deno/esbuild hosting-scanner advisory with an active npm finding.
+
 Build/preview High findings are fixed and runtime `830373c` is live on testing and production (Hostinger Completed/Current): full audit is 0 Critical / 0 High / 15 Moderate / 0 Low; production-only audit remains zero. Narrow updates use Vinext 1.0.0, Vite 8.1.6, RSC plugin 0.5.34, Cloudflare Vite plugin 1.49.0, Wrangler 4.116.0 and matching Workers Types 5.20260730.1, retaining React 19.2.9 and Miniflare 4. The scoped Miniflare Undici 7.30.1 override closes current 7.x advisories; retain existing Sharp override. Compatible transitive patches fix brace-expansion, Browserslist and JS-YAML. A clean install, 78 unit tests, standalone build/typecheck, focused lint and all six disposable Hostinger security suites passed. Separate Sites build/catalog/logo integrations and 12 preview security checks passed; actual Miniflare dispatch/upstream and invalid-certificate rejection through the overridden Undici passed. All 14 bounded read-only live checks per host passed; Chrome verified plans/account controls without captured browser errors. Existing production English/session/cart were preserved. No real orders, provider messages, giveaway launch/entries or Sites publication are part of this change.
 
 Security follow-up is live on testing and production at runtime source `1a25b6b` (Hostinger Completed/Current): pin Zod 4.6.7, migrate preview record schemas, and patch React/DOM/RSC together to 19.2.9 after the full audit found a dev-declared but packaged critical RSC dependency. Runtime-dependency audit is zero; full build/preview audit remains 26 affected dependency entries (0 critical, 8 high, 17 moderate, 1 low), requiring separate toolchain cleanup. Keep these scopes distinct. Added migration/strict-input regression coverage and retained pre-schema request limits. A reproduced MariaDB ER_CHECKREAD concurrent Telegram-link failure now retries the whole transaction within the existing three-attempt limit; identity ownership and exact-session checks are unchanged. Final standalone and legacy Sites builds, typecheck, focused lint and 70 unit tests passed. All six fresh disposable security suites passed: catalog/admin, commerce, Telegram/link/history, giveaway, Google and direct identities. All 14 bounded read-only live checks per host passed, including private APIs/headers and denied config/source files. Chrome verified account and plan dialogs without browser errors; original live English/session/cart were preserved. No real orders, giveaway launch/entries or Telegram app/links are used.
@@ -63,6 +65,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Prepared and locally verified the remaining Moderate dependency fixes, with no application runtime behavior changes. Added `tests/toolchain-compatibility.test.mjs`; all 82 tests pass. Updated audit/security evidence and the Moderate follow-up report. Rollout is pending.
 
 Deployed and verified runtime `830373c` on both Hostinger environments. All eight High dependency entries are cleared; 78 unit tests, six Hostinger security suites, Sites integrations, twelve preview checks and actual Miniflare/Undici/TLS checks passed. Full audit remains 15 Moderate entries, with a zero-exit High/Critical gate and zero production-only findings. All owned local fixture processes stopped. See `docs/SECURITY-TOOLCHAIN-FOLLOWUP-2026-11-15.md` and ignored `outputs/security/` evidence. Final follow-up is documentation only.
 
@@ -184,9 +188,9 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- The requested eight High fixes and security retest are complete and live. Keep 15 remaining Moderate findings open; the full graph is not clean. Review the scoped Miniflare Undici override when upgrading its parent runtime.
+- Finish testing → production rollout of the Moderate fixes and bounded live verification. The new full npm graph is clean; retain compatibility coverage and review scoped overrides when their parent packages update.
 
-- Zod/React follow-up is complete and live. The earlier eight High entries are closed by the newer toolchain follow-up; keep its 15 remaining Moderate entries open. Production-only audit is zero, but the whole dependency graph is not clean.
+- Previous Zod/React and eight High fixes remain in place. The newer Moderate follow-up supersedes their earlier remaining-finding counts; keep the testing/production status in that report authoritative.
 
 - Demo design is complete and live. The owner can set real dates and Launch from Admin → Giveaways when ready; current live status remains draft.
 

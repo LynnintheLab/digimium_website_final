@@ -2,6 +2,8 @@
 
 ## Result and scope
 
+Historical snapshot: the 15 Moderate entries below are cleared by the newer [Moderate follow-up](SECURITY-MODERATE-FOLLOWUP-2026-11-15.md). Its rollout status and audit are authoritative for the latest change.
+
 The deployed lockfile clears all **eight High** dependency entries from the previous [Zod follow-up](SECURITY-ZOD-FOLLOWUP-2026-11-15.md). The full audit reports **0 Critical, 0 High, 15 Moderate and 0 Low**; it is **not completely clean**. Runtime source `830373c` reached Hostinger Completed/Current on testing and production. Final local and hosted verification passed.
 
 ## Changes
