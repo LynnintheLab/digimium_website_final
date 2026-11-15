@@ -4,7 +4,7 @@
 
 Review of the account/history changes, optional purchased-account fields, saved-receipt recovery, verified Telegram linking and giveaway. This is a focused source review, dependency audit and bounded application verification, not a penetration test or a guarantee that the entire hosting environment is secure.
 
-At this report's initial write, the final Next.js 16.4.6 production build and TypeScript check passed, all **64 unit tests** passed, and focused lint reported **0 errors**. Fresh disposable-database commerce, Telegram/link/history, giveaway, Google protocol and direct Telegram identity suites passed. Browser fixtures also verified masked fields, separate documents, link completion through a mocked webhook, entry and private admin review. Staging/live verification remains pending until the rollout record below is filled.
+At this report's initial write, the final Next.js 16.4.6 production build and TypeScript check passed, all **64 unit tests** passed, and focused lint reported **0 errors**. Fresh disposable-database commerce, Telegram/link/history, giveaway, Google protocol and direct Telegram identity suites passed. Browser fixtures also verified masked fields, separate documents, link completion through a mocked webhook, entry and private admin review. Implementation `2a28a66` plus header hardening `363041c` reached Hostinger Completed/Current on testing and production. Read-only hosted checks below passed; the live giveaway remains an unlaunched draft.
 
 ## Reviewed application controls
 
@@ -23,7 +23,7 @@ Relevant implementation: [orders](../hostinger/orders.ts), [customer orders API]
 
 ## Private-page response hardening
 
-The first staging check found only the CDN’s `upgrade-insecure-requests` policy; frame, content-type, referrer and HSTS headers were absent. Added route-scoped Next headers for Account, History, Admin and API responses: CSP `frame-ancestors none` / `object-src none` / `base-uri self`, X-Frame-Options DENY, nosniff, no-referrer, and HSTS max-age 31536000 without a subdomain/preload directive. The final build and a local packaged `/account` GET verified all five headers. Hosted propagation is checked below.
+The first staging check found only the CDN’s `upgrade-insecure-requests` policy; frame, content-type, referrer and HSTS headers were absent. Added route-scoped Next headers for Account, History, Admin and API responses: CSP `frame-ancestors none` / `object-src none` / `base-uri self`, X-Frame-Options DENY, nosniff, no-referrer, and HSTS max-age 31536000 without a subdomain/preload directive. The final build and a local packaged `/account` GET verified all five headers. All five headers propagated to both hosted private pages. The CDN additionally appends its own upgrade-insecure-requests policy; the frame/base/object directives remain present.
 
 ## Dependency audit and fixes
 
@@ -52,11 +52,16 @@ Local ignored evidence: [before audit](../outputs/security/runtime-audit-before-
 | Disposable commerce HTTP suite, including field encryption/isolation and pre-Zod limits | Passed |
 | Disposable Telegram/login/link suite | Passed |
 | Disposable giveaway HTTP suite | Passed |
-| Staging release source / deployment | Pending |
-| Production release source / deployment | Pending |
-| Live read-only / rejection checks below | Pending |
+| Staging release source / deployment | `363041c` — Hostinger Completed/Current |
+| Production release source / deployment | `363041c` — Hostinger Completed/Current |
+| Live read-only checks below | Passed: 10 GET checks per environment; no live mutation tests |
+| Additional Google protocol and direct identity regression suites | Passed on disposable local databases |
 
-After deployment, verify a small known set of live endpoints: valid HTTPS/TLS; signed-out customer/admin private endpoints reject access with 401; customer/private responses retain appropriate cache headers; observed session cookies retain Secure, HttpOnly, same-site and host-only protections; and robots/indexing behavior matches the intended public/account/admin surfaces. Live checks are read-only; CSRF and mutation rejection were tested only against disposable local databases. Submit no live order, entry, provider login, Telegram launch or account-link completion. Record actual statuses and headers rather than assuming the source configuration reached production.
+Actual hosted results (signed-out HTTP clients, no cookies): `/`, `/api/catalog`, `/api/giveaway`, `/api/customer/session`, `/account` and `/order-history` returned 200. Customer history and admin commerce/giveaway/catalog APIs returned 401 with no-store caching. Both catalogs retained 54 products. Public giveaway data stayed draft, preserved prize allocation 2/3/1, denied entry eligibility and exposed neither participants nor counts. HTTPS certificate validation used the standard trusted-certificate checks.
+
+Account and History responses on both hosts contain frame-ancestors none, X-Frame-Options DENY, nosniff, no-referrer, HSTS max-age 31536000, private/no-store cache headers and noindex metadata, with no storefront analytics scripts. A narrow browser cookie-metadata check verified the existing production `__Host-digimium_customer` cookie is Secure, HttpOnly, SameSite=Lax, host-only and Path=/. Cookie values were not printed or saved. Existing owner sign-in, language and cart were preserved. Google remained enabled on both sites and Telegram on production only.
+
+Evidence is local and ignored: [staging GET checks](../outputs/security/staging-readonly-2026-11-15.json), [production GET checks](../outputs/security/production-readonly-2026-11-15.json), [provider capabilities](../outputs/security/provider-capabilities-2026-11-15.json). CSRF, ownership failures, concurrent linking, revocation, secret projections, encrypted storage and giveaway write/window rejection were tested only against disposable local databases. No live order, entry, provider login, Telegram launch or account-link completion was performed.
 
 ## Limits and follow-up
 
