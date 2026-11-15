@@ -1,5 +1,7 @@
 # Zod security follow-up — 15 November 2026
 
+> Later toolchain follow-up: the eight High entries below are cleared in the candidate dependency graph. See [the build/preview security report](SECURITY-TOOLCHAIN-FOLLOWUP-2026-11-15.md) for current counts and deployment status; this report retains the earlier release history.
+
 ## Result and scope
 
 The Zod finding is fixed and runtime source `1a25b6b` reached Hostinger Completed/Current on testing and production. Final local and hosted verification passed. This is a focused dependency and application regression check, not a penetration test or a clean bill of health for every deployment dependency.

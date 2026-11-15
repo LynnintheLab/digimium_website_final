@@ -2,6 +2,8 @@
 
 ## Current status
 
+Build/preview High findings are fixed in the candidate dependency graph: full audit is 0 Critical / 0 High / 15 Moderate / 0 Low; production-only audit remains zero. Narrow updates use Vinext 1.0.0, Vite 8.1.6, RSC plugin 0.5.34, Cloudflare Vite plugin 1.49.0, Wrangler 4.116.0 and matching Workers Types 5.20260730.1, retaining React 19.2.9 and Miniflare 4. The scoped Miniflare Undici 7.30.1 override closes current 7.x advisories; retain existing Sharp override. Compatible transitive patches fix brace-expansion, Browserslist and JS-YAML. A clean install, 78 unit tests, standalone build/typecheck, focused lint and all six disposable Hostinger security suites passed. Separate Sites build/catalog/logo integrations and 12 preview security checks passed; actual Miniflare dispatch/upstream and invalid-certificate rejection through the overridden Undici passed. Hosted rollout is next. No real orders, provider messages, giveaway launch/entries or Sites publication are part of this change.
+
 Security follow-up is live on testing and production at runtime source `1a25b6b` (Hostinger Completed/Current): pin Zod 4.6.7, migrate preview record schemas, and patch React/DOM/RSC together to 19.2.9 after the full audit found a dev-declared but packaged critical RSC dependency. Runtime-dependency audit is zero; full build/preview audit remains 26 affected dependency entries (0 critical, 8 high, 17 moderate, 1 low), requiring separate toolchain cleanup. Keep these scopes distinct. Added migration/strict-input regression coverage and retained pre-schema request limits. A reproduced MariaDB ER_CHECKREAD concurrent Telegram-link failure now retries the whole transaction within the existing three-attempt limit; identity ownership and exact-session checks are unchanged. Final standalone and legacy Sites builds, typecheck, focused lint and 70 unit tests passed. All six fresh disposable security suites passed: catalog/admin, commerce, Telegram/link/history, giveaway, Google and direct identities. All 14 bounded read-only live checks per host passed, including private APIs/headers and denied config/source files. Chrome verified account and plan dialogs without browser errors; original live English/session/cart were preserved. No real orders, giveaway launch/entries or Telegram app/links are used.
 
 Giveaway demo is live on testing and production at runtime source `f600e6c` (Hostinger Completed/Current). Its distinct pale-gold/gold surface and navy text separate it from blue service offers; the larger navy/gold banner retains six prize slots on phones. The first carousel card shows Demo/Coming soon, a large total, service logos, exact terms and 2/3/1 allocations, with a 14-second reading time. Myanmar prize numerals are consistent across server/browser. Final Node 24 build/typecheck, 64 unit tests and focused lint passed (local-image warnings only). Chrome checked 320/390/1440px, both languages, loaded logos, no horizontal overflow, details navigation and unchanged blue offers; review confirmed strong navy/gold contrast. Live read-only checks passed on both hosts, including draft status, exact prizes and private API/header isolation. No live campaign dates, launch or entries changed.
@@ -61,6 +63,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Implemented the eight High dependency fixes and eight actual preview-binding security tests. See `docs/SECURITY-TOOLCHAIN-FOLLOWUP-2026-11-15.md`; ignored audit and suite evidence is under `outputs/security/`. Hostinger and Sites verification use separate isolated snapshots and fake local fixtures.
 
 Deployed and verified runtime `1a25b6b` on both hosts. Upgraded Zod and matching React patches; strict validation tests and all six security suites pass. The local Telegram race now returns 200/409 with exactly one owner. No provider/account/order/giveaway mutations occurred on live, and all owned local fixture processes are stopped. See `docs/SECURITY-ZOD-FOLLOWUP-2026-11-15.md`; runtime/full audit and sanitized suite evidence are ignored under `outputs/security/`. Final follow-up is documentation only.
 
@@ -180,7 +184,9 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Zod/React follow-up is complete and live. Keep the remaining full build/preview toolchain findings open: 26 entries, including eight high; plan a separately tested toolchain cleanup. Production-only audit is zero, but the whole dependency graph is not clean.
+- Deploy the verified High-finding fixes to testing, then promote and verify production. Keep 15 remaining Moderate findings open; the full graph is not clean.
+
+- Zod/React follow-up is complete and live. The earlier eight High entries are closed by the newer toolchain follow-up; keep its 15 remaining Moderate entries open. Production-only audit is zero, but the whole dependency graph is not clean.
 
 - Demo design is complete and live. The owner can set real dates and Launch from Admin → Giveaways when ready; current live status remains draft.
 
