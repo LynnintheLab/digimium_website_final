@@ -1,6 +1,6 @@
 # Order notes, rejected orders and appearance QA
 
-Date: 15 November 2026. Status: runtime `42039be` is live on testing and production; private scheduler activation remains awaiting the owner’s explicit confirmation.
+Date: 15 November 2026. Status: runtime `42039be` is live on testing and production; the owner-approved private five-minute scheduler is configured.
 
 ## Resulting behavior
 
@@ -87,3 +87,7 @@ Fresh full and production-only npm registry audits each report zero findings acr
 Runtime `42039be` reached testing and production Completed/Current. Both hosts pass bounded public catalog/health, admin redirect, unauthenticated customer/admin notification isolation and unauthorized scheduler checks; private responses remain no-store and giveaway dates/status/prizes match the pre-release baseline. A fixed 54-product assertion was stale for production: its published catalog is 51 products at revision 27, updated before this release. The public API filters unpublished products; verification records that observed count instead of resetting the owner’s catalog. Testing remains 54 published at revision 3.
 
 Live Chrome confirms the new theme and notification controls, existing English/session/cart2 state and no captured application errors. Collection was temporarily blocked for that public-page inspection, then the tab navigated to static content and the block was cleared before closure. Owned local fixture servers/databases/fake accounts/runtime secrets were cleaned up; the original unrelated review server remains unchanged. No live customer/order edits, test purchases, provider linking, giveaway entries or Telegram app launches were performed.
+
+## Scheduler entry regression
+
+The hosted scheduler’s empty output prompted an exact symlink-path reproduction: the prior direct-entry guard exited successfully without running. The corrected canonical-path guard passes the regression through both source and packaged CLI, sends exactly one header-authenticated request and emits the fixed success line. The follow-up gates pass strict lint, 99 units, standalone build and typecheck. The six backend security suites remain valid because no backend/API behavior changed.

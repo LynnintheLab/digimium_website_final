@@ -1,4 +1,5 @@
-import { pathToFileURL } from 'node:url';
+import { realpath } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 /** hPanel's Node.js cron supplies its existing private runtime env file. */
 export async function runNotificationMaintenance(env = process.env) {
@@ -16,7 +17,10 @@ export async function runNotificationMaintenance(env = process.env) {
   if (!response.ok) throw new Error('Notification job returned HTTP ' + response.status + '.');
 }
 
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+// Hostinger launches through hbuilds/current, a symlink to the active version.
+// Node resolves import.meta.url while argv retains that symlinked entry path.
+const directEntry = process.argv[1] && await realpath(process.argv[1]).catch(() => null) === await realpath(fileURLToPath(import.meta.url));
+if (directEntry) {
   try { await runNotificationMaintenance(); console.log('Notification maintenance completed.'); }
   catch { console.error('Notification maintenance failed. Check the private runtime configuration and job status.'); process.exitCode = 1; }
 }

@@ -1,6 +1,6 @@
 # Website notifications and owner alerts
 
-Status: runtime `42039be` is live on testing and production with the final 98-test automated round passing. Local interface acceptance and live read-only controls/route checks are complete; the approved owner-chat recipient is configured. Private scheduler-key/job activation awaits the owner’s explicit confirmation. No live order/account was created to send a test Telegram alert; actual provider delivery is not claimed from the read-only hosted checks.
+Status: runtime `42039be` is live on testing and production with the final 99-test automated round passing. Local interface acceptance and live read-only controls/route checks are complete; the approved owner-chat recipient is configured. The owner approved private scheduler activation; the protected five-minute production job is configured. No live order/account was created to send a test Telegram alert; actual provider delivery is not claimed from the read-only hosted checks.
 
 ## What each recipient receives
 
@@ -71,7 +71,7 @@ Set the header through the scheduler's private secret/header configuration. **Ne
 
 The endpoint accepts only POST, checks the secret in `Authorization: Bearer …` with a constant-time comparison, and uses no-store responses. An unset/incorrect secret gives 401; an invalid browser-style/query/body request gives 400. A runner-wide database guard allows at most one start per 30 seconds; another attempt returns 429. A successful response contains aggregate expiry-scan and owner-alert delivery counts. Treat aggregate failures or a queue that stops draining as an operational issue, not proof that an individual customer received anything.
 
-The scheduler is external configuration and is not created or activated merely by deploying this source. No hPanel cron setting has been created for this feature yet. Add its private secret to the application, deploy the packaged runner, configure the five-minute Node.js job, then deliberately verify one bounded job against disposable data before enabling production delivery.
+The scheduler is external configuration and is not created or activated merely by deploying this source. The owner approved creation of the private credential and production job on 15 November 2026. The current production hPanel Node.js cron uses `scripts/run-notifications.mjs` every five minutes with its existing private env-file prefix. Future environments require their own explicit configuration; deploying source alone does not create a job.
 
 ## Owner alert delivery and limits
 
@@ -97,9 +97,9 @@ The owner outbox is not transactionally erased at entity deletion. Before delive
 
 ## Verification before release
 
-Final automated gates pass: strict lint with zero errors/warnings, 98/98 unit tests, standalone build/packaging and typecheck, plus six fresh private suites (commerce, customer administration, Telegram protocol/history, Google, direct Telegram identity and notifications). The scheduler runner's three HTTP-boundary units are included. Integrations used disposable local databases and intercepted providers; no real provider sends or live records were involved. See `ORDER-NOTES-THEME-QA.md` for the separate initial 95-test round and final expanded results.
+Final automated gates pass: strict lint with zero errors/warnings, 99/99 unit tests, standalone build/packaging and typecheck, plus six fresh private suites (commerce, customer administration, Telegram protocol/history, Google, direct Telegram identity and notifications). The scheduler runner's four HTTP/CLI boundary units are included, covering the version-switching directory symlink used by Hostinger. Integrations used disposable local databases and intercepted providers; no real provider sends or live records were involved. See `ORDER-NOTES-THEME-QA.md` for the separate initial 95-test round and final expanded results.
 
-Browser acceptance and live delivery verification remain pending. Check the interface at 320px and desktop widths, both languages/themes, keyboard dismissal/focus, zero/unread badges, mark-one/all, pagination and signed-out gating. Confirm that no new analytics loads on private routes. Keep mutation/delivery verification on fresh disposable data and mocked Telegram unless a real action is separately authorized.
+Local browser acceptance covers 320px/390px/desktop sizing, both appearances/languages, dismissal/focus, zero/unread counts and safe message rendering. Owner message delivery and mark-all-read were verified with disposable accounts. Hosted UI/private-route checks are complete; actual new-order/new-account Telegram delivery was not triggered with fabricated live data. Confirm that no new analytics loads on private routes. Keep mutation/delivery verification on fresh disposable data and mocked Telegram unless a real action is separately authorized.
 
 Deploying this source and configuring a production owner chat/job are separate actions. Never trigger real Telegram delivery, create a real customer/order or delete live records as an incidental verification step.
 
@@ -107,4 +107,8 @@ Deploying this source and configuring a production owner chat/job are separate a
 
 Runtime `42039be` is live on testing and production (Hostinger Completed/Current). The approved personal-chat recipient is applied in production using the existing bot; read-only Bot API verification confirmed the owner chat without sending a test message. No live order/account was created for testing. Website messages, the bell, dark appearance and order decisions were verified with disposable local accounts. The final portal fits 320px/390px viewports before and after scrolling.
 
-Private scheduler-key creation and the prepared five-minute job remain awaiting the owner’s explicit confirmation. Until activation, automatic expiry reminders and periodic outbox retries are not scheduled; post-commit new-order/new-account alerts use the configured bot immediately. The secret stays in a git-ignored private runtime file and must not be committed or put in a URL.
+The owner approved private scheduler-key creation and activation. Production has the five-minute Node.js job (`*/5 * * * *`), in addition to the immediate post-commit new-order/new-account alert attempt. A bounded authorized production invocation returned HTTP 200, scanned one approved order/line with zero invalid rows, found no currently due reminders and reported owner alerts configured with zero sends/failures. No fake live account/order or direct test Telegram message was created. The secret stays in a git-ignored private runtime file and must not be committed or put in a URL.
+
+## Hosted entry-path correction
+
+Hostinger invokes the runner through its version-switching `current` directory. Comparing the literal CLI path to Node’s resolved module URL skipped execution through that symlink. A local reproduction returned exit zero without a request; canonical file-path comparison fixes it. The actual packaged CLI now passes a symlinked-entry test with exactly one authenticated POST and the expected success output. Strict lint, 99 unit tests, build and typecheck pass; the server-side notification implementation is unchanged.
