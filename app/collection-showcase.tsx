@@ -70,7 +70,7 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
   const firstDash = Math.min(Math.max(current - Math.floor(dashCount / 2), 0), count - dashCount);
   const isGiveaway = Boolean(giveaway) && current === 0;
   const slide = slides[(current - (giveaway ? 1 : 0) + slides.length) % slides.length];
-  if (!slide) return giveaway ? <section className="showcase" aria-label="Giveaway">{giveaway}<a className="collection-link" href="#giveaway">{t('Giveaway details', 'Giveaway အသေးစိတ်')}<ArrowRight size={17}/></a></section> : null;
+  if (!slide) return giveaway ? <section className="showcase" data-kind="giveaway" aria-label="Giveaway"><div className="showcase-surface">{giveaway}<a className="collection-link giveaway-promo-link" href="#giveaway">{t('See the prizes', 'ဆုများကြည့်ရန်')}<ArrowRight size={17} aria-hidden/></a></div></section> : null;
   const category = isGiveaway ? undefined : slide.category;
   const collection = category ? collections[category - 1] : undefined;
   const categories = slides.flatMap((item, i) => item.category ? [{ ...collections[item.category - 1], index: i + (giveaway ? 1 : 0) }] : []);

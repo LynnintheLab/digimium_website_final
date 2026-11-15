@@ -21,6 +21,22 @@
 .giveaway-promo-winners { color: #ffd45a; font-size: 16px; font-weight: 700; white-space: nowrap; }
 .giveaway-promo-content small { display: block; margin-top: 10px; color: var(--brand-on-dark-muted); font-size: 12px; line-height: 1.9; }
 .showcase .giveaway-promo-link { color: #fff; font-weight: 600; }
+/* A warm prize surface distinguishes the giveaway from blue service offers. */
+.showcase[data-kind="giveaway"] .showcase-surface { background: linear-gradient(120deg, #fff1a8, #ffd45a); color: var(--brand-navy); }
+.showcase[data-kind="giveaway"] .showcase-top { color: var(--brand-navy); }
+.showcase[data-kind="giveaway"] .showcase-controls button:hover { background: rgb(5 22 80 / 8%); }
+.showcase[data-kind="giveaway"] button:focus-visible { outline-color: var(--brand-navy); }
+.showcase[data-kind="giveaway"] .showcase-pages button { color: var(--brand-navy); }
+.showcase[data-kind="giveaway"] .showcase-backdrop::before { display: none; }
+.showcase[data-kind="giveaway"] .portal { filter: brightness(0); opacity: .08; }
+.showcase[data-kind="giveaway"] .giveaway-promo-status { background: var(--brand-navy); color: #fff; }
+.showcase[data-kind="giveaway"] .giveaway-promo-total > strong,
+.showcase[data-kind="giveaway"] .giveaway-promo-winners { color: var(--brand-navy); }
+.showcase[data-kind="giveaway"] .giveaway-promo-prizes > li { border-color: rgb(5 22 80 / 20%); }
+.showcase[data-kind="giveaway"] .giveaway-promo-plan > span,
+.showcase[data-kind="giveaway"] .giveaway-promo-content small { color: var(--brand-navy); }
+.showcase[data-kind="giveaway"] .giveaway-promo-link { color: #fff1a8; }
+.showcase[data-kind="giveaway"] .giveaway-promo-link:focus-visible { outline: 2px solid #fff1a8; outline-offset: -4px; }
 .giveaway-section { padding-block: 36px; border-block: 1px solid var(--line); scroll-margin-top: 110px; }
 .giveaway-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
 .giveaway-heading h2 { margin-top: 4px; color: var(--brand-navy); font-size: 30px; line-height: 1.6; }
