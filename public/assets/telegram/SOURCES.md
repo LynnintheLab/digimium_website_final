@@ -1,5 +1,7 @@
 # Digimium Telegram welcome artwork
 
+![Generated Digimium welcome card](login-welcome.jpg)
+
 `login-welcome.jpg` is AI-generated with the built-in image generation tool on
 15 November 2026, using the supplied `public/assets/logo.png` as the brand reference.
 The selected image was converted to JPEG for Telegram photo delivery. The
