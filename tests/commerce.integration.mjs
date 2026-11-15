@@ -455,7 +455,107 @@ try {
   assert.ok(!(await json(await get(customerOrders + '?view=history', activeCookie))).orders.some(order => order.id === telegramOrder.id));
   assert.ok(!(await json(await get(customerOrders + '?view=history', bob.cookie))).orders.some(order => order.id === telegramOrder.id));
 
-  console.log('Commerce integration passed: account sessions, Telegram checkout, guest schema migration, isolated guests, exact retries, guest limits, date approvals, password rotation and owner-only history.');
+  // Removal is an explicit admin operation against one exact pending order.
+  // Every fixture below lives in the disposable loopback database guarded above.
+  const removeOrder = (orderId, payload, session = owner, origin = base.origin) =>
+    mutate(adminCommerce + '/' + orderId, 'DELETE', payload, session, origin);
+  const allOrderRows = async () => (await db.query('SELECT * FROM digimium_orders ORDER BY id'))[0];
+  const removableCheckout = await json(await submit({ requestId: randomUUID(), items: [custom] }, activeCookie), 201);
+  const unrelatedCheckout = await json(await submit({ requestId: randomUUID(), items: [custom] }, bob.cookie), 201);
+  const removalOrder = (await json(await get(adminCommerce, owner))).orders.find(order => order.id === removableCheckout.id);
+  const removalBody = { revision: removalOrder.revision, confirmation: removalOrder.id };
+  const removalPath = adminCommerce + '/' + removalOrder.id;
+  const beforeInvalidRemoval = await allOrderRows();
+  for (const session of ['', activeCookie, bob.cookie, guestCookie]) {
+    await json(await removeOrder(removalOrder.id, removalBody, session), 401);
+  }
+  await json(await removeOrder(removalOrder.id, removalBody, owner, 'https://foreign.invalid'), 403);
+  for (const invalid of [null, [], {}, { revision: removalOrder.revision }, { confirmation: removalOrder.id },
+    { ...removalBody, confirmation: randomUUID() }, { ...removalBody, confirmation: removalOrder.id + ' ' },
+    { ...removalBody, confirmation: 12 },
+    { ...removalBody, revision: 0 }, { ...removalBody, revision: -1 }, { ...removalBody, revision: 1.5 },
+    { ...removalBody, revision: '1' }, { ...removalBody, revision: null }, { ...removalBody, revision: 0x100000000 },
+    { ...removalBody, customerId: bob.id }, { ...removalBody, approved: true }]) {
+    await json(await removeOrder(removalOrder.id, invalid), 400);
+  }
+  if (removalOrder.id.toUpperCase() !== removalOrder.id) {
+    await json(await removeOrder(removalOrder.id, { ...removalBody, confirmation: removalOrder.id.toUpperCase() }), 400);
+  }
+  await json(await request(removalPath, { method: 'DELETE', headers: {
+    Origin: base.origin, Cookie: owner, 'Content-Type': 'application/json',
+  }, body: '{' }), 400);
+  await json(await request(removalPath, { method: 'DELETE', headers: {
+    Origin: base.origin, Cookie: owner, 'Content-Type': 'text/plain',
+  }, body: JSON.stringify(removalBody) }), 415);
+  await json(await request(removalPath, { method: 'DELETE', headers: {
+    Origin: base.origin, Cookie: owner, 'Content-Type': 'application/json',
+  } }), 400);
+  await json(await removeOrder(removalOrder.id, { ...removalBody, padding: 'x'.repeat(1024) }), 413);
+  const notFoundRemoval = { error: 'Order not found.' };
+  assert.deepEqual(await json(await removeOrder('not-a-uuid', removalBody), 404), notFoundRemoval);
+  const absentOrderId = randomUUID();
+  assert.deepEqual(await json(await removeOrder(absentOrderId, { revision: 1, confirmation: absentOrderId }), 404), notFoundRemoval);
+  await json(await removeOrder(removalOrder.id, { ...removalBody, revision: removalOrder.revision + 1 }), 409);
+  await json(await removeOrder(id, { revision: edited.revision, confirmation: id }), 409);
+  await json(await removeOrder(guestCheckout.id, { revision: approvedGuest.revision, confirmation: guestCheckout.id }), 409);
+  assert.deepEqual(await allOrderRows(), beforeInvalidRemoval,
+    'Unauthorized, malformed, stale and approved-order removals must not change any order row');
+
+  const beforeCustomerRemoval = await allOrderRows();
+  assert.deepEqual(await json(await removeOrder(removalOrder.id, removalBody)), { removed: true, id: removalOrder.id });
+  assert.deepEqual(await allOrderRows(), beforeCustomerRemoval.filter(row => row.id !== removalOrder.id),
+    'Removing a pending customer order changes only the explicitly selected row');
+  assert.deepEqual(await json(await removeOrder(removalOrder.id, removalBody), 404), notFoundRemoval);
+  const customerHistoryAfterRemoval = (await json(await get(customerOrders + '?view=history', activeCookie))).orders;
+  assert.ok(!customerHistoryAfterRemoval.some(order => order.id === removalOrder.id));
+  assert.deepEqual(customerHistoryAfterRemoval.find(order => order.id === id), edited,
+    'Approved purchases and encrypted delivery belonging to the same customer are preserved');
+  assert.ok((await json(await get(customerOrders, bob.cookie))).orders.some(order => order.id === unrelatedCheckout.id),
+    'Another customer’s pending order remains in that owner’s history');
+  assert.equal((await json(await get(customerSession, activeCookie))).customer.id, alice.id,
+    'Order removal never deletes the customer or revokes their session');
+
+  // Both anonymous and legacy named guest orders have the same pending-only guard.
+  for (const guestId of [directCheckout.id, anotherGuest.id]) {
+    const pendingGuest = (await json(await get(adminCommerce, owner))).orders.find(order => order.id === guestId);
+    assert.equal(pendingGuest.status, 'pending');
+    assert.equal(pendingGuest.customerId, null);
+    const beforeGuestRemoval = await allOrderRows();
+    assert.deepEqual(await json(await removeOrder(guestId, { revision: pendingGuest.revision, confirmation: guestId })),
+      { removed: true, id: guestId });
+    assert.deepEqual(await allOrderRows(), beforeGuestRemoval.filter(row => row.id !== guestId),
+      'Guest removal cannot delete a different guest or customer order');
+  }
+
+  // A racing approval and removal serialize on the exact same row. A successful
+  // approval can never be followed by a successful deletion of that order.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const raceCheckout = await json(await submit({ requestId: randomUUID(), items: [custom] }, activeCookie), 201);
+    const raceOrder = (await json(await get(adminCommerce, owner))).orders.find(order => order.id === raceCheckout.id);
+    const beforeRace = await allOrderRows();
+    const [approveResponse, removeResponse] = await Promise.all([
+      mutate(adminCommerce + '/' + raceOrder.id, 'PATCH', { revision: raceOrder.revision,
+        lines: raceOrder.lines.map(line => ({ id: line.id, startDate: '2028-03-01', endDate: '2028-04-01' })) }, owner),
+      removeOrder(raceOrder.id, { revision: raceOrder.revision, confirmation: raceOrder.id }),
+    ]);
+    const raceRows = await allOrderRows();
+    assert.deepEqual(raceRows.filter(row => row.id !== raceOrder.id), beforeRace.filter(row => row.id !== raceOrder.id),
+      'The competing operations never affect unrelated orders');
+    if (approveResponse.status === 200) {
+      const raceApproved = (await json(approveResponse)).order;
+      await json(removeResponse, 409);
+      assert.equal(raceApproved.status, 'approved');
+      assert.ok(raceRows.find(row => row.id === raceOrder.id)?.approved_at);
+      await json(await removeOrder(raceOrder.id, { revision: raceApproved.revision, confirmation: raceOrder.id }), 409);
+      assert.deepEqual(await allOrderRows(), raceRows, 'Even a fresh confirmation cannot remove the approved race winner');
+    } else {
+      await json(approveResponse, 404);
+      assert.deepEqual(await json(removeResponse), { removed: true, id: raceOrder.id });
+      assert.ok(!raceRows.some(row => row.id === raceOrder.id), 'Approval cannot recreate an order removed by the winning transaction');
+    }
+  }
+
+  console.log('Commerce integration passed: account sessions, Telegram checkout, guest schema migration, isolated guests, exact retries, guest limits, date approvals, password rotation, owner-only history and confirmed pending-order removal with approval races.');
 } finally {
   if (server && server.exitCode === null && !server.signalCode) {
     const exit = once(server, 'exit');

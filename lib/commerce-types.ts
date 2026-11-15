@@ -8,6 +8,12 @@ export type CommerceCustomer = {
   signInMethods?: { emailPassword: boolean; google: boolean; telegram: boolean };
 };
 
+export type AdminCustomerRecord = {
+  customer: CommerceCustomer;
+  version: string;
+  summary: { orders: number; pending: number; approved: number; giveawayEntries: number };
+};
+
 export type CommerceAccountDetails = {
   account: string;
   password: string;

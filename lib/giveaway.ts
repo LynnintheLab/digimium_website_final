@@ -23,6 +23,20 @@ export function giveawayStatus(campaign: Pick<GiveawayCampaign, 'startsAt' | 'en
   return now < Date.parse(campaign.endsAt) ? 'open' : 'ended';
 }
 
+export type GiveawayCountdown =
+  | { status: 'unset' | 'elapsed' }
+  | { status: 'counting'; days: number; hours: number; minutes: number; seconds: number };
+
+/** Entry closing and winner selection share the admin's saved end time. */
+export function giveawayCountdown(endsAt: string | null, now: number): GiveawayCountdown {
+  const deadline = endsAt ? Date.parse(endsAt) : NaN;
+  if (!Number.isFinite(deadline) || !Number.isFinite(now)) return { status: 'unset' };
+  if (deadline <= now) return { status: 'elapsed' };
+  const remaining = Math.ceil((deadline - now) / 1000);
+  return { status: 'counting', days: Math.floor(remaining / 86400), hours: Math.floor(remaining / 3600) % 24,
+    minutes: Math.floor(remaining / 60) % 60, seconds: remaining % 60 };
+}
+
 export function giveawayDatesError(startsAt: string | null, endsAt: string | null, requireDates: boolean, now = Date.now()): string | null {
   const valid = (value: string) => /^20\d\d-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) &&
     Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;

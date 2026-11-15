@@ -24,7 +24,8 @@
     "test:telegram": "node tests/telegram.integration.mjs",
     "test:telegram-identity": "node --experimental-transform-types tests/telegram-identity.integration.mjs",
     "configure:telegram": "node scripts/configure-telegram.mjs",
-    "test:giveaway": "node tests/giveaway.integration.mjs"
+    "test:giveaway": "node tests/giveaway.integration.mjs",
+    "test:admin-customers": "node tests/admin-customers.integration.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

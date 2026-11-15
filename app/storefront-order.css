@@ -198,3 +198,11 @@ html:has(.storefront-shell) {
   .product .catalog-plan strong, .product-price { font-size: 14px; }
   .product .catalog-plan { font-size: 13px; }
 }
+
+/* Keep the storefront proportional on large PC displays instead of capping it at 1280px. */
+@media (min-width: 1280px) {
+  .storefront-shell .wrap { width: 80%; max-width: none; }
+  .storefront-shell .header { width: 100%; padding-inline: 10%; }
+  .storefront-shell .hero-description { max-width: 60ch; }
+  .storefront-shell .about-copy > p { max-width: 65ch; }
+}

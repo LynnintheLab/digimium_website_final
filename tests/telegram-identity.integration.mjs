@@ -96,10 +96,10 @@ try {
   const cancelling = await approvedFlow();
   const lock = await pool.getConnection(); await lock.beginTransaction();
   await lock.execute('SELECT 1 FROM digimium_telegram_auth_challenges WHERE id_hash = ? FOR UPDATE', [cancelling.idHash]);
-  const cancelledIssue = issueTelegramCustomerSession(request(''), identity('9999100000006'), cancelling);
+  const cancelledIssue = assert.rejects(issueTelegramCustomerSession(request(''), identity('9999100000006'), cancelling), error => error.message === 'expired');
   await lock.execute('DELETE FROM digimium_telegram_auth_challenges WHERE id_hash = ?', [cancelling.idHash]);
   await lock.commit(); lock.release();
-  await assert.rejects(cancelledIssue, error => error.message === 'expired');
+  await cancelledIssue;
   assert.equal((await db.execute('SELECT 1 FROM digimium_telegram_identities WHERE telegram_id = ?', ['9999100000006']))[0].length, 0);
 
   const winning = await approvedFlow();

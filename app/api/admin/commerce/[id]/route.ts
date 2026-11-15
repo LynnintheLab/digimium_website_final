@@ -18,3 +18,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return commerceErrorResponse(error);
   }
 }
+
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  if (!commerceEnabled) return commerceJson({ error: 'Orders are unavailable.' }, 404);
+  try {
+    const admin = await checkAdmin();
+    if (!admin.ok) return commerceJson({ error: admin.message }, admin.status);
+    if (!isAllowedMutation(request)) return commerceJson({ error: 'Remove orders from this website.' }, 403);
+    const { id } = await context.params;
+    const body = await readCommerceJson(request, 1024);
+    const { removePendingOrder } = await import('../../../../../hostinger/orders');
+    return commerceJson(await removePendingOrder(id, body));
+  } catch (error) {
+    return commerceErrorResponse(error);
+  }
+}

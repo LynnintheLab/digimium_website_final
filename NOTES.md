@@ -2,7 +2,9 @@
 
 ## Current status
 
-All 17 remaining ESLint warnings are fixed locally. Fourteen native image sites now use `next/image` with explicit dimensions, unchanged logo sources/fallbacks and responsive aspect ratios; the header logo loads eagerly. Three unused implementation parameters are removed while retaining shared call signatures. Strict full lint (`--max-warnings=0`) reports 0 errors/0 warnings; all 82 tests, Node 24 standalone build/packaging, typecheck, the fresh Hostinger logo/storage integration and both legacy Sites integrations/build pass. Desktop/mobile checks preserve loaded logo proportions, two phone columns and letter fallbacks. Testing/production rollout is pending. See `docs/LINT-WARNINGS-FOLLOWUP-2026-11-15.md`.
+Customer Edit/Delete and pending-order Remove controls are implemented; deletion requires a typed confirmation and fresh server version. The giveaway panel now has a distinct gold/white surface, an end-time winner-selection countdown and a single joined confirmation. Desktop storefront sections use 80% of the viewport at 1280px and above. Final strict lint (0 errors/warnings), 87 tests, standalone build/typecheck, all seven disposable Hostinger security integrations and legacy Sites build/integrations pass. Fresh Chrome checks cover local customer editing, non-destructive confirmation/cancel behavior, consistent Myanmar dates, countdown, desktop width and two phone columns. Feature deployment is pending. No live customers/orders were edited or deleted; the owner will remove test data himself, and Kosai Namti must remain untouched. See `docs/ADMIN-GIVEAWAY-LAYOUT-2026-11-15.md`.
+
+All 17 remaining ESLint warnings are fixed and source `aba426b` is live on testing and production (Hostinger Completed/Current). Fourteen native image sites now use `next/image` with explicit dimensions, unchanged logo sources/fallbacks and responsive aspect ratios; the header logo loads eagerly. Three unused implementation parameters are removed while retaining shared call signatures. Strict full lint reports 0 errors/0 warnings; all 82 tests, standalone build/typecheck, fresh Hostinger logo/storage integration and legacy Sites integrations/build passed. Desktop/mobile checks preserved loaded logo proportions, two phone columns and letter fallbacks. See `docs/LINT-WARNINGS-FOLLOWUP-2026-11-15.md`.
 
 The remaining full-lint error is fixed and source `cb302ca` is live on testing and production (Hostinger Completed/Current): the logo path event handler is named `applyExistingPath` at its definition and Enter/button callsites, avoiding false Hook classification. Validation, disabled/uploading guards, callbacks and UI behavior are unchanged. Full lint exits zero (0 errors, 17 existing warnings), all 82 tests pass, and the Node 24 standalone build/packaging and typecheck pass. Both hosts passed four bounded read-only checks for storefront, catalog, admin redirect and login; no live data changed.
 
@@ -70,7 +72,9 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
-Cleared all 17 warnings without lint suppressions or rule changes; independently reviewed image dimensions and shared API signatures. Verified strict lint, tests, typecheck, both target builds and local logo integrations. Browser testing covered desktop/390px images and blocked/missing-logo fallbacks in catalog, order dialog and admin. No real orders/provider links or live data were changed; rollout is pending.
+Implemented customer Edit/Delete and pending Remove, the distinct giveaway/countdown/single joined state, and 80% desktop storefront. Verified 87 tests, strict zero-warning lint, typecheck, both builds and seven disposable Hostinger security suites. Local browser checks covered fake-customer edit, safe confirmation/cancel/focus, responsive width and Myanmar date hydration. No real customer/order edits or deletions occurred. Feature rollout is pending.
+
+Warning cleanup source aba426b reached testing/production Completed/Current and passed bounded read-only checks. Image/fallback browser checks and all prior warning verification passed.
 
 Renamed the ordinary logo-path handler and independently reviewed its three references. Verified full lint, the existing 82 tests, standalone build and typecheck in an isolated snapshot. No new tests or runtime/dependency/authentication changes were required. Testing and production deployed `cb302ca` and passed all four read-only checks each. Test logs and live summaries are ignored under `outputs/security/lint-fix-*`; final follow-up is documentation only.
 
@@ -196,7 +200,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Deploy the validated warning cleanup to testing, verify it, then promote to production. ESLint is clean; keep the separate existing Vinext dependency bundler notice distinct from source warnings.
+- Deploy the validated admin/giveaway/layout changes to testing, verify read-only, then promote to production. The owner will clean test data manually; leave Kosai Namti untouched. Warning cleanup is already live; keep the separate Vinext bundler notice distinct from ESLint.
 
 - Lint error fix and retest are complete and live. The subsequent warning cleanup clears all 17 remaining warnings.
 
@@ -204,7 +208,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 - Previous Zod/React and eight High fixes remain in place. The newer Moderate follow-up supersedes their earlier remaining-finding counts; keep the testing/production status in that report authoritative.
 
-- Demo design is complete and live. The owner can set real dates and Launch from Admin → Giveaways when ready; current live status remains draft.
+- Demo design is complete and live. The owner controls dates and Launch from Admin → Giveaways. The campaign was observed open during the later admin/giveaway/layout work; do not reset it to the historical draft state.
 
 The combined request is complete and live. Owner can open Admin → Giveaways, set Myanmar-time dates and click Launch when ready; the agent did not launch the live campaign. The ~60-second Claude video prompt is in `docs/prompts/CLAUDE-WEBSITE-GIVEAWAY-VIDEO.md`; fill its verified campaign dates/status before publishing a video. The Zod v4 migration is complete; follow up the separate build/preview findings and run the proposed older-user study. The prior linking deferral is superseded by this explicit feature request.
 

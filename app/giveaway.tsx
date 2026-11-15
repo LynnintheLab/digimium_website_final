@@ -2,10 +2,11 @@
 
 // Account links load separate documents without storefront analytics.
 
-import { ArrowDown, ArrowRight, CheckCircle2, Gift, Link2, Users } from 'lucide-react';
+import { ArrowDown, ArrowRight, CheckCircle2, Clock3, Gift, Link2, Users } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import type { GiveawayCampaign, GiveawayView } from '../lib/giveaway-types';
+import { giveawayCountdown } from '../lib/giveaway';
 import { durationText, type ShopLanguage } from '../lib/shop-language';
 import './giveaway.css';
 
@@ -66,11 +67,50 @@ function statusText(campaign: GiveawayCampaign, lang: ShopLanguage) {
   return labels[campaign.status][lang === 'my' ? 1 : 0];
 }
 function campaignDate(value: string, lang: ShopLanguage) {
-  return new Intl.DateTimeFormat(lang === 'my' ? 'my-MM' : 'en-GB', { timeZone: 'Asia/Yangon', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+  // Myanmar is UTC+06:30 year-round. Explicit parts avoid differing my-MM
+  // locale support between Node and browsers changing server-rendered text.
+  const local = new Date(Date.parse(value) + 390 * 60_000);
+  if (!Number.isFinite(local.getTime())) return lang === 'my' ? 'မသတ်မှတ်ရသေး' : 'Not scheduled';
+  const months = lang === 'my'
+    ? ['ဇန်နဝါရီ', 'ဖေဖော်ဝါရီ', 'မတ်', 'ဧပြီ', 'မေ', 'ဇွန်', 'ဇူလိုင်', 'ဩဂုတ်', 'စက်တင်ဘာ', 'အောက်တိုဘာ', 'နိုဝင်ဘာ', 'ဒီဇင်ဘာ']
+    : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const time = `${String(local.getUTCHours()).padStart(2, '0')}:${String(local.getUTCMinutes()).padStart(2, '0')}`;
+  const text = `${local.getUTCDate()} ${months[local.getUTCMonth()]} ${local.getUTCFullYear()}${lang === 'my' ? '၊' : ','} ${time}`;
+  return lang === 'my' ? text.replace(/\d/g, digit => '၀၁၂၃၄၅၆၇၈၉'[Number(digit)]) : text;
 }
 function prizeNumber(value: number, lang: ShopLanguage) {
   // Keep the server and browsers with limited Myanmar Intl data identical.
   return lang === 'my' ? String(value).replace(/\d/g, digit => '၀၁၂၃၄၅၆၇၈၉'[Number(digit)]) : String(value);
+}
+
+function GiveawaySelectionTime({ endsAt, lang }: { endsAt: string | null; lang: ShopLanguage }) {
+  // A shared empty first render avoids server/browser clock hydration differences.
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    if (!endsAt) return;
+    let active = true;
+    const update = () => { if (active && !document.hidden) setNow(Date.now()); };
+    queueMicrotask(update);
+    const timer = window.setInterval(update, 1000);
+    document.addEventListener('visibilitychange', update);
+    return () => { active = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', update); };
+  }, [endsAt]);
+  const t = (en: string, my: string) => lang === 'my' ? my : en;
+  const remaining = giveawayCountdown(endsAt, now ?? 0);
+  const units = remaining.status === 'counting' ? [
+    { label: t('Days', 'ရက်'), value: remaining.days }, { label: t('Hours', 'နာရီ'), value: remaining.hours },
+    { label: t('Minutes', 'မိနစ်'), value: remaining.minutes }, { label: t('Seconds', 'စက္ကန့်'), value: remaining.seconds },
+  ] : [];
+  return <div className="giveaway-selection" aria-labelledby="giveaway-selection-title">
+    <div className="giveaway-selection-heading"><Clock3 size={21} aria-hidden/><div>
+      <h3 id="giveaway-selection-title">{t('Winner selection', 'ဆုရွေးချယ်ချိန်')}</h3>
+      {remaining.status !== 'unset' && endsAt && <p><time dateTime={endsAt}>{campaignDate(endsAt, lang)}</time> · {t('Myanmar time', 'မြန်မာစံတော်ချိန်')}</p>}
+    </div></div>
+    {remaining.status === 'unset' ? <p className="giveaway-selection-message">{t('The selection time will be announced here.', 'ဆုရွေးချယ်မည့် အချိန်ကို ဒီနေရာမှာ ကြေညာပေးပါမယ်။')}</p>
+      : now === null ? <p className="giveaway-selection-message">{t('Preparing the countdown…', 'ကျန်ချိန်ကို တွက်နေသည်…')}</p>
+        : remaining.status === 'elapsed' ? <p className="giveaway-selection-message">{t('The selection time has arrived. Winners will be announced after selection.', 'ဆုရွေးချယ်ချိန် ရောက်ပါပြီ။ ရွေးချယ်ပြီးပါက ဆုရရှိသူများကို ကြေညာပေးပါမယ်။')}</p>
+          : <dl className="giveaway-countdown" data-long-days={remaining.status === 'counting' && remaining.days > 999 || undefined} role="timer" aria-label={t('Time until winner selection', 'ဆုရွေးချယ်ရန် ကျန်ချိန်')} aria-live="off">{units.map(unit => <div key={unit.label}><dt>{unit.label}</dt><dd>{prizeNumber(unit.value, lang)}</dd></div>)}</dl>}
+  </div>;
 }
 
 export function GiveawayBanner({ campaign, lang }: { campaign: GiveawayCampaign; lang: ShopLanguage }) {
@@ -107,13 +147,15 @@ export function GiveawayDetails({ controller, lang }: { controller: GiveawayCont
     <div className="giveaway-prizes">{campaign.prizes.map(prize => <div className="giveaway-prize" key={prize.id}>
       <Image src={'/assets/marks/' + prize.mark + '.svg'} width={40} height={40} alt="" unoptimized/><div><h3>{prize.plan}</h3><p>{durationText(prize.duration, lang)} <span>·</span> {lang === 'my' ? `${prizeNumber(prize.winners, lang)} ဦး` : `${prize.winners} ${prize.winners === 1 ? 'winner' : 'winners'}`}</p></div>
     </div>)}</div>
-    {campaign.startsAt && campaign.endsAt && <dl className="giveaway-dates"><div><dt>{t('Starts', 'စတင်ချိန်')}</dt><dd><time dateTime={campaign.startsAt}>{campaignDate(campaign.startsAt, lang)}</time></dd></div><div><dt>{t('Ends', 'ပြီးဆုံးချိန်')}</dt><dd><time dateTime={campaign.endsAt}>{campaignDate(campaign.endsAt, lang)}</time></dd></div><div><dt>{t('Timezone', 'စံတော်ချိန်')}</dt><dd>{t('Myanmar Time (MMT)', 'မြန်မာစံတော်ချိန်')}</dd></div></dl>}
-    <div className="giveaway-entry" aria-busy={controller.checking}>
-      {controller.checking ? <p role="status">{t('Checking your account…', 'သင့်အကောင့်ကို စစ်ဆေးနေသည်…')}</p> : <>
-      <div><strong>{viewer.joined ? t('You have joined', 'ပါဝင်ပြီးပါပြီ') : t('Your account, your entry', 'သင့်အကောင့်နဲ့ ပါဝင်ပါ')}</strong><p>{viewer.joined ? t('Your entry is saved. Joining does not guarantee a prize.', 'ပါဝင်မှုကို သိမ်းထားပါပြီ။ ပါဝင်သူတိုင်း ဆုရမည်ဟု မဆိုလိုပါ။') : !viewer.signedIn ? t('Sign in or create a website account, then connect Telegram to join.', 'Website အကောင့်ဝင် သို့မဟုတ် အကောင့်ဖွင့်ပြီး Telegram ချိတ်ထားမှ ပါဝင်နိုင်ပါတယ်။') : !viewer.telegramLinked ? t('You cannot join until Telegram is connected to this account.', 'ဒီအကောင့်ကို Telegram နဲ့ မချိတ်ရသေးလို့ ပါဝင်လို့မရသေးပါ။') : campaign.status !== 'open' ? t('Entries open only during the published giveaway period.', 'သတ်မှတ်ထားတဲ့ Giveaway ကာလအတွင်းမှ ပါဝင်နိုင်ပါမယ်။') : t('One entry per website account and Telegram account.', 'Website အကောင့်နဲ့ Telegram အကောင့်တစ်ခုလျှင် တစ်ကြိမ်သာ ပါဝင်နိုင်ပါတယ်။')}</p></div>
-      {viewer.joined ? <span className="giveaway-joined" role="status"><CheckCircle2 size={21} aria-hidden/>{t('Entry saved', 'ပါဝင်မှု သိမ်းပြီး')}</span> : !viewer.signedIn ? <a href="/account" className="button primary">{t('Log in / Create account', 'အကောင့်ဝင် / ဖွင့်မည်')}<ArrowRight size={16} aria-hidden/></a> : !viewer.telegramLinked ? <a href="/account#telegram-link-guide" className="button primary"><Link2 size={17} aria-hidden/>{t('How to connect', 'ချိတ်နည်းကြည့်မည်')}</a> : <button type="button" className="button primary" disabled={!viewer.canJoin || busy} onClick={() => { void controller.join(); }}>{busy ? t('Saving your entry…', 'ပါဝင်မှု သိမ်းနေသည်…') : campaign.status === 'open' ? t('Join giveaway', 'Giveaway ပါဝင်မည်') : statusText(campaign, lang)}<ArrowDown size={16} aria-hidden/></button>}
+    {campaign.startsAt && campaign.endsAt && <dl className="giveaway-dates"><div><dt>{t('Entries open', 'ပါဝင်နိုင်သည့် အချိန်')}</dt><dd><time dateTime={campaign.startsAt}>{campaignDate(campaign.startsAt, lang)}</time></dd></div><div><dt>{t('Entries close', 'ပါဝင်ချိန် ကုန်ဆုံးမည်')}</dt><dd><time dateTime={campaign.endsAt}>{campaignDate(campaign.endsAt, lang)}</time></dd></div></dl>}
+    <GiveawaySelectionTime endsAt={campaign.endsAt} lang={lang}/>
+    <div className="giveaway-entry" data-joined={viewer.joined || undefined} aria-busy={controller.checking}>
+      {viewer.joined ? <p className="giveaway-joined" role="status"><CheckCircle2 size={23} aria-hidden/><strong>{t('You have joined the giveaway.', 'Giveaway တွင် ပါဝင်ပြီးပါပြီ')}</strong></p>
+        : controller.checking ? <p role="status">{t('Checking your account…', 'သင့်အကောင့်ကို စစ်ဆေးနေသည်…')}</p> : <>
+      <div><strong>{t('Your account, your entry', 'သင့်အကောင့်နဲ့ ပါဝင်ပါ')}</strong><p>{!viewer.signedIn ? t('Sign in or create a website account, then connect Telegram to join.', 'Website အကောင့်ဝင် သို့မဟုတ် အကောင့်ဖွင့်ပြီး Telegram ချိတ်ထားမှ ပါဝင်နိုင်ပါတယ်။') : !viewer.telegramLinked ? t('You cannot join until Telegram is connected to this account.', 'ဒီအကောင့်ကို Telegram နဲ့ မချိတ်ရသေးလို့ ပါဝင်လို့မရသေးပါ။') : campaign.status !== 'open' ? t('Entries open only during the published giveaway period.', 'သတ်မှတ်ထားတဲ့ Giveaway ကာလအတွင်းမှ ပါဝင်နိုင်ပါမယ်။') : t('One entry per website account and Telegram account.', 'Website အကောင့်နဲ့ Telegram အကောင့်တစ်ခုလျှင် တစ်ကြိမ်သာ ပါဝင်နိုင်ပါတယ်။')}</p></div>
+      {!viewer.signedIn ? <a href="/account" className="button primary">{t('Log in / Create account', 'အကောင့်ဝင် / ဖွင့်မည်')}<ArrowRight size={16} aria-hidden/></a> : !viewer.telegramLinked ? <a href="/account#telegram-link-guide" className="button primary"><Link2 size={17} aria-hidden/>{t('How to connect', 'ချိတ်နည်းကြည့်မည်')}</a> : <button type="button" className="button primary" disabled={!viewer.canJoin || busy} onClick={() => { void controller.join(); }}>{busy ? t('Saving your entry…', 'ပါဝင်မှု သိမ်းနေသည်…') : campaign.status === 'open' ? t('Join giveaway', 'Giveaway ပါဝင်မည်') : statusText(campaign, lang)}<ArrowDown size={16} aria-hidden/></button>}
       </>}
     </div>
-    {error && <p className="giveaway-error" role="alert">{t('We could not confirm your entry. Refresh and check before trying again.', 'ပါဝင်မှုကို အတည်ပြုမရသေးပါ။ ပြန်မနှိပ်ခင် ပြန်ကြည့်ပြီး စစ်ပါ။')} <button type="button" onClick={() => { void controller.refresh(); }}>{t('Refresh', 'ပြန်ကြည့်မယ်')}</button></p>}
+    {error && !viewer.joined && <p className="giveaway-error" role="alert">{t('We could not confirm your entry. Refresh and check before trying again.', 'ပါဝင်မှုကို အတည်ပြုမရသေးပါ။ ပြန်မနှိပ်ခင် ပြန်ကြည့်ပြီး စစ်ပါ။')} <button type="button" onClick={() => { void controller.refresh(); }}>{t('Refresh', 'ပြန်ကြည့်မယ်')}</button></p>}
   </section>;
 }

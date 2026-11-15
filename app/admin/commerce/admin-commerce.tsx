@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, ChevronRight, RefreshCw, Search, X } from 'lucide-react';
+import { Check, ChevronRight, RefreshCw, Search, X, Pencil, Trash2 } from 'lucide-react';
 import type { CommerceCustomer, CommerceOrder } from '@/lib/commerce-types';
 import { customerContact } from '@/lib/customer-identity';
 import OrderEditor, { orderReference, orderTotal } from './order-editor';
+import CustomerEditor from './customer-editor';
+import RemovePendingDialog from './remove-pending-dialog';
 import './commerce.css';
 
 type CommerceData = { customers: CommerceCustomer[]; orders: CommerceOrder[] };
@@ -21,6 +23,9 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved'>(customerId ? 'all' : 'pending');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingCustomer, setEditingCustomer] = useState<{ id: string; deleting: boolean } | null>(null);
+  const [removingOrder, setRemovingOrder] = useState<CommerceOrder | null>(null);
+  const removeTrigger = useRef<HTMLButtonElement | null>(null);
   const [refreshing, setRefreshing] = useState(true);
   const [error, setError] = useState('');
   const [authExpired, setAuthExpired] = useState(false);
@@ -85,7 +90,7 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
   const scopedOrders = customerId ? orders.filter(order => order.customerId === customerId) : orders;
   const pendingCount = scopedOrders.filter(order => order.status === 'pending').length;
   const scopedCustomer = customerId ? customersById.get(customerId) : undefined;
-  const selected = orders.find(order => order.id === selectedId);
+  const selected = view === 'orders' ? orders.find(order => order.id === selectedId) : undefined;
   const term = search.trim().toLowerCase();
   const shownOrders = scopedOrders.filter(order => {
     if (filter !== 'all' && order.status !== filter) return false;
@@ -110,8 +115,15 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
         : <button type="button" disabled={refreshing} onClick={() => void refresh()}>Try again</button>}</div>
     </div>}
     {notice && <p role="status" className="admin-feedback admin-feedback-success"><Check size={17} />{notice}</p>}
-    {selected ? <OrderEditor key={selected.id + '-' + selected.revision} order={selected} customer={selected.customerId ? customersById.get(selected.customerId) : undefined}
-      onDirtyChange={onDirtyChange} onBack={backToList}
+    {view === 'customers' && editingCustomer ? <CustomerEditor key={editingCustomer.id} id={editingCustomer.id} startDeleting={editingCustomer.deleting}
+      onDirtyChange={onDirtyChange} onBack={() => { setEditingCustomer(null); requestAnimationFrame(() => listHeading.current?.focus()); }}
+      onSaved={customer => setData(current => current ? { ...current, customers: current.customers.map(row => row.id === customer.id ? customer : row) } : current)}
+      onRemoved={id => {
+        setData(current => current ? { customers: current.customers.filter(row => row.id !== id), orders: current.orders.filter(order => order.customerId !== id) } : current);
+        setEditingCustomer(null); if (customerId === id) clearCustomer(); setNotice('Customer and their associated records deleted.');
+        requestAnimationFrame(() => listHeading.current?.focus());
+      }} /> : selected ? <OrderEditor key={selected.id + '-' + selected.revision} order={selected} customer={selected.customerId ? customersById.get(selected.customerId) : undefined}
+      onDirtyChange={onDirtyChange} onBack={backToList} onRemove={setRemovingOrder}
       onReload={async () => { if (await refresh()) onDirtyChange(false); }}
       onSaved={order => {
         setData(current => current ? { ...current, orders: current.orders.map(row => row.id === order.id ? order : row) } : current);
@@ -147,16 +159,19 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
         </div>}
       </div>
       {view === 'customers' ? shownCustomers.length ? <ul className="commerce-rows">{shownCustomers.map(customer =>
-        <li key={customer.id}><button type="button" className="commerce-row" onClick={() => showCustomerOrders(customer.id)}
+        <li key={customer.id} className="commerce-action-row"><button type="button" className="commerce-row" onClick={() => { setSelectedId(null); showCustomerOrders(customer.id); }}
           aria-label={'View orders for ' + customer.name + ', ' + customerContact(customer)}>
           <span className="commerce-row-main"><strong>{customer.name}</strong><span>{customerContact(customer)}</span></span>
           <span className="commerce-row-end"><strong>{counts.get(customer.id) ?? 0} {(counts.get(customer.id) ?? 0) === 1 ? 'order' : 'orders'}</strong>
             <span>Joined {dateFormat.format(new Date(customer.createdAt))}</span></span>
           <ChevronRight size={18} aria-hidden="true" />
-        </button></li>)}</ul> : <p className="commerce-empty">{term ? 'No matching customers.' : 'No customers have registered yet.'}</p>
+        </button><div className="commerce-row-actions">
+          <button type="button" className="admin-text-button" aria-label={'Edit customer ' + customer.name} onClick={() => { setEditingCustomer({ id: customer.id, deleting: false }); setNotice(''); }}><Pencil size={16}/>Edit</button>
+          <button type="button" className="admin-text-button commerce-danger-link" aria-label={'Delete customer ' + customer.name} onClick={() => { setEditingCustomer({ id: customer.id, deleting: true }); setNotice(''); }}><Trash2 size={16}/>Delete</button>
+        </div></li>)}</ul> : <p className="commerce-empty">{term ? 'No matching customers.' : 'No customers have registered yet.'}</p>
       : shownOrders.length ? <ul className="commerce-rows">{shownOrders.map(order => {
         const customer = order.customerId ? customersById.get(order.customerId) : undefined;
-        return <li key={order.id}><button className="commerce-row" type="button" onClick={event => {
+        return <li key={order.id} className="commerce-action-row"><button className="commerce-row" type="button" onClick={event => {
           orderTrigger.current = event.currentTarget;
           setSelectedId(order.id);
           setNotice('');
@@ -169,8 +184,17 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
           <span className="commerce-row-end"><strong>{orderTotal(order)}</strong>
             <span>{dateFormat.format(new Date(order.createdAt))}</span></span>
           <ChevronRight size={18} aria-hidden="true" />
-        </button></li>;
+        </button>{order.status === 'pending' && <div className="commerce-row-actions"><button type="button" className="admin-text-button commerce-danger-link" aria-label={'Remove pending order ' + orderReference(order.id)} onClick={event => { removeTrigger.current = event.currentTarget; setRemovingOrder(order); }}><Trash2 size={16}/>Remove</button></div>}</li>;
       })}</ul> : <p className="commerce-empty">{term ? 'No matching orders.' : filter === 'pending' ? 'No orders are waiting for approval.' : filter === 'approved' ? 'No approved orders yet.' : 'No orders yet.'}</p>}
     </section> : refreshing && <p className="commerce-empty" role="status">Loading {view}…</p>}
+    {removingOrder && <RemovePendingDialog key={removingOrder.id} order={removingOrder}
+      onClose={() => { setRemovingOrder(null); requestAnimationFrame(() => removeTrigger.current?.focus()); }}
+      onReload={() => { setRemovingOrder(null); setSelectedId(null); onDirtyChange(false); void refresh(); }}
+      onRemoved={id => {
+        setData(current => current ? { ...current, orders: current.orders.filter(order => order.id !== id) } : current);
+        setRemovingOrder(null); if (selectedId === id) setSelectedId(null);
+        onDirtyChange(false); setNotice('Pending order removed.');
+        requestAnimationFrame(() => listHeading.current?.focus());
+      }}/>}
   </div>;
 }

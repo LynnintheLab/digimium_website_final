@@ -89,8 +89,9 @@ export default function AdminGiveaway({ onDirtyChange }: { onDirtyChange: (dirty
             <p id="giveaway-timezone" className="giveaway-admin-help">All times use Myanmar time (Asia/Yangon, UTC+06:30).</p>
             <div className="giveaway-admin-dates">
               <label className="admin-field">Start time<input type="datetime-local" min="2000-01-01T00:00" max="2099-12-31T23:59" aria-describedby="giveaway-timezone" value={startsAt} onChange={event => { setStartsAt(event.target.value); setNotice(''); }} /></label>
-              <label className="admin-field">End time<input type="datetime-local" min={startsAt || '2000-01-01T00:00'} max="2099-12-31T23:59" aria-describedby="giveaway-timezone" value={endsAt} onChange={event => { setEndsAt(event.target.value); setNotice(''); }} /></label>
+              <label className="admin-field">Entry closing / winner selection time<input type="datetime-local" min={startsAt || '2000-01-01T00:00'} max="2099-12-31T23:59" aria-describedby="giveaway-timezone giveaway-selection-help" value={endsAt} onChange={event => { setEndsAt(event.target.value); setNotice(''); }} /></label>
             </div>
+            <p id="giveaway-selection-help" className="giveaway-admin-help">The website counts down to this end time. Winners are selected manually.</p>
             <p className="giveaway-admin-help">{data.campaign.launchedAt ? 'Saving new times keeps all existing entries and their original owners.' : 'Prizes appear as a preview. Entries stay closed until you explicitly launch the giveaway.'}</p>
             <div className="giveaway-admin-actions">
               <button className="admin-button admin-button-secondary" type="submit" disabled={busy || !dirty || failureStatus === 409}><Save size={16} aria-hidden />Save settings</button>

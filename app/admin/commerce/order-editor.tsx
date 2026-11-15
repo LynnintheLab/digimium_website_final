@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ArrowLeft, Check, Eye, EyeOff, LoaderCircle, Save } from 'lucide-react';
+import { ArrowLeft, Check, Eye, EyeOff, LoaderCircle, Save, Trash2 } from 'lucide-react';
 import type { CommerceCustomer, CommerceOrder, CommerceOrderLine } from '@/lib/commerce-types';
 import { customerContact } from '@/lib/customer-identity';
 import { suggestedEndDate, todayInMyanmar } from './order-dates';
@@ -21,13 +21,14 @@ function initialDetails(line: CommerceOrderLine) {
 }
 type LineDetails = ReturnType<typeof initialDetails>;
 
-export default function OrderEditor({ order, customer, onSaved, onBack, onReload, onDirtyChange }: {
+export default function OrderEditor({ order, customer, onSaved, onBack, onReload, onDirtyChange, onRemove }: {
   order: CommerceOrder;
   customer?: CommerceCustomer;
   onSaved: (order: CommerceOrder) => void;
   onBack: () => void;
   onReload: () => Promise<void>;
   onDirtyChange: (dirty: boolean) => void;
+  onRemove: (order: CommerceOrder) => void;
 }) {
   const [original] = useState(() => order.lines.map(initialDetails));
   const [details, setDetails] = useState(original);
@@ -80,6 +81,7 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
         <h2 id="commerce-order-title" tabIndex={-1}>Order {orderReference(order.id)}</h2>
         <span className="commerce-status" data-status={order.status}>{pending ? 'Pending' : 'Approved'}</span>
       </div>
+      {pending && <button type="button" className="admin-text-button commerce-danger-link" disabled={busy} onClick={() => onRemove(order)}><Trash2 size={16}/>Remove pending order</button>}
       {customer && <div className="commerce-customer"><strong>{customer.name}</strong><span>{customerContact(customer)}</span></div>}
       {order.customerId === null && <div className="commerce-customer"><strong>{order.guestName ?? 'Telegram guest'}</strong><span>Guest order</span></div>}
       {pending && <p>{order.customerId === null ? 'Match the order reference with the Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.' : customer?.telegram ? 'Match the reference, name and Telegram ID with the customer’s message. Confirm payment and deliver access in that chat, then approve the dates here.' : 'Match the reference, name and email with the customer’s Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.'}</p>}

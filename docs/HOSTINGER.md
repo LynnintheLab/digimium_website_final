@@ -123,6 +123,10 @@ node scripts/configure-telegram.mjs --env .env.telegram.production.local --comma
 
 The private file is ignored by Git. This mode verifies the bot identity, registers and verifies the five commands and the commands menu button, and leaves the active webhook untouched. Do not use `--move-from` for this menu-only update.
 
+### Customer and pending-order cleanup controls
+
+Admin → Customers offers Edit and Delete. Editing changes name/email only; connected identity IDs remain read-only. Delete displays the account's order/entry counts and requires its exact displayed name, then permanently removes its owned data and sessions. Admin → Orders → Pending offers Remove with an exact order-reference confirmation; approved orders cannot be removed this way. Conflicts require a fresh reload. The owner handles test-data cleanup himself; preserve Kosai Namti and inspect the selected account before confirming. See [behavior and verification](ADMIN-GIVEAWAY-LAYOUT-2026-11-15.md).
+
 ## 4. Verify the live store
 
 - In a private browser window, open `/`, search for a product and select a plan. **Buy / ဝယ်ယူမည်** opens checkout; **Add to cart** keeps selections for later. Signed-out checkout must show **Create account / အကောင့်ဖွင့်မည်** and **Buy on Telegram / Telegram မှဝယ်မည်**. The account form stays in the popup and returns to cart review after success without submitting an order. Telegram-only purchase displays the history notice and asks for no identity fields. Once signed in, show only **Place order / Order တင်မည်**, without the two signed-out choices.

@@ -1,6 +1,6 @@
 # Lint warning cleanup — 15 November 2026
 
-All **17 remaining ESLint warnings** are fixed. `npm run lint -- --max-warnings=0` exits zero with **0 errors and 0 warnings**. Testing/production rollout is pending.
+All **17 remaining ESLint warnings** are fixed. `npm run lint -- --max-warnings=0` exits zero with **0 errors and 0 warnings**. Source `aba426b` reached Hostinger Completed/Current on testing and production.
 
 ## Changes
 
@@ -21,4 +21,4 @@ The [official Image reference](https://nextjs.org/docs/app/api-reference/compone
 - Blocking only the local Canva asset produced the expected letter fallback in catalog, plan dialog and admin. A missing uploaded-logo path also fell back correctly in an unsaved local admin form; no Save action occurred. The browser connection restarted during the Revert confirmation, so successful Revert is not claimed. The form tab was closed; persisted local catalog validation and fixture cleanup are recorded separately.
 - Screenshots are ignored at `outputs/warnings-phone-local-2026-11-15.png` and `outputs/warnings-phone-cards-local-2026-11-15.png`. Logs and sanitized integration summaries are under `outputs/security/warnings-*`.
 
-Hosted read-only checks are pending. No live orders, account/provider links, giveaway entries/launch or Sites publication occurred. Physical iOS/Android and native Windows were not exercised.
+Both hosts passed four bounded read-only checks (storefront, catalog, admin authorization redirect and login). Persisted local catalog inspection confirmed 54 services and no saved missing-logo fixture; owned local app/database/preview processes stopped and fake development variables were removed. No live orders, account/provider links, giveaway entries/launch or Sites publication occurred. Physical iOS/Android and native Windows were not exercised.
