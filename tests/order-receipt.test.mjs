@@ -29,12 +29,15 @@ test('the receipt projection drops fulfillment, contact and credential-shaped ex
   raw.secret = 'session-secret';
   raw.customer = {email:'private@example.com'};
   raw.order.lines[0].accountInfo = 'delivered-password';
+  raw.order.lines[0].accountDetails = {account:'private-account',password:'structured-secret',manager:'private-manager',username:'private-user'};
   raw.order.lines[0].startDate = '2026-11-15';
   const receipt = readOrderReceipt(raw, now);
   const encoded = JSON.stringify(receipt);
   assert.ok(receipt);
   assert.ok(!encoded.includes('session-secret') && !encoded.includes('private@example.com') && !encoded.includes('delivered-password'));
   assert.equal(receipt.order.lines[0].accountInfo, undefined);
+  assert.equal(receipt.order.lines[0].accountDetails, undefined);
+  assert.ok(!encoded.includes('structured-secret') && !encoded.includes('private-account'));
 });
 
 test('expired, future, oversized and malformed receipts are rejected', () => {

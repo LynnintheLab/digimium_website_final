@@ -1,0 +1,28 @@
+.account-connections { margin-block: 28px; border-top: 1px solid var(--line); padding-top: 24px; }
+.customer-main .account-connections h2 { font-size: 20px; }
+.account-connections-intro { max-width: 72ch; margin-top: 10px; color: var(--account-muted); font-size: 14px; line-height: 1.9; }
+.account-method-list { margin: 18px 0 0; padding: 0; list-style: none; }
+.account-method-list > li { display: flex; align-items: center; gap: 14px; min-height: 82px; padding-block: 16px; border-bottom: 1px solid var(--line); }
+.account-method-list > li > :is(svg,img) { width: 22px; height: 22px; object-fit: contain; color: var(--blue); flex: none; }
+.account-method-list > li > div { display: grid; gap: 4px; flex: 1; min-width: 0; font-size: 15px; }
+.account-method-list > li > div > span { color: var(--account-muted); font-size: 13px; overflow-wrap: anywhere; }
+.account-method-state { display: inline-flex; align-items: center; gap: 6px; color: var(--account-muted); font-size: 13px; }
+.account-method-state[data-connected], .account-link-success { color: #17684f; }
+.customer-page button.account-connect-button { display: inline-flex; gap: 8px; min-height: 44px; padding: 9px 14px; font-size: 14px; text-decoration: none; }
+.account-link-success { display: flex; align-items: start; gap: 8px; margin-top: 16px; font-size: 14px; }
+.account-link-guide { margin-top: 22px; scroll-margin-top: 24px; }
+.account-link-guide > summary { display: flex; align-items: center; min-height: 44px; color: var(--blue); cursor: pointer; font-size: 14px; font-weight: 600; }
+.account-link-guide ol { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; margin: 12px 0 0; padding: 0; list-style: none; }
+.account-link-guide li { min-width: 0; }
+.account-link-guide li > strong { display: block; margin-top: 14px; font-size: 14px; line-height: 1.8; }
+.account-link-guide li > p, .account-guide-note { margin-top: 8px; color: var(--account-muted); font-size: 13px; line-height: 1.85; }
+.account-guide-picture { display: flex; align-items: center; justify-content: center; gap: 24px; min-height: 118px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--blue); }
+.account-guide-avatar { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--soft); font-size: 24px; font-weight: 700; }
+.account-guide-connect { display: flex; align-items: center; gap: 5px; padding: 7px 10px; border-radius: 8px; background: var(--blue); color: #fff; font-size: 13px; }
+.account-guide-code { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; letter-spacing: 3px; font-size: 22px; }
+@media (max-width: 700px) {
+  .account-method-list > li { flex-wrap: wrap; gap: 10px; }
+  .account-method-list > li > div { flex-basis: calc(100% - 36px); }
+  .account-method-state, .account-connect-button { margin-inline-start: 32px; }
+  .account-link-guide ol { grid-template-columns: 1fr; gap: 24px; }
+}

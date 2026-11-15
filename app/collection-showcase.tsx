@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent, type ReactNode } from 'react';
 import { ArrowRight, ArrowUpRight, AudioLines, ChevronLeft, ChevronRight, Gift, LayoutGrid, PenTool, Sparkles, Tag } from 'lucide-react';
 import type { Product } from '../lib/catalog';
 import { categoryName, durationText, planName, type ShopLanguage } from '../lib/shop-language';
@@ -38,9 +38,10 @@ type Props = {
   motionPaused: boolean;
   onProduct: (product: Product, planId?: string) => void;
   onCategory: (category: number) => void;
+  giveaway?: ReactNode;
 };
 
-export function CollectionShowcase({ products, lang, motionPaused, onProduct, onCategory }: Props) {
+export function CollectionShowcase({ products, lang, motionPaused, onProduct, onCategory, giveaway }: Props) {
   const t = (en: string, my: string) => lang === 'my' ? my : en;
   const slides = useMemo(() => showcaseSlides(products), [products]);
   const [page, setPage] = useState({ index: 0, direction: 0 });
@@ -53,7 +54,7 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
   const reducedMotion = useSyncExternalStore(watchMotion, prefersReducedMotion, serverReducedMotion);
   const hidden = useSyncExternalStore(watchVisibility, pageIsHidden, serverPageHidden);
   const motionStopped = motionPaused || hidden;
-  const count = slides.length;
+  const count = slides.length + (giveaway ? 1 : 0);
   const rotating = count > 1 && !motionStopped && !reducedMotion && !held && !hovered && !focusWithin && !touching;
 
   useEffect(() => {
@@ -66,17 +67,19 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
   const current = page.index % count;
   const dashCount = Math.min(count, maxVisibleDashes);
   const firstDash = Math.min(Math.max(current - Math.floor(dashCount / 2), 0), count - dashCount);
-  const slide = slides[current];
-  const category = slide.category;
+  const isGiveaway = Boolean(giveaway) && current === 0;
+  const slide = slides[(current - (giveaway ? 1 : 0) + slides.length) % slides.length];
+  if (!slide) return giveaway ? <section className="showcase" aria-label="Giveaway">{giveaway}<a className="collection-link" href="#giveaway">{t('Giveaway details', 'Giveaway အသေးစိတ်')}<ArrowRight size={17}/></a></section> : null;
+  const category = isGiveaway ? undefined : slide.category;
   const collection = category ? collections[category - 1] : undefined;
-  const categories = slides.flatMap((item, i) => item.category ? [{ ...collections[item.category - 1], index: i }] : []);
+  const categories = slides.flatMap((item, i) => item.category ? [{ ...collections[item.category - 1], index: i + (giveaway ? 1 : 0) }] : []);
   const { product, plan } = slide.items[0];
   const offer = plan ?? product;
   const showOfferDetails = Boolean(plan || !product.plans?.length);
-  const label = collection ? t('Explore a collection', 'အမျိုးအစားအလိုက် ရွေးချယ်ပါ')
+  const label = isGiveaway ? 'Giveaway' : collection ? t('Explore a collection', 'အမျိုးအစားအလိုက် ရွေးချယ်ပါ')
     : slide.kind === 'best' ? t('Best Seller', 'အရောင်းရဆုံး')
     : slide.kind === 'promotion' ? t('Promotion', 'ပရိုမိုးရှင်း') : t('Discount', 'လျှော့ဈေး');
-  const Icon = slide.kind === 'promotion' ? Gift : Tag;
+  const Icon = isGiveaway || slide.kind === 'promotion' ? Gift : Tag;
   const viewPlan = plan ? t('View plan', 'Plan ကြည့်ရန်') : t('View plans', 'Plan များ ကြည့်ရန်');
   const slideLabel = (i: number) => t(`Slide ${i + 1} of ${count}`, `ပြကွက် ${i + 1} / ${count}`);
 
@@ -119,7 +122,7 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
     onProduct(item, planId);
   }
 
-  return <section className="showcase" data-kind={slide.kind} data-motion-paused={motionStopped} aria-roledescription={t('carousel', 'ဆလိုက်ရှိုး')} aria-label={t('Service highlights', 'ရွေးချယ်ထားသော ဝန်ဆောင်မှုများ')}
+  return <section className="showcase" data-kind={isGiveaway ? 'giveaway' : slide.kind} data-motion-paused={motionStopped} aria-roledescription={t('carousel', 'ဆလိုက်ရှိုး')} aria-label={t('Service highlights', 'ရွေးချယ်ထားသော ဝန်ဆောင်မှုများ')}
     onPointerEnter={event => setHovered(event.pointerType !== 'touch')} onPointerLeave={() => setHovered(false)}
     onPointerDownCapture={startSwipe} onPointerUpCapture={endSwipe} onPointerCancel={() => {
       swipeStart.current = null;
@@ -137,7 +140,7 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
     <ServiceTiles />
     <div className="showcase-surface">
       <div className="showcase-top">
-        {slide.kind === 'best' ? <BestSellerBadge lang={lang} /> :
+        {!isGiveaway && slide.kind === 'best' ? <BestSellerBadge lang={lang} /> :
           <span className="showcase-label">{collection ? <img src="/assets/symbol-white.png" alt="" /> : <Icon size={18} aria-hidden="true" />}{label}</span>}
         {count > 1 && <div className="showcase-controls">
           <button type="button" aria-label={t('Previous slide', 'ရှေ့ပြကွက်')} onClick={() => step(-1)}><ChevronLeft size={18} /></button>
@@ -155,6 +158,7 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
           <img className="portal" src="/assets/symbol-white.png" alt="" />
         </div>
         <div aria-live={rotating ? 'off' : 'polite'} aria-atomic="true">
+          {isGiveaway ? giveaway : <>
           <div className={collection ? 'collection-art' : 'collection-art showcase-offer'}>
             <div key={current} className="showcase-copy">
               {collection ? <>
@@ -173,6 +177,7 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
           </div>
           {collection && <div className="collection-bottom">{slide.items.map(({ product: item }) => <button key={item.id} type="button" onClick={() => openProduct(item)}
             aria-label={item.name + ' · ' + t('Choose plan', 'အစီအစဉ် ရွေးရန်')}><Mark product={item} /><span>{item.name}</span><ArrowUpRight size={14} /></button>)}</div>}
+          </>}
         </div>
         {count > 1 && <div className="showcase-pages" role="group" aria-label={t('Choose a slide', 'ပြကွက် ရွေးရန်')}>
           {Array.from({ length: dashCount }, (_, offset) => {
@@ -182,7 +187,7 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
               className={clippedEdge ? 'more-slides' : undefined} onClick={() => goTo(i)} />;
           })}
         </div>}
-        {collection && category
+        {isGiveaway ? <a className="collection-link" href="#giveaway">{t('Giveaway details', 'Giveaway အသေးစိတ်')}<ArrowRight size={17} aria-hidden/></a> : collection && category
           ? <button className="collection-link" type="button" onClick={() => onCategory(category)}>{categoryName(category, lang)} <ArrowRight size={17} /></button>
           : <button type="button" className="collection-link showcase-offer-link" onClick={() => openProduct(product, plan?.id)}
               aria-label={[product.name, plan && planName(plan, lang), viewPlan].filter(Boolean).join(' · ')}>{viewPlan} <ArrowUpRight size={17} /></button>}

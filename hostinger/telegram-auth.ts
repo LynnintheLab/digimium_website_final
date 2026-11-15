@@ -4,7 +4,7 @@ import { isIP } from 'node:net';
 import { join } from 'node:path';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { CommerceError, commerceJson, readCommerceJson } from '../lib/commerce-http';
-import { customerMutationAllowed, currentCustomer, ensureCustomerSchema, issueTelegramCustomerSession } from './customer-auth';
+import { customerMutationAllowed, customerSessionBindingHash, currentCustomer, ensureCustomerSchema, issueTelegramCustomerSession } from './customer-auth';
 import { ensureTelegramIdentitySchema, type TelegramIdentity } from './telegram-identity';
 import { getTelegramHistory } from './telegram-history';
 import { getPool } from './mysql';
@@ -16,7 +16,7 @@ const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 type ReturnTo = 'account' | 'checkout' | 'history';
 type Binding = { id: string; browser: string; exp: number };
 type Stage = 'waiting' | 'sending' | 'sent' | 'approved' | 'rejected';
-type Flow = { id: string; returnTo: ReturnTo; code: string; options: string[]; created: number; context: string; location?: string; identity?: TelegramIdentity; messageId?: number; messageKind?: 'photo' | 'text' };
+type Flow = { id: string; returnTo: ReturnTo; code: string; options: string[]; created: number; context: string; location?: string; identity?: TelegramIdentity; messageId?: number; messageKind?: 'photo' | 'text'; purpose?: 'login' | 'link'; link?: { customerId: string; sessionHash: string } };
 interface Challenge extends RowDataPacket { id_hash: Buffer; browser_hash: Buffer; stage: Stage; payload: string }
 let ready: Promise<void> | undefined;
 
@@ -55,13 +55,13 @@ function binding(request: Request): Binding | null {
   try { const item = unseal<Binding>(value, 'browser'), now = Math.floor(Date.now() / 1000); return tokenPattern.test(item.id) && tokenPattern.test(item.browser) && Number.isInteger(item.exp) && item.exp > now && item.exp <= now + lifetime ? item : null; } catch { return null; }
 }
 function receiptName() { return config().secure ? '__Host-digimium_telegram_result' : 'digimium_local_telegram_result'; }
-function receiptCookie(customerId?: string, flowId?: string) {
-  const c = config(); const value = customerId ? seal({ customerId, flowId, exp: Math.floor(Date.now() / 1000) + 120 }, 'result') : '';
+function receiptCookie(customerId?: string, flowId?: string, flowPurpose: 'login' | 'link' = 'login') {
+  const c = config(); const value = customerId ? seal({ customerId, flowId, purpose: flowPurpose, exp: Math.floor(Date.now() / 1000) + 120 }, 'result') : '';
   return `${receiptName()}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${customerId ? 120 : 0}${c.secure ? '; Secure' : ''}`;
 }
-function receipt(request: Request): { customerId: string; flowId: string; exp: number } | null {
+function receipt(request: Request): { customerId: string; flowId: string; exp: number; purpose?: 'login' | 'link' } | null {
   const value = cookieValue(request, receiptName()); if (!value || value.length > 1500 || !/^[A-Za-z0-9_-]+$/.test(value)) return null;
-  try { const item = unseal<{ customerId: string; flowId: string; exp: number }>(value, 'result'), now = Math.floor(Date.now() / 1000); return /^[a-f0-9-]{36}$/.test(item.customerId) && tokenPattern.test(item.flowId) && Number.isInteger(item.exp) && item.exp > now && item.exp <= now + 120 ? item : null; } catch { return null; }
+  try { const item = unseal<{ customerId: string; flowId: string; exp: number; purpose?: 'login' | 'link' }>(value, 'result'), now = Math.floor(Date.now() / 1000); return /^[a-f0-9-]{36}$/.test(item.customerId) && tokenPattern.test(item.flowId) && (!item.purpose || ['login','link'].includes(item.purpose)) && Number.isInteger(item.exp) && item.exp > now && item.exp <= now + 120 ? item : null; } catch { return null; }
 }
 async function ensureSchema() {
   return ready ??= (async () => { await ensureCustomerSchema(); await getPool().query(await readFile(join(process.cwd(), 'hostinger/telegram-auth-schema.sql'), 'utf8')); })().catch(error => { ready = undefined; throw error; });
@@ -80,9 +80,15 @@ async function limit(request: Request, action: 'start' | 'complete') {
 function purpose(idHash: Buffer) { return 'challenge:' + idHash.toString('base64url'); }
 function unpack(row: Challenge) { return unseal<Flow>(row.payload, purpose(row.id_hash)); }
 function pack(flow: Flow) { return seal(flow, purpose(hash(flow.id))); }
-function publicFlow(flow: Flow) { return { flow: flow.id, code: flow.code, url: `https://t.me/${config().username}?start=login_${flow.id}`, expiresAt: new Date((flow.created + lifetime) * 1000).toISOString(), returnTo: flow.returnTo }; }
+function publicFlow(flow: Flow) { return { flow: flow.id, code: flow.code, url: `https://t.me/${config().username}?start=login_${flow.id}`, expiresAt: new Date((flow.created + lifetime) * 1000).toISOString(), returnTo: flow.returnTo, purpose: flow.purpose ?? 'login' }; }
+async function assertFlowOwner(request: Request, flow: Flow) {
+  if (flow.purpose !== 'link') return;
+  if (!flow.link || !/^[a-f0-9-]{36}$/.test(flow.link.customerId) || !/^[a-f0-9]{64}$/.test(flow.link.sessionHash)) throw new CommerceError(400, 'invalid');
+  if (customerSessionBindingHash(request) !== flow.link.sessionHash) throw new CommerceError(401, 'session_changed');
+  if ((await currentCustomer(request))?.id !== flow.link.customerId) throw new CommerceError(401, 'signed_out');
+}
 function errorReply(error: unknown) {
-  const safe = error instanceof CommerceError && ['invalid', 'origin', 'rate_limited', 'expired', 'cancelled'].includes(error.message) ? error.message : 'unavailable';
+  const safe = error instanceof CommerceError && ['invalid', 'origin', 'rate_limited', 'expired', 'cancelled', 'signed_out', 'session_changed', 'telegram_in_use', 'telegram_already_linked'].includes(error.message) ? error.message : 'unavailable';
   return commerceJson({ error: safe }, error instanceof CommerceError ? error.status : 503);
 }
 function requestedFlow(request: Request) {
@@ -95,7 +101,17 @@ export async function telegramStart(request: Request) {
   if (!customerMutationAllowed(request)) return commerceJson({ error: 'origin' }, 403);
   try {
     config(); const body = await readCommerceJson(request, 1024);
-    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 1 || !['account', 'checkout', 'history'].includes((body as { returnTo: string }).returnTo)) throw new CommerceError(400, 'invalid');
+    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !['returnTo','purpose'].includes(key)) ||
+      !['account', 'checkout', 'history'].includes((body as { returnTo: string }).returnTo)) throw new CommerceError(400, 'invalid');
+    const requestedPurpose = (body as { purpose?: unknown }).purpose;
+    if (requestedPurpose !== undefined && requestedPurpose !== 'login' && requestedPurpose !== 'link') throw new CommerceError(400, 'invalid');
+    let link: Flow['link'];
+    if (requestedPurpose === 'link') {
+      if ((body as { returnTo: string }).returnTo !== 'account') throw new CommerceError(400, 'invalid');
+      const customer = await currentCustomer(request), sessionHash = customerSessionBindingHash(request);
+      if (!customer || !sessionHash) throw new CommerceError(401, 'signed_out');
+      link = { customerId: customer.id, sessionHash };
+    }
     await ensureSchema(); await limit(request, 'start');
     const previous = binding(request);
     if (previous) await getPool().execute('DELETE FROM digimium_telegram_auth_challenges WHERE id_hash = ? AND browser_hash = ?', [hash(previous.id), hash(previous.browser)]);
@@ -107,7 +123,8 @@ export async function telegramStart(request: Request) {
     for (let index = options.length - 1; index > 0; index--) { const next = randomInt(index + 1); [options[index], options[next]] = [options[next], options[index]]; }
     const location = await loginLocation(request);
     const flow: Flow = { id, returnTo: (body as { returnTo: ReturnTo }).returnTo, code, options, created,
-      context: telegramBrowserContext(request.headers.get('user-agent') || ''), ...(location ? { location } : {}) };
+      context: telegramBrowserContext(request.headers.get('user-agent') || ''), ...(location ? { location } : {}),
+      ...(link ? { purpose: 'link', link } : {}) };
     const browser: Binding = { id, browser: randomBytes(32).toString('base64url'), exp: created + lifetime };
     await getPool().execute("INSERT INTO digimium_telegram_auth_challenges (id_hash, browser_hash, stage, payload, expires_at) VALUES (?, ?, 'waiting', ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND))", [hash(id), hash(browser.browser), pack(flow), lifetime]);
     const response = commerceJson(publicFlow(flow)); response.headers.append('Set-Cookie', authCookie(seal(browser, 'browser'))); response.headers.append('Set-Cookie', receiptCookie()); return response;
@@ -121,11 +138,11 @@ export async function telegramPending(request: Request) {
       await ensureSchema();
       if (!await claim('poll:' + hash(browser.browser).toString('hex'), 180, 60)) throw new CommerceError(429, 'rate_limited');
       const [rows] = await getPool().execute<Challenge[]>('SELECT id_hash, browser_hash, stage, payload FROM digimium_telegram_auth_challenges WHERE id_hash = ? AND browser_hash = ? AND expires_at > UTC_TIMESTAMP()', [hash(browser.id), hash(browser.browser)]);
-      if (rows[0]) { const flow = unpack(rows[0]); return commerceJson({ status: rows[0].stage === 'approved' ? 'approved' : rows[0].stage === 'rejected' ? 'rejected' : 'waiting', ...publicFlow(flow) }); }
+      if (rows[0]) { const flow = unpack(rows[0]); await assertFlowOwner(request, flow); return commerceJson({ status: rows[0].stage === 'approved' ? 'approved' : rows[0].stage === 'rejected' ? 'rejected' : 'waiting', ...publicFlow(flow) }); }
     }
     const completed = receipt(request);
     if (completed && (!expected || completed.flowId === expected) && (!browser || browser.id === completed.flowId)) {
-      const customer = await currentCustomer(request); if (customer?.id === completed.customerId) return commerceJson({ status: 'success', customer });
+      const customer = await currentCustomer(request); if (customer?.id === completed.customerId) return commerceJson({ status: 'success', customer, purpose: completed.purpose ?? 'login' });
     }
     return commerceJson({ status: browser && (!expected || expected === browser.id) ? 'expired' : 'none' });
   } catch (error) { return errorReply(error); }
@@ -151,14 +168,15 @@ export async function telegramComplete(request: Request) {
     const [rows] = await getPool().execute<Challenge[]>("SELECT id_hash, browser_hash, stage, payload FROM digimium_telegram_auth_challenges WHERE id_hash = ? AND browser_hash = ? AND stage = 'approved' AND expires_at > UTC_TIMESTAMP()", [hash(browser.id), hash(browser.browser)]);
     if (!rows[0]) {
       const completed = receipt(request), customer = completed?.flowId === flowId ? await currentCustomer(request) : null;
-      if (customer && completed?.customerId === customer.id) return commerceJson({ customer });
+      if (customer && completed?.customerId === customer.id) return commerceJson({ customer, purpose: completed.purpose ?? 'login' });
       throw new CommerceError(400, 'expired');
     }
     const flow = unpack(rows[0]); if (!flow.identity) throw new CommerceError(400, 'invalid');
+    await assertFlowOwner(request, flow);
     await ensureTelegramIdentitySchema();
-    const response = await issueTelegramCustomerSession(request, flow.identity, { idHash: hash(browser.id), browserHash: hash(browser.browser), stage: 'approved' });
+    const response = await issueTelegramCustomerSession(request, flow.identity, { idHash: hash(browser.id), browserHash: hash(browser.browser), stage: 'approved' }, flow.purpose === 'link' ? flow.link : undefined);
     const data = await response.clone().json() as { customer?: { id?: string } }; if (!data.customer?.id) throw new Error('Missing customer.');
-    response.headers.append('Set-Cookie', receiptCookie(data.customer.id, flowId));
+    response.headers.append('Set-Cookie', receiptCookie(data.customer.id, flowId, flow.purpose ?? 'login'));
     // This notice follows successful atomic consumption; acknowledgement retries do
     // not send it again. A separate message cannot be overwritten by a slow approval edit.
     await completedNotice(flow);
@@ -239,7 +257,7 @@ async function completedNotice(flow: Flow) {
   try {
     const text = telegramLoginComplete({ ...flow, origin: config().origin });
     const entities = telegramLoginTitleEntities(text);
-    const photo = await photoMessage(userId, 'login-success.jpg', text, undefined,
+    const photo = flow.purpose === 'link' ? undefined : await photoMessage(userId, 'login-success.jpg', text, undefined,
       AbortSignal.any([signal, AbortSignal.timeout(1200)]));
     if (photo) {
       await botApi('editMessageCaption', { chat_id: userId, message_id: photo.message_id, caption: text, caption_entities: entities,

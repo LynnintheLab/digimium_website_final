@@ -3,23 +3,25 @@
 import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import type {CommerceCustomer} from '../../lib/commerce-types';
 
-export type TelegramChallenge = {flow:string;code:string;url:string;expiresAt:string};
+export type TelegramChallenge = {flow:string;code:string;url:string;expiresAt:string;purpose?:'login'|'link'};
 export type TelegramLoginStatus = 'idle' | 'starting' | 'waiting' | 'approved' | 'rejected' | 'expired' | 'error';
 type TelegramResult = Partial<TelegramChallenge> & {status?:string;customer?:CommerceCustomer;error?:string};
 type Callbacks = {onSuccess:(customer:CommerceCustomer)=>void;onBusyChange?:(busy:boolean)=>void};
 // Keep cookie-mutating responses ordered even when AuthForm is unmounted and reopened in this page.
 let telegramMutations:Promise<unknown> = Promise.resolve();
 
-function challengeFrom(value:TelegramResult):TelegramChallenge | null {
+function challengeFrom(value:TelegramResult,purpose:'login'|'link'):TelegramChallenge | null {
+  if((value.purpose??'login')!==purpose)return null;
   if (typeof value.flow !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value.flow) || typeof value.code !== 'string' || !/^\d{4}$/.test(value.code) || typeof value.url !== 'string' || typeof value.expiresAt !== 'string' || !Number.isFinite(Date.parse(value.expiresAt))) return null;
   try {
     const link = new URL(value.url);
     if (link.origin !== 'https://t.me' || !/^\/[A-Za-z0-9_]{5,32}$/.test(link.pathname) || link.searchParams.get('start') !== 'login_' + value.flow || link.username || link.password || link.hash) return null;
   } catch { return null; }
-  return {flow:value.flow,code:value.code,url:value.url,expiresAt:value.expiresAt};
+  return {flow:value.flow,code:value.code,url:value.url,expiresAt:value.expiresAt,purpose};
 }
 
-export function useTelegramLogin(returnTo:'account'|'checkout'|'history',callbacks:Callbacks,options:{autoResume?:boolean}={}) {
+export function useTelegramLogin(returnTo:'account'|'checkout'|'history',callbacks:Callbacks,options:{autoResume?:boolean;purpose?:'login'|'link'}={}) {
+  const purpose=options.purpose??'login';
   const [enabled,setEnabled] = useState<boolean|null>(null);
   const [active,setActive] = useState(false);
   const [busy,setBusy] = useState(false);
@@ -80,7 +82,7 @@ export function useTelegramLogin(returnTo:'account'|'checkout'|'history',callbac
         const response=await fetch('/api/customer/telegram/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({flow}),cache:'no-store',signal:AbortSignal.timeout(15000)});
         const data=await response.json() as TelegramResult;
         if(!isCurrent(run,flow))return;
-        if(response.ok && typeof data.customer?.id==='string'){success(data.customer,run);return;}
+        if(response.ok && typeof data.customer?.id==='string' && (data.purpose??'login')===purpose){success(data.customer,run);return;}
         if(!data.error||data.error==='unavailable'){
           publishStatus('waiting');publishBusy(false);setError('connection');schedulePoll(run,flow,3000);return;
         }
@@ -101,6 +103,7 @@ export function useTelegramLogin(returnTo:'account'|'checkout'|'history',callbac
       if(controller.signal.aborted||!isCurrent(run,flow)||currentStatus.current!=='waiting')return;
       if(!response.ok){setError(data.error||'unavailable');publishStatus('error');return;}
       failures.current=0;setError('');
+      if((data.purpose??'login')!==purpose){setError('cancelled');publishStatus('error');return;}
       if(data.status==='success'&&typeof data.customer?.id==='string'){success(data.customer,run);return;}
       if(data.status==='approved'){void complete(run,flow);return;}
       if(data.status==='rejected'||data.status==='expired'){publishStatus(data.status);return;}
@@ -127,8 +130,9 @@ export function useTelegramLogin(returnTo:'account'|'checkout'|'history',callbac
       .then(async response=>response?.ok?response.json() as Promise<TelegramResult>:null)
       .then(data=>{
         if(!isCurrent(run)||!data)return;
+        if((data.purpose??'login')!==purpose)return;
         if(data.status==='success'&&typeof data.customer?.id==='string'){success(data.customer,run);return;}
-        const resumed=challengeFrom(data);
+        const resumed=challengeFrom(data,purpose);
         if(!resumed || !['waiting','approved','rejected','expired'].includes(data.status||''))return;
         currentChallenge.current=resumed;isActive.current=true;setChallenge(resumed);setActive(true);setClock(Date.now());
         publishStatus(data.status==='rejected'?'rejected':data.status==='expired'?'expired':'waiting');
@@ -174,13 +178,13 @@ export function useTelegramLogin(returnTo:'account'|'checkout'|'history',callbac
       if(oldFlow)await discard(oldFlow);
       if(!isCurrent(run))return;
       try {
-        const response=await fetch('/api/customer/telegram/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnTo}),cache:'no-store',signal:AbortSignal.timeout(15000)});
+        const response=await fetch('/api/customer/telegram/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnTo,...(purpose==='link'?{purpose}:{})}),cache:'no-store',signal:AbortSignal.timeout(15000)});
         const data=await response.json() as TelegramResult;
-        const created=challengeFrom(data);
+        const created=challengeFrom(data,purpose);
         if(!isCurrent(run)){if(created)await discard(created.flow);return;}
         if(!response.ok||!created)throw new Error(data.error||'unavailable');
         currentChallenge.current=created;setChallenge(created);setClock(Date.now());failures.current=0;publishStatus('waiting');publishBusy(false);schedulePoll(run,created.flow,0);
-      }catch(failure){if(isCurrent(run)){setError(failure instanceof Error && ['invalid','origin','rate_limited','expired','cancelled','unavailable'].includes(failure.message)?failure.message:'unavailable');publishStatus('error');publishBusy(false);}}
+      }catch(failure){if(isCurrent(run)){setError(failure instanceof Error && ['invalid','origin','rate_limited','expired','cancelled','unavailable','signed_out','session_changed','telegram_in_use','telegram_already_linked'].includes(failure.message)?failure.message:'unavailable');publishStatus('error');publishBusy(false);}}
     });
   }
   function cancel() {
@@ -193,7 +197,7 @@ export function useTelegramLogin(returnTo:'account'|'checkout'|'history',callbac
     if(needsDiscard)void enqueue(()=>discard(flow));
   }
   const secondsLeft=challenge?Math.max(0,Math.min(300,Math.ceil((Date.parse(challenge.expiresAt)-clock)/1000))):300;
-  return {enabled,active,busy,status,challenge,error,secondsLeft,start,refresh:start,cancel,clearError:()=>setError('')};
+  return {enabled,active,busy,status,challenge,error,secondsLeft,purpose,start,refresh:start,cancel,clearError:()=>setError('')};
 }
 
 export type TelegramLoginController=ReturnType<typeof useTelegramLogin>;

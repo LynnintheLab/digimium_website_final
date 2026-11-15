@@ -163,15 +163,14 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     showReceipt(receipt);
   }, [checkSession, clearHandoff, forgetReceipt, lang, showReceipt, telegram]);
   const initialized = useRef(false);
-  const initialIntent = useRef<{account: boolean; checkout: boolean; anchor: boolean} | null>(null);
+  const initialCheckout = useRef<boolean | null>(null);
 
   useEffect(() => {
-    // Capture both intents before sibling components consume their query parameters.
-    if (!initialIntent.current) {
-      const url = new URL(window.location.href);
-      initialIntent.current = {account: url.searchParams.get('account') === '1', checkout: url.searchParams.get('checkout') === '1', anchor: url.hash.length > 1};
+    // Capture checkout intent before sibling components consume their query parameters.
+    // A saved receipt is recoverable from the cart, never an instruction to open a modal.
+    if (initialCheckout.current === null) {
+      initialCheckout.current = new URL(window.location.href).searchParams.get('checkout') === '1';
     }
-    const intent = initialIntent.current;
     function read() {
       let next: CartItem[] = cartRef.current;
       try { next = restoreCart(JSON.parse(localStorage.getItem(CART_KEY) || '[]'), products); setCart(next); cartRef.current = next; }
@@ -180,7 +179,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       return next;
     }
     const frame = window.requestAnimationFrame(() => {
-      const initialCart = read();
+      read();
       if (initialized.current) return;
       initialized.current = true;
       const url = new URL(window.location.href);
@@ -191,11 +190,11 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
         if (stored && !receipt) sessionStorage.removeItem(ORDER_RECEIPT_KEY);
       } catch { /* Storage is optional. */ }
       setSavedReceipt(Boolean(receipt));
-      if (commerceEnabled && intent.checkout) {
+      if (commerceEnabled && initialCheckout.current) {
         setScreen('cart');
         url.searchParams.delete('checkout');
         window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
-      } else if (commerceEnabled && !intent.account && !intent.anchor && receipt && initialCart.length === 0) void resumeReceipt();
+      }
     });
     const synchronize = (event: StorageEvent) => { if (event.key === CART_KEY || event.key === null) read(); };
     const resume = (event: PageTransitionEvent) => { if (event.persisted) read(); };
@@ -206,7 +205,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       window.removeEventListener('storage', synchronize);
       window.removeEventListener('pageshow', resume);
     };
-  }, [products, resumeReceipt]);
+  }, [products]);
   useEffect(() => { onCountChange(count); }, [count, onCountChange]);
   useEffect(() => { onOpenChange?.(open); }, [open, onOpenChange]);
   useEffect(() => () => { onOpenChange?.(false); }, [onOpenChange]);

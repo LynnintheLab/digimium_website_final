@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ArrowLeft, Check, LoaderCircle, Save } from 'lucide-react';
+import { ArrowLeft, Check, Eye, EyeOff, LoaderCircle, Save } from 'lucide-react';
 import type { CommerceCustomer, CommerceOrder, CommerceOrderLine } from '@/lib/commerce-types';
 import { customerContact } from '@/lib/customer-identity';
 import { suggestedEndDate, todayInMyanmar } from './order-dates';
@@ -16,6 +16,7 @@ function initialDetails(line: CommerceOrderLine) {
   const startDate = line.startDate ?? todayInMyanmar();
   return {
     id: line.id, startDate, endDate: line.endDate ?? suggestedEndDate(startDate, line.duration),
+    accountDetails: { account: '', password: '', manager: '', username: '', ...line.accountDetails },
   };
 }
 type LineDetails = ReturnType<typeof initialDetails>;
@@ -33,6 +34,7 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [failureStatus, setFailureStatus] = useState(0);
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const dirty = JSON.stringify(original) !== JSON.stringify(details);
   const pending = order.status === 'pending';
 
@@ -105,6 +107,34 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
                   onChange={event => updateLine(item.id, { endDate: event.target.value })} />
               </label>
             </div>
+            <fieldset className="commerce-account-fields">
+              <legend>Purchased account details <span>Optional</span></legend>
+              <p>Leave any field blank. You can approve the order without these details. Saved values appear in the customer’s purchased order history.</p>
+              <div className="commerce-account-grid">
+                <label className="admin-field">Account
+                  <input type="text" autoComplete="off" maxLength={500} value={item.accountDetails.account}
+                    onChange={event => updateLine(item.id, { accountDetails: { ...item.accountDetails, account: event.target.value } })} />
+                </label>
+                <label className="admin-field">Password
+                  <span className="commerce-password-field">
+                    <input type={visiblePasswords[item.id] ? 'text' : 'password'} autoComplete="new-password" maxLength={1000} value={item.accountDetails.password}
+                      onChange={event => updateLine(item.id, { accountDetails: { ...item.accountDetails, password: event.target.value } })} />
+                    <button type="button" aria-label={`${visiblePasswords[item.id] ? 'Hide' : 'Show'} purchased password for ${line.productName}`} aria-pressed={!!visiblePasswords[item.id]}
+                      onClick={() => setVisiblePasswords(current => ({ ...current, [item.id]: !current[item.id] }))}>
+                      {visiblePasswords[item.id] ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
+                    </button>
+                  </span>
+                </label>
+                <label className="admin-field">Manager
+                  <input type="text" autoComplete="off" maxLength={500} value={item.accountDetails.manager}
+                    onChange={event => updateLine(item.id, { accountDetails: { ...item.accountDetails, manager: event.target.value } })} />
+                </label>
+                <label className="admin-field">Username
+                  <input type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={500} value={item.accountDetails.username}
+                    onChange={event => updateLine(item.id, { accountDetails: { ...item.accountDetails, username: event.target.value } })} />
+                </label>
+              </div>
+            </fieldset>
             {line.accountInfo && <details className="commerce-legacy-details">
               <summary>Previously saved account details</summary>
               <p dir="auto">{line.accountInfo}</p>

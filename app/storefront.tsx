@@ -16,6 +16,8 @@ import { CursorLight } from "./cursor-light";
 import { ScrollRail } from "./scroll-rail";
 import { MobileDock } from "./mobile-dock";
 import { PaymentMethods } from "./payment-methods";
+import { GiveawayBanner, GiveawayDetails, GiveawayPromo, useGiveaway } from "./giveaway";
+import type { GiveawayView } from "../lib/giveaway-types";
 import "./storefront-order.css";
 import "./contact-links.css";
 import "./order-guide.css";
@@ -34,9 +36,10 @@ function PlanSummary({ plan, bestSeller, id, lang }: { plan: ProductPlan; bestSe
   </div>;
 }
 
-export default function Storefront({ initialCatalog, initialLanguage = 'my' }: { initialCatalog: Catalog; initialLanguage?: Language }) {
+export default function Storefront({ initialCatalog, initialLanguage = 'my', initialGiveaway = null }: { initialCatalog: Catalog; initialLanguage?: Language; initialGiveaway?: GiveawayView | null }) {
   const [lang, setLang] = useState<Language>(initialLanguage);
   const t = (en: string, my: string) => lang === 'my' ? my : en;
+  const giveaway = useGiveaway(commerceEnabled, initialGiveaway);
   const [category, setCategory] = useState(0);
   const [query, setQuery] = useState('');
   const [all, setAll] = useState(false);
@@ -212,6 +215,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my' }: {
     <CursorLight paused={motionPaused} />
     <a className="skip" href="#services">{t('Skip to services', 'Product စာရင်းသို့ သွားရန်')}</a>
     <ScrollRail lang={lang} />
+    {giveaway.data && <GiveawayBanner campaign={giveaway.data.campaign} lang={lang}/>}
     <header ref={header} className="header wrap">
       <a className="brand" href="#" aria-label={t('Digimium home', 'Digimium ပင်မစာမျက်နှာ')}><img src="/assets/logo.png" alt="digimium." /></a>
       <nav id="shop-nav" className={menu ? 'nav open' : 'nav'} aria-label={t('Main navigation', 'ပင်မမီနူး')}>
@@ -241,9 +245,11 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my' }: {
           <div className="hero-actions"><a className="button primary" href="#services">{t('Explore services', 'ပစ္စည်းများ ကြည့်ရန်')} <ArrowUpRight size={18} /></a><a className="text-link" href="#how-it-works">{t('How to order', 'ဘယ်လိုဝယ်ယူရမလဲ')} <ArrowRight size={17} /></a></div>
         </div>
         <CollectionShowcase products={products} lang={lang} motionPaused={motionPaused} onCategory={showCategory}
+          giveaway={giveaway.data ? <GiveawayPromo campaign={giveaway.data.campaign} lang={lang}/> : undefined}
           onProduct={(product, planId) => shop.current?.openProduct(product, planId)} />
       </section>
       <div className="purpose-strip wrap"><span>{t('One place. More possibilities.', 'တစ်နေရာတည်းမှာ အားလုံးကို စိတ်ကြိုက်ရွေးချယ်လို့ရပါပြီ')}</span><div><span><Sparkles size={16} />{t('Work smarter', 'အလုပ်အတွက်')}</span><span><PenTool size={16} />{t('Create freely', 'ဖန်တီးဖို့')}</span><span><Clapperboard size={16} />{t('Enjoy your downtime', 'အပန်းဖြေဖို့')}</span></div></div>
+      {commerceEnabled && <GiveawayDetails controller={giveaway} lang={lang}/>}
       <section id="services" className="services wrap" aria-labelledby="services-title">
         <div className="section-heading"><h2 id="services-title">{t('Find your next upgrade', 'သင့်အတွက် ဝန်ဆောင်မှုများ')}{lang === 'en' && <span className="blue">.</span>}</h2></div>
         <div className="catalog-tools">

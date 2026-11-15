@@ -89,7 +89,8 @@ export function MobileDock({lang, active, cartCount, onCart, onAccount, onSectio
       : <Link className={'mobile-dock-item' + (!commerceEnabled ? ' mobile-dock-center' : '')} href="/?checkout=1" aria-label={cartLabel}>{cartContents}</Link>}
     {commerceEnabled && (onAccount ? <button type="button" className="mobile-dock-item mobile-dock-center" onClick={onAccount} aria-label={t('My account', 'ကျွန်ုပ်၏ အကောင့်')} aria-haspopup="dialog" aria-controls="shop-account-panel">{accountContents}</button>
       : <Link className="mobile-dock-item mobile-dock-center" href="/?account=1" aria-current={active === 'account' ? 'page' : undefined}>{accountContents}</Link>)}
-    {commerceEnabled && <Link className="mobile-dock-item" href="/order-history" aria-current={active === 'history' ? 'page' : undefined}><span className="mobile-dock-icon"><History size={22} aria-hidden="true"/></span><span>{t('History', 'မှတ်တမ်း')}</span></Link>}
+    {/* Full navigation keeps storefront analytics out of the private history document. */}
+    {commerceEnabled && <a className="mobile-dock-item" href="/order-history" aria-current={active === 'history' ? 'page' : undefined}><span className="mobile-dock-icon"><History size={22} aria-hidden="true"/></span><span>{t('History', 'မှတ်တမ်း')}</span></a>}
     <Link className="mobile-dock-item" href="/#contact" aria-current={active === 'help' ? 'page' : undefined}
       onClick={event => navigateSection(event, 'help')}><span className="mobile-dock-icon"><LifeBuoy size={22} aria-hidden="true"/></span><span>{t('Help', 'အကူအညီ')}</span></Link>
   </nav>;

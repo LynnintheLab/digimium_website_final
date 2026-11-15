@@ -17,7 +17,7 @@ The Hostinger build protects `/admin` with a one-time code sent to the owner’s
 | Storefront | An automatic showcase of best sellers, gift promotions and discounts, with category collections when no promotion or discount is active. Includes search, category filters, FAQ, English/Myanmar and contact links. |
 | Product plans | Only published plans appear to customers. Unpriced products remain available for enquiries. |
 | Cart | The cart survives sign-in and clears when the server acknowledges the order. |
-| Customer account | Account is optional for buying. Open Account for profile, password, pending drafts and a three-plan history preview; Order history shows all approved purchases and remaining subscription time. |
+| Customer account | Account is optional for buying. Open Account for profile and brief plan/pending previews. The round gear opens full profile/settings and Telegram linking; Order history shows all purchases, segmented remaining-day gauges and optional delivered account details. |
 | Order administration | Review customers and saved orders in `/admin`. Match the Telegram reference, confirm dates and approve purchases after arranging delivery in the chat. |
 | Legacy Sites checkout | The Sites deployment opens a Telegram order draft. |
 | Admin | Create and edit products, plans, descriptions, categories, availability, featured state, publication, and contact settings. |
@@ -29,9 +29,9 @@ The Hostinger build protects `/admin` with a one-time code sent to the owner’s
 
 The starting catalog contains **54 products and 104 plan records**, with **50 plans selected for public display**. Admin edits can alter these counts. Keep the current plan visibility unless the owner explicitly changes it. Source and pricing decisions are documented in [data/IMPORT-SOURCES.md](data/IMPORT-SOURCES.md).
 
-Checkout offers Buy with an account or Buy on Telegram. Account sign-in and registration stay inside the order popup, then return to the cart for review. Telegram-only checkout asks for no name or email and explains that the purchase will not appear in website history; account checkout uses the signed-in customer’s name and email. Telegram-only orders appear in admin with a Guest label and reference and are not linked to a website account. Checkout opens a Telegram draft with the order reference and that identity. Customers send the message themselves. Payment and service-account delivery happen in Telegram, followed by manual website approval. MySQL stores customer records and order snapshots separately from the editable catalog.
+Checkout offers Buy with an account or Buy on Telegram. Account sign-in and registration stay inside the order popup, then return to the cart for review. Telegram-only checkout asks for no name or email and explains that the purchase will not appear in website history; account checkout uses the signed-in customer’s name and email. Telegram-only orders appear in admin with a Guest label and reference and are not linked to a website account. Checkout opens a Telegram draft with the order reference and that identity. Customers send the message themselves. Payment and service-account delivery continue in Telegram, followed by manual website approval. Admin may additionally save optional encrypted account details for the customer’s approved full history. MySQL stores customer records and order snapshots separately from the editable catalog.
 
-Customer login uses a shared email-first form. Google, Telegram and phone sign-in are Coming soon placeholders. See [future login provider setup](docs/LOGIN-PROVIDERS.md) for the required accounts and activation work.
+Customer login supports email/password, configured Google OAuth and configured Telegram code approval; phone remains Coming soon. Existing Google/email customers can link an unclaimed Telegram identity without moving their orders. The giveaway requires that verified link; admin sets its dates and explicitly launches it. See [future login provider setup](docs/LOGIN-PROVIDERS.md) for the required accounts and activation work.
 
 ## Quick start
 

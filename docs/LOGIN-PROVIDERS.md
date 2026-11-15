@@ -108,7 +108,7 @@ The visible digits are for human comparison, not a bearer login secret. A strong
 
 - The stable numeric Telegram user ID owns the account. Changing a username or display name does not move an identity to another customer or merge purchase histories.
 - A new Telegram customer has a name and optional Telegram username, with **null email and no website password**. No fake Gmail address or password is created.
-- Existing email/Google accounts are not automatically merged with Telegram accounts, even if names or usernames match. This release does not provide an account-linking or merge action. Continue using the original provider to access an older account’s purchases.
+- Existing email/Google accounts are not automatically merged with Telegram accounts, even if names or usernames match. Full Account settings provides an explicit Telegram connection for a signed-in Google/email account. The code challenge binds to that exact customer/session and keeps its existing purchases. A Telegram identity already owned by another customer is rejected; no accounts are merged or transferred.
 - Customer/admin views and account-purchase Telegram drafts identify Telegram customers by the saved name and Telegram identity when no email exists. Guest checkout remains a separate order flow.
 
 ### Bot and active environment
@@ -141,7 +141,7 @@ Use the bot’s menu buttons or these commands:
 
 Long results use **နောက်ထပ် →** pages. **↻ ပြန်စစ်မယ်** fetches current order/date information; **အစမှ** returns to the first page and **🏠 Menu** returns to the menu. The website history link opens the customer’s ordinary authenticated website view.
 
-The bot identifies the requester by the verified numeric Telegram sender ID and its existing website identity mapping on every read. It does not accept a customer ID, email, name or username as authority to view orders. Unmapped Telegram users receive website Telegram sign-in instructions; users without orders receive an empty state specific to this Telegram-linked account. Purchases made through a separate email/Google account remain with that original account. Neither command creates an account, merges identities, claims guest orders or approves an order.
+The bot identifies the requester by the verified numeric Telegram sender ID and its existing website identity mapping on every read. It does not accept a customer ID, email, name or username as authority to view orders. Unmapped Telegram users receive website Telegram sign-in instructions; users without orders receive an empty state specific to this Telegram-linked account. Purchases made through a Google/email account stay with that original owner; once that same account explicitly connects Telegram, its earlier purchases are available through the bot. Neither command creates an account, merges identities, claims guest orders or approves an order.
 
 Pending orders are labelled as waiting for confirmation. The plan view contains approved purchases only. Dates and remaining days use the existing **Asia/Yangon calendar-date rules**, matching the website: future terms have an upcoming label, the end date remains **ends today** for that entire Myanmar date, and expiry begins the following day. Missing/invalid dates show an unknown state rather than an invented expiry or progress value. Expired plans remain visible as expired purchases.
 
@@ -197,3 +197,7 @@ Official references: [bot deep links and keyboards](https://core.telegram.org/bo
 Choose an SMS verification service when phone login is scheduled. **Twilio Verify** is one option, not a service already purchased or connected to this project. It needs a funded account, a Verify Service, destination-country permissions, private service credentials, request limits and carrier delivery tests. The customer model already supports provider identities without invented emails/passwords; phone sign-in still needs its own verified identity mapping and secure delivery flow.
 
 [Twilio Verify setup guide](https://www.twilio.com/docs/verify/quickstarts/node-express)
+
+### Connect Telegram to an existing account
+
+Open full Account settings → Telegram → Connect, approve the matching code in the bot and return to the same website session. The original session/customer and earlier orders are preserved. Signing out, switching sessions, expiry or cancellation invalidates completion. The settings page lists actual connected methods from provider identity tables; Google connection from a Telegram-only account remains labelled Coming soon. A three-step illustrated guide is linked from the giveaway. Agent verification uses only a mocked local webhook and never opens the Telegram app.

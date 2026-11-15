@@ -10,14 +10,15 @@ import { CommerceError, readCommerceJson } from "../lib/commerce-http";
 import type { TelegramIdentity } from "./telegram-identity";
 
 export type Customer = { id: string; name: string; email: string | null; createdAt: string; passwordAvailable?: false;
-  telegram?: { id: string; username: string | null } };
-export type CustomerIdentityRow = Customer & { password_available: number; telegram_id?: string | null; telegram_username?: string | null };
+  telegram?: { id: string; username: string | null }; signInMethods?: { emailPassword: boolean; google: boolean; telegram: boolean } };
+export type CustomerIdentityRow = Customer & { password_available: number; telegram_id?: string | null; telegram_username?: string | null; google_connected?: number };
 
 /** Preserve legacy DTO keys while exposing a verified Telegram identity only when it exists. */
 export function presentCustomer(row: CustomerIdentityRow): Customer {
   const customer: Customer = { id: row.id, name: row.name, email: row.email, createdAt: row.createdAt };
   if (!row.password_available) customer.passwordAvailable = false;
   if (row.telegram_id) customer.telegram = { id: row.telegram_id, username: row.telegram_username ?? null };
+  if (row.google_connected !== undefined) customer.signInMethods = { emailPassword: !!row.password_available, google: !!row.google_connected, telegram: !!row.telegram_id };
   return customer;
 }
 const sessionSeconds = 30 * 24 * 60 * 60;
@@ -43,6 +44,8 @@ export function ensureCustomerSchema(): Promise<void> {
       }
       const telegramSql = await readFile(join(process.cwd(), "hostinger", "telegram-identity-schema.sql"), "utf8");
       for (const statement of telegramSql.split(";").filter(part => part.trim())) await getPool().query(statement);
+      const googleSql = await readFile(join(process.cwd(), "hostinger", "google-identity-schema.sql"), "utf8");
+      for (const statement of googleSql.split(";").filter(part => part.trim())) await getPool().query(statement);
     })().catch(error => { schema = undefined; throw error; });
   }
   return schema;
@@ -74,6 +77,12 @@ function digest(value: string) {
   return createHash("sha256").update(value).digest();
 }
 
+/** Internal binding only: never expose a session token or its hash to browser JSON. */
+export function customerSessionBindingHash(request: Request): string | null {
+  const config = site(), token = config && sessionToken(request, config.cookie);
+  return token ? digest(token).toString('hex') : null;
+}
+
 export async function currentCustomer(request: Request): Promise<Customer | null> {
   const config = site();
   const token = config && sessionToken(request, config.cookie);
@@ -81,6 +90,7 @@ export async function currentCustomer(request: Request): Promise<Customer | null
   await ensureCustomerSchema();
   const [rows] = await getPool().execute<(CustomerIdentityRow & RowDataPacket)[]>(
     `SELECT c.id, c.name, c.email, c.password_hash IS NOT NULL AS password_available, t.telegram_id, t.username AS telegram_username,
+     EXISTS(SELECT 1 FROM digimium_google_identities g WHERE g.customer_id = c.id) AS google_connected,
      DATE_FORMAT(c.created_at, '%Y-%m-%dT%H:%i:%sZ') AS createdAt FROM digimium_customer_sessions s
      JOIN digimium_customers c ON c.id = s.customer_id
      LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id
@@ -205,11 +215,12 @@ export async function issueCustomerSession(request: Request, verifiedCustomer: C
 /** Consume an approved browser-bound Telegram challenge and resolve its user in the same transaction. */
 export async function issueTelegramCustomerSession(request: Request, identity: TelegramIdentity, flow: {
   idHash: Buffer; browserHash: Buffer; stage: 'approved';
-}): Promise<Response> {
+}, link?: { customerId: string; sessionHash: string }): Promise<Response> {
   const config = site();
   if (!config) throw new CommerceError(503, 'unavailable');
   await ensureCustomerSchema();
-  const { resolveTelegramIdentity } = await import('./telegram-identity');
+  const { resolveTelegramIdentity, linkTelegramIdentity } = await import('./telegram-identity');
+  if (link && customerSessionBindingHash(request) !== link.sessionHash) throw new CommerceError(401, 'session_changed');
   for (let attempt = 0; ; attempt++) {
     const connection = await getPool().getConnection();
     try {
@@ -219,6 +230,20 @@ export async function issueTelegramCustomerSession(request: Request, identity: T
         [flow.idHash, flow.browserHash, flow.stage],
       );
       if (!flows.length) throw new CommerceError(400, 'expired');
+      if (link) {
+        // Match the customer-first lock order used by password changes and logins.
+        const [owners] = await connection.execute<RowDataPacket[]>('SELECT id FROM digimium_customers WHERE id = ? FOR UPDATE', [link.customerId]);
+        const [sessions] = await connection.execute<RowDataPacket[]>(
+          'SELECT 1 FROM digimium_customer_sessions WHERE token_hash = ? AND customer_id = ? AND expires_at > UTC_TIMESTAMP() FOR UPDATE',
+          [Buffer.from(link.sessionHash, 'hex'), link.customerId],
+        );
+        if (!owners.length || !sessions.length) throw new CommerceError(401, 'signed_out');
+        const customer = await linkTelegramIdentity(identity, link.customerId, connection);
+        await connection.execute('DELETE FROM digimium_telegram_auth_challenges WHERE id_hash = ? AND browser_hash = ?', [flow.idHash, flow.browserHash]);
+        await connection.commit();
+        // Linking leaves the authenticated customer and session unchanged.
+        return reply({ customer, purpose: 'link' });
+      }
       const customer = await resolveTelegramIdentity(identity, connection);
       const token = randomBytes(32).toString('base64url');
       const previous = sessionToken(request, config.cookie);

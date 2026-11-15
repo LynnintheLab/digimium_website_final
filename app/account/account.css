@@ -302,8 +302,8 @@
 .customer-profile-details dt { color: var(--account-muted); font-size: 13px; }
 .customer-profile-details dd { min-width: 0; margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .customer-profile-missing { color: var(--account-muted); font-weight: 400; }
-.customer-account-settings { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 9px 12px; border-radius: 8px; background: var(--brand-surface); color: var(--blue); font-size: 14px; font-weight: 600; text-decoration: none; }
-.customer-account-settings > svg:last-child { margin-inline-start: auto; }
+.customer-profile-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+.customer-account-settings { display: inline-grid; place-items: center; width: 44px; height: 44px; flex: none; border: 1px solid var(--line); border-radius: 50%; background: var(--brand-surface); color: var(--blue); text-decoration: none; }
 .customer-account-settings:hover { background: var(--soft); }
 .customer-page .customer-dashboard button.customer-signout { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 9px 13px; border: 0; border-radius: 8px; background: linear-gradient(135deg,#b3263c,#912637); color: #fff; font-size: 13px; font-weight: 600; line-height: 1.6; text-decoration: none; }
 .customer-page .customer-dashboard button.customer-signout:hover { background: linear-gradient(135deg,#9e2338,#7e1f2f); color: #fff; text-decoration: none; }
@@ -324,22 +324,39 @@
 .customer-embedded .customer-dashboard .customer-heading h2 { font-size: 15px; }
 .customer-embedded .customer-dashboard .customer-history-link { font-size: 13px; }
 .customer-embedded .customer-dashboard .customer-recent-list > li { padding-block: 8px; }
-.customer-embedded .customer-recent-brief { display: grid; grid-template-columns: 64px minmax(0,1fr); column-gap: 12px; row-gap: 3px; }
-.customer-embedded .customer-recent-copy { grid-column: 2; min-width: 0; }
+/* A product heading and a separate term row leave dates room to breathe. */
+.customer-product-heading { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.customer-product-logo { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 9px; background: var(--brand-surface); color: var(--blue); font-size: 20px; font-weight: 700; }
+.customer-product-logo :is(img,svg) { width: 28px; height: 28px; object-fit: contain; }
+.customer-product-copy, .customer-recent-copy { flex: 1; min-width: 0; }
+.customer-embedded .customer-recent-brief { display: block; }
+.customer-embedded .customer-dashboard .customer-recent-list > li { padding-block: 14px; }
 .customer-embedded .customer-dashboard .customer-item-title { font-size: 15px; }
 .customer-embedded .customer-recent-copy .customer-item-title > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .customer-embedded .customer-recent-list .customer-item-plan { margin-top: 2px; font-size: 13px; line-height: 1.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.customer-embedded .customer-recent-list .customer-item-duration { font-size: 12px; }
-.customer-embedded .customer-recent-list .subscription-term-compact, .customer-embedded .customer-recent-list .subscription-term-visual { display: contents; }
-.customer-embedded .customer-recent-list .subscription-term-ring { grid-column: 1; grid-row: 1 / span 2; align-self: center; width: 64px; height: 64px; }
-.customer-embedded .customer-recent-list .subscription-term-status { grid-column: 2; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
-.customer-embedded .customer-recent-list .subscription-term-core { width: 54px; height: 54px; }
-.customer-embedded .customer-recent-list .subscription-term-core strong { font-size: 22px; }
-.customer-embedded .customer-recent-list .subscription-term-core > span { font-size: 12px; }
-.customer-embedded .customer-recent-list .subscription-term-ring[data-long] .subscription-term-core strong { font-size: 18px; }
-.customer-embedded .customer-recent-list .subscription-term-ring[data-extra-long] .subscription-term-core strong { font-size: 14px; }
-.customer-embedded .customer-recent-list .subscription-term-label, .customer-embedded .customer-recent-list .subscription-term-expiry { font-size: 12px; }
-.customer-embedded .customer-recent-list .subscription-term-label { padding: 0; background: transparent; gap: 4px; }
+.customer-embedded .customer-recent-list .subscription-term { margin-top: 14px; }
+.customer-delivery-fields { display: grid; gap: 12px; margin: 0; padding-block: 10px 16px; font-size: 14px; }
+.customer-delivery-fields > div { display: grid; grid-template-columns: 90px minmax(0,1fr); gap: 12px; align-items: start; }
+.customer-delivery-fields dt { color: var(--account-muted); }
+.customer-delivery-fields dd { min-width: 0; margin: 0; overflow-wrap: anywhere; user-select: text; }
+.customer-delivery-password { display: flex; align-items: center; gap: 10px; }
+.customer-delivery-password > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.customer-page .customer-delivery-password button { display: inline-grid; place-items: center; width: 44px; min-height: 44px; flex: none; padding: 0; border-radius: 50%; color: var(--account-ink); text-decoration: none; }
+.customer-page .customer-delivery-password button:hover { background: var(--soft); text-decoration: none; }
+.customer-order-grid { display: grid; gap: 18px; align-items: start; margin-top: 12px; }
+.customer-dashboard .customer-order-grid .customer-order { margin-top: 0; }
+@media (min-width: 900px) {
+  .customer-page:not(.customer-embedded) { padding-inline: 10vw; }
+  .customer-page:not(.customer-embedded) :is(.customer-header,.customer-main) { width: 100%; max-width: none; }
+  .customer-page:not(.customer-embedded) .customer-main { padding-top: 36px; }
+  .customer-profile-page .customer-profile-details { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 22px 48px; padding-block: 16px; }
+  .customer-profile-page .customer-password { max-width: 600px; }
+  .customer-history-filters { flex: 0 1 560px; }
+  .customer-history-toolbar .customer-refresh { margin-inline-start: auto; }
+}
+@media (min-width: 1200px) {
+  .customer-order-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
 @media (max-width: 370px) {
   .customer-profile-details > div { grid-template-columns: 80px minmax(0,1fr); gap: 10px; }
 }

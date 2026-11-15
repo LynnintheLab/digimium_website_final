@@ -3,6 +3,7 @@ type LoginNotice = {
   context: string;
   created: number;
   location?: string;
+  purpose?: 'login' | 'link';
 };
 
 export const TELEGRAM_LOGIN_CAPTION_LIMIT = 1024;
@@ -50,19 +51,20 @@ function attribution(notice: LoginNotice) {
 }
 
 export function telegramLoginRequest(notice: LoginNotice) {
-  return '🔐 Website အကောင့်ဝင်ရန်\nDigimium\n\n' + details(notice) +
+  return (notice.purpose === 'link' ? '🔗 လက်ရှိ Website အကောင့်နှင့် Telegram ချိတ်ရန်' : '🔐 Website အကောင့်ဝင်ရန်') + '\nDigimium\n\n' + details(notice) +
     '\n\nWebsite မှာ ပြထားတဲ့ code နဲ့ တူတဲ့ နံပါတ်ကို ရွေးပါ။' +
     '\n⏳ Code သက်တမ်း — ၅ မိနစ်' +
+    (notice.purpose === 'link' ? '\n\nWebsite မှာ ဝင်ထားတဲ့ အကောင့်ရဲ့ ယခင်ဝယ်ယူမှုတွေကို ဒီ Telegram မှ ကြည့်နိုင်ပါမည်။' : '') +
     '\n\nကိုယ်တိုင် မစတင်ထားရင် အောက်က “ကျွန်ုပ် မဟုတ်ပါ” ကို နှိပ်ပါ။' + attribution(notice);
 }
 
 export function telegramLoginApproved(notice: LoginNotice) {
   return '✅ Code အတည်ပြုပြီးပါပြီ\n\n' + details(notice) +
-    '\n\nWebsite ကို ပြန်သွားပြီး အကောင့်ဝင်ခြင်း ပြီးဆုံးအောင် စောင့်ပါ။' + attribution(notice);
+    (notice.purpose === 'link' ? '\n\nWebsite ကို ပြန်သွားပြီး Telegram ချိတ်ဆက်ခြင်း ပြီးဆုံးအောင် စောင့်ပါ။' : '\n\nWebsite ကို ပြန်သွားပြီး အကောင့်ဝင်ခြင်း ပြီးဆုံးအောင် စောင့်ပါ။') + attribution(notice);
 }
 
 export function telegramLoginComplete(notice: LoginNotice) {
-  return '✅ Website အကောင့်ဝင်ပြီးပါပြီ\n\n' + details(notice) +
+  return (notice.purpose === 'link' ? '✅ Telegram ချိတ်ဆက်ပြီးပါပြီ' : '✅ Website အကောင့်ဝင်ပြီးပါပြီ') + '\n\n' + details(notice) +
     '\n\nအော်ဒါမှတ်တမ်းနဲ့ Plan သက်တမ်းကို အောက်ကခလုတ်တွေကနေ စစ်နိုင်ပါတယ်။' +
     '\nကိုယ်တိုင် ဝင်ထားတာမဟုတ်ရင် ဆိုင်ကို ဆက်သွယ်ပါ။' + attribution(notice);
 }

@@ -42,7 +42,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Home() {
-  const [catalog, preferences] = await Promise.all([getPublicCatalog(), cookies()]);
+  const [catalog, preferences, giveaway] = await Promise.all([getPublicCatalog(), cookies(),
+    commerceEnabled ? import('../hostinger/giveaway').then(module => module.publicGiveaway(null)).catch(() => null) : Promise.resolve(null),
+  ]);
   const language = preferredShopLanguage(preferences.get('digimium-language')?.value);
   return (
     <>
@@ -52,7 +54,7 @@ export default async function Home() {
         function gtag() { window.dataLayer.push(arguments); }
         gtag('js', new Date());
       ` }} />
-      <Storefront initialCatalog={catalog} initialLanguage={language} />
+      <Storefront initialCatalog={catalog} initialLanguage={language} initialGiveaway={giveaway} />
     </>
   );
 }

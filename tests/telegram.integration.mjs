@@ -292,9 +292,94 @@ try {
  const convertedNext=converted.panel.buttons.find(button=>button.text.includes('နောက်ထပ်'));assert.ok(convertedNext);
  const lastPhotoHistory=await navigate(converted.panel,convertedNext);assert.ok(lastPhotoHistory.panel.fields.text.includes('PHOTO-HISTORY-3'));
  assert.equal(lastPhotoHistory.panel.messageId,converted.panel.messageId,'New text-panel pagination stays bound to its own actual message');assert.ok(!lastPhotoHistory.added.some(call=>call.method==='sendMessage'));
+ // Link mode proves Telegram control without replacing the current Google/email customer.
+ async function beginLink(session) {
+  const response=await mutate('/api/customer/telegram/start',{returnTo:'account',purpose:'link'},session);
+  const flow=await json(response);assert.equal(flow.purpose,'link');
+  assert.ok(!JSON.stringify(flow).includes('sessionHash'));assert.ok(!Object.hasOwn(flow,'link'));
+  return {...flow,cookie:cookie(response,'digimium_local_telegram'),session};
+ }
+ async function approveLink(flow,user) {
+  const prompt=await launch(flow,user);assert.ok(prompt);assert.match(prompt.text,/Telegram ချိတ်ရန်/);
+  await json(await choose(prompt,prompt.buttons.findIndex(item=>item.text===flow.code)));
+  const pending=await json(await get('/api/customer/telegram/pending?flow='+flow.flow,flow.cookie+'; '+flow.session));
+  assert.equal(pending.status,'approved');assert.equal(pending.purpose,'link');return prompt;
+ }
+ async function countLink(telegramId) {return Number((await db.execute('SELECT COUNT(*) AS count FROM digimium_telegram_identities WHERE telegram_id=?',[String(telegramId)]))[0][0].count);}
+ assert.equal((await mutate('/api/customer/telegram/start',{returnTo:'account',purpose:'link'})).status,401);
+ assert.equal((await mutate('/api/customer/telegram/start',{returnTo:'account',purpose:'link'},localCookie,'https://foreign.invalid')).status,403);
+ for(const body of [{returnTo:'history',purpose:'link'},{returnTo:'account',purpose:'wrong'},{returnTo:'account',purpose:'link',customerId:own}])assert.equal((await mutate('/api/customer/telegram/start',body,localCookie)).status,400);
+ const linkingUser=human(88550001,{username:'linked_email_owner'}),emailLink=await beginLink(localCookie);
+ await approveLink(emailLink,linkingUser);assert.equal(await countLink(linkingUser.id),0,'Bot code approval alone never persists a link');
+ assert.equal((await get('/api/customer/telegram/pending?flow='+emailLink.flow,emailLink.cookie)).status,401);
+ assert.equal((await mutate('/api/customer/telegram/complete',{flow:emailLink.flow},emailLink.cookie+'; '+sessionCookie)).status,401,'A different signed-in account cannot complete the original link');
+ const beforeLinkNotice=(await calls()).length,emailLinked=await finish(emailLink,localCookie);
+ assert.equal(emailLinked.data.purpose,'link');assert.equal(emailLinked.data.customer.id,local.customer.id);assert.equal(emailLinked.data.customer.name,local.customer.name);
+ assert.equal(emailLinked.data.customer.email,local.customer.email);assert.equal(emailLinked.data.customer.telegram.id,String(linkingUser.id));
+ assert.deepEqual(emailLinked.data.customer.signInMethods,{emailPassword:true,google:false,telegram:true});
+ assert.equal(cookie(emailLinked.response,'digimium_local_customer',false),'','Linking keeps the original authenticated session');
+ assert.equal((await json(await get('/api/customer/session',localCookie))).customer.id,local.customer.id);
+ assert.ok((await calls()).slice(beforeLinkNotice).some(call=>call.method==='sendMessage'&&call.fields.text.includes('Telegram ချိတ်ဆက်ပြီးပါပြီ')));
+ assert.ok(!(await calls()).slice(beforeLinkNotice).some(call=>call.method==='sendPhoto'),'Link completion does not use the misleading LOGIN SUCCESSFUL image');
+ const linkedBotHistory=await command('/history',linkingUser);assert.match(linkedBotHistory.fields.text,/LOCAL-PRIVATE-PURCHASE-SENTINEL/);
+ assert.ok(!linkedBotHistory.fields.text.includes('A-Active-Only'),'Linking keeps the original account history, without merging another customer');
+ const emailLogin=await mutate('/api/customer/session',{action:'login',email:local.customer.email,password:localPassword});
+ assert.equal((await json(emailLogin)).customer.id,local.customer.id,'Original email/password login remains the same customer');
+ const linkedTelegramFlow=await begin();await approve(linkedTelegramFlow,linkingUser);
+ assert.equal((await finish(linkedTelegramFlow)).data.customer.id,local.customer.id,'Later Telegram login resolves the existing email account');
+ const anotherLink=await beginLink(sessionCookie);await approveLink(anotherLink,linkingUser);
+ assert.deepEqual(await json(await mutate('/api/customer/telegram/complete',{flow:anotherLink.flow},anotherLink.cookie+'; '+sessionCookie),409),{error:'telegram_already_linked'});
+ const googleId=randomUUID(),googleToken=randomBytes(32).toString('base64url'),googleCookie='digimium_local_customer='+googleToken;
+ await db.execute('INSERT INTO digimium_customers (id,name,email,password_hash,created_at) VALUES (?,?,?,NULL,UTC_TIMESTAMP())',[googleId,'Google linked owner','google-link@example.invalid']);
+ await db.execute('INSERT INTO digimium_google_identities (google_sub,customer_id,created_at) VALUES (?,?,UTC_TIMESTAMP())',['verified-google-link-subject',googleId]);
+ await db.execute('INSERT INTO digimium_customer_sessions (token_hash,customer_id,expires_at) VALUES (?,?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 1 HOUR))',[hash(googleToken),googleId]);
+ assert.deepEqual((await json(await get('/api/customer/session',googleCookie))).customer.signInMethods,{emailPassword:false,google:true,telegram:false});
+ const beforeGoogleOrder=await fixtureOrder(googleId,'GOOGLE-EARLIER-PURCHASE',{startDate:day(-3),endDate:day(27)});
+ const googleConflict=await beginLink(googleCookie);await approveLink(googleConflict,linkingUser);
+ assert.deepEqual(await json(await mutate('/api/customer/telegram/complete',{flow:googleConflict.flow},googleConflict.cookie+'; '+googleCookie),409),{error:'telegram_in_use'});
+ assert.equal((await json(await get('/api/customer/session',googleCookie))).customer.telegram,undefined);
+ const googleLink=await beginLink(googleCookie),googleTelegram=human(88550002,{username:'google_linked_owner'});await approveLink(googleLink,googleTelegram);
+ const linkedGoogle=await finish(googleLink,googleCookie);assert.equal(linkedGoogle.data.customer.id,googleId);
+ assert.deepEqual(linkedGoogle.data.customer.signInMethods,{emailPassword:false,google:true,telegram:true});
+ assert.ok((await json(await get('/api/customer/orders?view=history',googleCookie))).orders.some(order=>order.id===beforeGoogleOrder));
+ assert.match((await command('/plans',googleTelegram)).fields.text,/GOOGLE-EARLIER-PURCHASE/);
+ assert.equal((await db.execute('SELECT customer_id FROM digimium_google_identities WHERE google_sub=?',['verified-google-link-subject']))[0][0].customer_id,googleId);
+ const googleTelegramLogin=await begin();await approve(googleTelegramLogin,googleTelegram);assert.equal((await finish(googleTelegramLogin)).data.customer.id,googleId);
+ // Switching/revoking the original website session invalidates its outstanding link.
+ async function linkFixture(label) {
+  const password=randomUUID(),response=await mutate('/api/customer/session',{action:'register',email:label+'@example.invalid',password,name:label});
+  const data=await json(response,201);return {id:data.customer.id,email:data.customer.email,password,cookie:cookie(response,'digimium_local_customer')};
+ }
+ const revokedOwner=await linkFixture('revoked-link'),revokedLink=await beginLink(revokedOwner.cookie),revokedUser=human(88550003);await approveLink(revokedLink,revokedUser);
+ await json(await mutate('/api/customer/session',{},revokedOwner.cookie,base.origin,'DELETE'));
+ assert.equal((await mutate('/api/customer/telegram/complete',{flow:revokedLink.flow},revokedLink.cookie+'; '+revokedOwner.cookie)).status,401);assert.equal(await countLink(revokedUser.id),0);
+ const switchedOwner=await linkFixture('switched-link'),switchedLink=await beginLink(switchedOwner.cookie),switchedUser=human(88550004);await approveLink(switchedLink,switchedUser);
+ const newerSession=await mutate('/api/customer/session',{action:'login',email:switchedOwner.email,password:switchedOwner.password});await json(newerSession);
+ assert.equal((await mutate('/api/customer/telegram/complete',{flow:switchedLink.flow},switchedLink.cookie+'; '+cookie(newerSession,'digimium_local_customer'))).status,401,'A different session of the same account cannot inherit an old link challenge');
+ assert.equal(await countLink(switchedUser.id),0);
+ const cancelledOwner=await linkFixture('cancelled-link'),cancelledLink=await beginLink(cancelledOwner.cookie),cancelledUser=human(88550005);await approveLink(cancelledLink,cancelledUser);
+ await json(await mutate('/api/customer/telegram/pending?flow='+cancelledLink.flow,{},cancelledLink.cookie+'; '+cancelledOwner.cookie,base.origin,'DELETE'));
+ assert.equal((await mutate('/api/customer/telegram/complete',{flow:cancelledLink.flow},cancelledLink.cookie+'; '+cancelledOwner.cookie)).status,400);assert.equal(await countLink(cancelledUser.id),0);
+ const raceOwnerA=await linkFixture('race-link-a'),raceOwnerB=await linkFixture('race-link-b'),raceUser=human(88550006);
+ const raceA=await beginLink(raceOwnerA.cookie),raceB=await beginLink(raceOwnerB.cookie);await approveLink(raceA,raceUser);await approveLink(raceB,raceUser);
+ const raceResults=await Promise.all([mutate('/api/customer/telegram/complete',{flow:raceA.flow},raceA.cookie+'; '+raceOwnerA.cookie),mutate('/api/customer/telegram/complete',{flow:raceB.flow},raceB.cookie+'; '+raceOwnerB.cookie)]);
+ assert.deepEqual(raceResults.map(result=>result.status).sort(),[200,409]);assert.equal(await countLink(raceUser.id),1,'Concurrent linking cannot transfer or duplicate a Telegram identity');
+ const expiryOwner=await linkFixture('expired-link'),expiryLink=await beginLink(expiryOwner.cookie),expiryUser=human(88550007);await approveLink(expiryLink,expiryUser);
+ await db.execute('UPDATE digimium_telegram_auth_challenges SET expires_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 SECOND) WHERE id_hash=?',[hash(expiryLink.flow)]);
+ assert.equal((await mutate('/api/customer/telegram/complete',{flow:expiryLink.flow},expiryLink.cookie+'; '+expiryOwner.cookie)).status,400);assert.equal(await countLink(expiryUser.id),0,'An expired approved link cannot attach an identity');
+ for(const revoke of ['challenge','session']) {
+  const raceOwner=await linkFixture('atomic-'+revoke+'-link'),raceFlow=await beginLink(raceOwner.cookie),raceIdentity=human(revoke==='challenge'?88550008:88550009);await approveLink(raceFlow,raceIdentity);
+  const transaction=await mysql.createConnection({host:env.DB_HOST,port:Number(env.DB_PORT||3306),user:env.DB_USER,password:env.DB_PASSWORD,database:env.DB_NAME});
+  await transaction.beginTransaction();
+  if(revoke==='challenge')await transaction.execute('DELETE FROM digimium_telegram_auth_challenges WHERE id_hash=?',[hash(raceFlow.flow)]);
+  else await transaction.execute('DELETE FROM digimium_customer_sessions WHERE token_hash=?',[hash(raceOwner.cookie.split('=')[1])]);
+  const completion=mutate('/api/customer/telegram/complete',{flow:raceFlow.flow},raceFlow.cookie+'; '+raceOwner.cookie);await delay(150);
+  await transaction.commit();await transaction.end();assert.equal((await completion).status,revoke==='challenge'?400:401);
+  assert.equal(await countLink(raceIdentity.id),0,'Atomic '+revoke+' revocation prevents attaching a Telegram identity');
+ }
  // Every rendered message, not only the text assertions above, excludes stored delivery credentials.
  for(const call of await calls())assert.ok(!JSON.stringify(call.fields).includes('PRIVATE-DELIVERY-PASSWORD-SENTINEL'));
- console.log('Telegram protocol/history integration passed: login safeguards, stable identity, private history/plans, date visuals, bounded pagination, callback HMAC ownership/message binding and credential/guest/customer isolation.');
+ console.log('Telegram protocol/history integration passed: login safeguards, session-bound Google/email-to-Telegram linking, no-merge conflicts and revocation races, private history/plans, bounded pagination and credential/guest/customer isolation.');
 } finally {
  if(server&&server.exitCode===null&&!server.signalCode){const exit=once(server,'exit');server.kill('SIGTERM');const timeout=setTimeout(()=>server.kill('SIGKILL'),8000);try{await exit;}finally{clearTimeout(timeout);}}
  await db.end();

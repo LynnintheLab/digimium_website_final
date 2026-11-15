@@ -71,3 +71,29 @@ export async function resolveTelegramIdentity(input: TelegramIdentity, connectio
     } finally { ownConnection.release(); }
   }
 }
+
+/** Link only after both the original website session and this Telegram ID are proved. Never merge or transfer owners. */
+export async function linkTelegramIdentity(input: TelegramIdentity, customerId: string, connection: PoolConnection): Promise<Customer> {
+  const identity = normalizedIdentity(input);
+  const [customers] = await connection.execute<(RowDataPacket & CustomerIdentityRow)[]>(
+    `SELECT c.id, c.name, c.email, c.password_hash IS NOT NULL AS password_available,
+     DATE_FORMAT(c.created_at, '%Y-%m-%dT%H:%i:%sZ') AS createdAt, t.telegram_id, t.username AS telegram_username,
+     EXISTS(SELECT 1 FROM digimium_google_identities g WHERE g.customer_id = c.id) AS google_connected
+     FROM digimium_customers c LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id WHERE c.id = ? FOR UPDATE`, [customerId],
+  );
+  const customer = customers[0];
+  if (!customer) throw new CommerceError(401, 'signed_out');
+  if (customer.telegram_id && customer.telegram_id !== identity.id) throw new CommerceError(409, 'telegram_already_linked');
+  const [bound] = await connection.execute<(RowDataPacket & { customer_id: string })[]>(
+    'SELECT customer_id FROM digimium_telegram_identities WHERE telegram_id = ? FOR UPDATE', [identity.id],
+  );
+  if (bound[0] && bound[0].customer_id !== customerId) throw new CommerceError(409, 'telegram_in_use');
+  if (bound[0]) {
+    await connection.execute('UPDATE digimium_telegram_identities SET username = ? WHERE telegram_id = ? AND customer_id = ?',
+      [identity.username, identity.id, customerId]);
+  } else {
+    await connection.execute('INSERT INTO digimium_telegram_identities (telegram_id, customer_id, username, created_at) VALUES (?, ?, ?, UTC_TIMESTAMP(3))',
+      [identity.id, customerId, identity.username]);
+  }
+  return presentCustomer({ ...customer, telegram_id: identity.id, telegram_username: identity.username });
+}

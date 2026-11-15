@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleAlert, Eye, EyeOff,
   LayoutGrid, LoaderCircle, LogOut, Mail, Plus, RotateCcw, Save, Search,
-  Settings, ShoppingBag, Sparkles, Users, X,
+  Settings, ShoppingBag, Sparkles, Users, X, Gift,
 } from 'lucide-react';
 import { categories, type Catalog, type CatalogSettings, type Product } from '@/lib/catalog';
 
@@ -14,6 +14,7 @@ import { DEFAULT_TELEGRAM_CONTACT, validTelegramUsername } from '@/lib/telegram-
 import { discountPriceError } from '@/lib/pricing';
 import { commerceEnabled } from '@/lib/commerce-enabled';
 import AdminCommerce from './commerce/admin-commerce';
+import AdminGiveaway from './giveaway/admin-giveaway';
 import DurationField from './duration-field';
 import PriceField from './price-field';
 import { PlanEditor, planFieldId } from './plan-editor';
@@ -73,7 +74,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
   const [draft, setDraft] = useState<Catalog | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showServiceEditor, setShowServiceEditor] = useState(false);
-  const [view, setView] = useState<'services' | 'settings' | 'orders' | 'customers'>('services');
+  const [view, setView] = useState<'services' | 'settings' | 'orders' | 'customers' | 'giveaway'>('services');
   const [orderCustomerId, setOrderCustomerId] = useState<string | null>(null);
   const [orderDirty, setOrderDirty] = useState(false);
   const [search, setSearch] = useState('');
@@ -117,7 +118,11 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
     } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { void loadCatalog(); }, [loadCatalog]);
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => { if (!controller.signal.aborted) void loadCatalog(); });
+    return () => controller.abort();
+  }, [loadCatalog]);
   useEffect(() => {
     if (!dirty && !uploadingLogo && !orderDirty) return;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
@@ -224,7 +229,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
   }
 
   function navigate(next: typeof view, customerId: string | null = null) {
-    if (orderDirty && view !== next && !window.confirm('Leave this order and discard your edits?')) return;
+    if (orderDirty && view !== next && !window.confirm('Leave this page and discard your edits?')) return;
     if (view !== next) setOrderDirty(false);
     setOrderCustomerId(customerId);
     setView(next);
@@ -237,6 +242,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
     settings: ['Contact settings', 'Keep it easy for customers to reach you.'],
     orders: ['Orders', 'Match Telegram orders and record subscription dates.'],
     customers: ['Customers', 'View registered customers and their orders.'],
+    giveaway: ['Giveaways', 'Set the schedule and review verified entries.'],
   };
   const lastSaved = saved?.updatedAt ? new Date(saved.updatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : null;
 
@@ -249,6 +255,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
         {commerceEnabled && <>
           <button type="button" onClick={() => navigate('orders')} aria-current={view === 'orders' ? 'page' : undefined}><ShoppingBag size={18} />Orders</button>
           <button type="button" onClick={() => navigate('customers')} aria-current={view === 'customers' ? 'page' : undefined}><Users size={18} />Customers</button>
+          <button type="button" onClick={() => navigate('giveaway')} aria-current={view === 'giveaway' ? 'page' : undefined}><Gift size={18} />Giveaways</button>
         </>}
         <button type="button" onClick={() => navigate('settings')} aria-current={view === 'settings' ? 'page' : undefined}><Settings size={18} />Contact settings</button>
       </nav>
@@ -264,7 +271,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
     <main id="admin-main" className="admin-main" data-service-editor={view === 'services' && showServiceEditor && !!selected}>
       <header className="admin-page-header">
         <div><h1>{pages[view][0]}</h1><p>{pages[view][1]}</p></div>
-        {!commerceView && <div className="admin-header-actions">
+        {!commerceView && view !== 'giveaway' && <div className="admin-header-actions">
           <span className={`admin-save-state ${dirty ? 'is-dirty' : ''}`} aria-live="polite">{uploadingLogo ? 'Uploading logo…' : saving ? 'Saving changes…' : dirty ? 'Unsaved changes' : draft ? 'All changes saved' : ''}</span>
           <button className="admin-button admin-button-secondary admin-revert" type="button" disabled={!dirty || saving || loading || uploadingLogo} onClick={discardChanges}><RotateCcw size={16} />Revert</button>
           <button className="admin-button admin-button-primary" type="submit" form="admin-catalog-form" disabled={!dirty || saving || loading || uploadingLogo || feedback?.kind === 'conflict'}>{saving ? <LoaderCircle size={16} className="admin-spinner" /> : <Save size={16} />}<span>{saving ? 'Saving…' : 'Save changes'}</span></button>
@@ -273,7 +280,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
 
       {commerceView ? <AdminCommerce key={commerceView} view={commerceView} customerId={orderCustomerId}
         onDirtyChange={setOrderDirty} clearCustomer={() => setOrderCustomerId(null)}
-        showCustomerOrders={id => navigate('orders', id)} /> : <>
+        showCustomerOrders={id => navigate('orders', id)} /> : view === 'giveaway' ? <AdminGiveaway onDirtyChange={setOrderDirty} /> : <>
       {feedback && <div className="admin-feedback admin-feedback-error" role="alert"><CircleAlert size={19} /><div><p>{feedback.message}</p>{feedback.kind === 'conflict' && <button type="button" onClick={reloadLatest}>Load latest catalog<RotateCcw size={14} /></button>}{feedback.kind === 'load' && <button type="button" disabled={loading} onClick={() => void loadCatalog()}>Try again<RotateCcw size={14} /></button>}{feedback.kind === 'auth' && <a href="/signin-with-chatgpt?return_to=%2Fadmin" target="_top" onClick={event => { if (dirty && !window.confirm('Sign in again? Your unsaved changes will be lost when you leave this page.')) event.preventDefault(); }}>Sign in again<ArrowUpRight size={14} /></a>}{feedback.kind === 'save' && <button type="button" disabled={saving} onClick={() => void saveCatalog()}>Try saving again<RotateCcw size={14} /></button>}</div></div>}
       {notice && <div className="admin-feedback admin-feedback-success" role="status"><Check size={18} /><p>{notice}</p><button type="button" aria-label="Dismiss message" onClick={() => setNotice('')}><X size={16} /></button></div>}
 

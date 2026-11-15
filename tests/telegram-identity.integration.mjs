@@ -47,7 +47,8 @@ try {
   const [[legacy]] = await db.execute('SELECT email, password_hash FROM digimium_customers WHERE id = ?', [legacyId]);
   assert.deepEqual(legacy, { email: legacyEmail, password_hash: legacyHash });
   const legacyCustomer = await currentCustomer(request('digimium_local_customer=' + legacyToken));
-  assert.deepEqual(Object.keys(legacyCustomer).sort(), ['createdAt', 'email', 'id', 'name']);
+  assert.deepEqual(Object.keys(legacyCustomer).sort(), ['createdAt', 'email', 'id', 'name', 'signInMethods']);
+  assert.deepEqual(legacyCustomer.signInMethods, { emailPassword: true, google: false, telegram: false });
   for (const bad of [identity('0'), identity('-1'), identity('99999999999999999999'), identity('1.5'),
     { id: '9999100000099', firstName: '' }, { id: '9999100000099', firstName: 'First\nSecond' }]) {
     await assert.rejects(resolveTelegramIdentity(bad), error => error.status === 400 && error.message === 'invalid');

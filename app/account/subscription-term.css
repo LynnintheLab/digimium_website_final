@@ -5,53 +5,62 @@
   margin-top: 16px;
   font-variant-numeric: tabular-nums;
 }
-.subscription-term-visual { display: grid; justify-items: center; gap: 12px; }
-.subscription-term-ring {
-  display: grid; place-items: center; width: 154px; height: 154px; flex: none;
-  border-radius: 50%; background: conic-gradient(var(--term-color) var(--term-progress), var(--term-track) 0);
+.subscription-term-visual {
+  display: grid; grid-template-columns: 140px minmax(0,1fr); align-items: center; gap: 24px;
 }
-.subscription-term-core {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  width: 132px; height: 132px; padding: 8px; border-radius: 50%; background: #fff;
-  color: var(--brand-navy); text-align: center;
+.subscription-term-gauge { position: relative; width: 140px; aspect-ratio: 160 / 92; flex: none; }
+.subscription-term-gauge svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.subscription-term-gauge rect { fill: var(--term-track); }
+.subscription-term-gauge rect[data-filled] { fill: var(--term-color); }
+.subscription-term-value {
+  position: absolute; inset: auto 12% 0; display: flex; flex-direction: column;
+  align-items: center; color: var(--brand-navy); text-align: center;
 }
-.subscription-term-core strong { max-width: 100%; font: 700 44px/1.25 Manrope, Walone, sans-serif; }
-.subscription-term-core > span { max-width: 100%; font-size: 16px; line-height: 1.65; }
-.subscription-term-ring[data-long] .subscription-term-core strong { font-size: 32px; }
-.subscription-term-ring[data-extra-long] .subscription-term-core strong { font-size: 24px; }
-.subscription-term-status { display: grid; justify-items: center; gap: 6px; min-width: 0; line-height: 1.7; }
+.subscription-term-value strong { max-width: 100%; font: 700 32px/1.1 Manrope, Walone, sans-serif; }
+.subscription-term-value > span { max-width: 100%; font-size: 13px; line-height: 1.6; }
+.subscription-term-gauge[data-long] .subscription-term-value strong { font-size: 25px; }
+.subscription-term-gauge[data-extra-long] .subscription-term-value strong { font-size: 18px; }
+.subscription-term-copy { min-width: 0; }
+.subscription-term-status { display: grid; justify-items: start; gap: 8px; min-width: 0; line-height: 1.7; }
 .subscription-term-label {
   display: inline-flex; align-items: center; gap: 7px; max-width: 100%; padding: 4px 9px;
   border-radius: 6px; background: var(--term-tint); color: var(--term-color); font-size: 14px; font-weight: 650;
 }
 .subscription-term-label::before { content: ''; width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor; }
-.subscription-term-expiry { color: var(--muted); font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
-.subscription-term-expiry time { color: var(--brand-navy); font-weight: 600; }
+.subscription-term-expiry { color: var(--muted); font-size: 14px; line-height: 1.8; overflow-wrap: anywhere; }
+.subscription-term-expiry time { display: block; color: var(--brand-navy); font-weight: 600; }
 .subscription-term[data-status="upcoming"] { --term-color: #2447a2; --term-tint: #edf1ff; --term-track: #dfe5f4; }
 .subscription-term[data-status="unknown"] { --term-color: #536078; --term-tint: #eef1f6; --term-track: #e1e5ec; }
 .subscription-term[data-status="expired"] { --term-color: #9b4250; --term-tint: #fbedef; --term-track: #e9dfe2; }
 .subscription-term[data-urgent] { --term-color: #87550b; --term-tint: #fff4dd; --term-track: #eedfc4; }
-.subscription-term-dates { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 18px; margin: 16px 0 0; }
+.subscription-term-dates { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px 20px; margin: 10px 0 0; }
 .subscription-term-dates > div { min-width: 0; }
-.subscription-term-dates > div:last-child { text-align: right; }
-.subscription-term-dates dt { color: var(--muted); font-size: 14px; line-height: 1.7; }
-.subscription-term-dates dd { margin: 4px 0 0; color: var(--brand-navy); font-size: 16px; font-weight: 650; line-height: 1.65; overflow-wrap: anywhere; }
-.subscription-term-compact { margin-top: 12px; }
-.subscription-term-compact .subscription-term-visual { display: flex; align-items: center; justify-content: flex-start; gap: 14px; }
-.subscription-term-compact .subscription-term-ring { width: 88px; height: 88px; }
-.subscription-term-compact .subscription-term-core { width: 72px; height: 72px; padding: 4px; }
-.subscription-term-compact .subscription-term-core strong { font-size: 28px; }
-.subscription-term-compact .subscription-term-core > span { font-size: 12px; line-height: 1.55; }
-.subscription-term-compact .subscription-term-ring[data-long] .subscription-term-core strong { font-size: 20px; }
-.subscription-term-compact .subscription-term-ring[data-extra-long] .subscription-term-core strong { font-size: 15px; }
-.subscription-term-compact .subscription-term-status { justify-items: start; }
+.subscription-term-dates dt { color: var(--muted); font-size: 13px; line-height: 1.7; }
+.subscription-term-dates dd { margin: 3px 0 0; color: var(--brand-navy); font-size: 15px; font-weight: 650; line-height: 1.7; overflow-wrap: anywhere; }
+.subscription-term-compact { margin-top: 14px; }
+.subscription-term-compact .subscription-term-visual { grid-template-columns: 112px minmax(0,1fr); gap: 20px; }
+.subscription-term-compact .subscription-term-gauge { width: 112px; }
+.subscription-term-compact .subscription-term-value strong { font-size: 24px; }
+.subscription-term-compact .subscription-term-value > span { font-size: 12px; line-height: 1.6; }
+.subscription-term-compact .subscription-term-gauge[data-long] .subscription-term-value strong { font-size: 21px; }
+.subscription-term-compact .subscription-term-gauge[data-extra-long] .subscription-term-value strong { font-size: 15px; }
+@media (max-width: 550px) {
+  .subscription-term-visual { grid-template-columns: 112px minmax(0,1fr); gap: 18px; align-items: start; }
+  .subscription-term-gauge { width: 112px; }
+  .subscription-term-value strong { font-size: 24px; }
+  .subscription-term-value > span { font-size: 12px; }
+  .subscription-term-dates { grid-template-columns: minmax(0,1fr); gap: 8px; }
+  .subscription-term-dates dd { font-size: 14px; }
+}
 @media (max-width: 370px) {
-  .subscription-term-compact .subscription-term-visual { gap: 10px; }
-  .subscription-term-compact .subscription-term-label { font-size: 13px; padding-inline: 7px; }
-  .subscription-term-compact .subscription-term-expiry { font-size: 13px; }
-  .subscription-term-dates { gap: 12px; }
+  .subscription-term-visual, .subscription-term-compact .subscription-term-visual { gap: 14px; }
+  .subscription-term-label { padding: 3px 6px; font-size: 12px; }
+  .subscription-term-expiry { font-size: 12px; }
+  .subscription-term-dates dt { font-size: 12px; }
+  .subscription-term-dates dd { font-size: 13px; }
 }
 @media (forced-colors: active) {
-  .subscription-term-ring, .subscription-term-label, .subscription-term-core { border: 1px solid CanvasText; }
-  .subscription-term-ring { background: Canvas; }
+  .subscription-term-gauge rect { fill: GrayText; }
+  .subscription-term-gauge rect[data-filled] { fill: CanvasText; }
+  .subscription-term-label { border: 1px solid CanvasText; }
 }

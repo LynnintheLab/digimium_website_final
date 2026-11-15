@@ -11,7 +11,7 @@
     "build": "next build --webpack && node scripts/package-hostinger.mjs",
     "start": "node .next/standalone/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/cart-order.test.mjs tests/shop-language.test.mjs tests/showcase.test.mjs tests/subscription-term.test.mjs tests/configure-telegram.test.mjs tests/telegram-history.test.mjs tests/order-receipt.test.mjs tests/telegram-login-presentation.test.mjs tests/login-location.test.mjs",
+    "test": "node --test tests/cart-order.test.mjs tests/shop-language.test.mjs tests/showcase.test.mjs tests/subscription-term.test.mjs tests/configure-telegram.test.mjs tests/telegram-history.test.mjs tests/order-receipt.test.mjs tests/telegram-login-presentation.test.mjs tests/login-location.test.mjs tests/giveaway.test.mjs",
     "test:integration": "node tests/catalog.integration.mjs && node tests/logo-plans.integration.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
@@ -23,7 +23,8 @@
     "test:google": "node tests/google.integration.mjs",
     "test:telegram": "node tests/telegram.integration.mjs",
     "test:telegram-identity": "node --experimental-transform-types tests/telegram-identity.integration.mjs",
-    "configure:telegram": "node scripts/configure-telegram.mjs"
+    "configure:telegram": "node scripts/configure-telegram.mjs",
+    "test:giveaway": "node tests/giveaway.integration.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -40,7 +41,7 @@
     "lucide-react": "^1.31.0",
     "mmdb-lib": "3.0.5",
     "mysql2": "3.24.6",
-    "next": "16.3.4",
+    "next": "16.4.6",
     "next-themes": "^0.4.6",
     "qrcode": "1.5.4",
     "radix-ui": "^1.6.7",
@@ -67,7 +68,7 @@
     "@vitejs/plugin-rsc": "0.5.26",
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.4.6",
     "json-rpc-2.0": "1.7.1",
     "raw-body": "3.0.2",
     "react-server-dom-webpack": "19.2.6",
@@ -81,7 +82,7 @@
   "type": "module",
   "overrides": {
     "miniflare": {
-      "sharp": "0.35.4"
+      "sharp": "0.35.5"
     }
   },
   "description": "Bilingual digital subscription storefront, customer accounts and order administration."

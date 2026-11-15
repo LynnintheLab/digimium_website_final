@@ -1,18 +1,22 @@
 "use client";
 
+// Account and history use separate documents without storefront analytics.
+
 import Image from "next/image";
-import Link from "next/link";
-import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, LogOut, RefreshCw, Settings2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, Eye, EyeOff, LogOut, RefreshCw, Settings } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { telegramDraft } from "@/lib/cart-order";
 import { orderTelegramMessages } from "@/lib/order-telegram";
-import type { CommerceCustomer as Customer, CommerceOrder } from "@/lib/commerce-types";
+import type { CommerceCustomer as Customer, CommerceOrder, CommerceOrderLine } from "@/lib/commerce-types";
+import type { Product } from "@/lib/catalog";
 import type { ShopLanguage } from "@/lib/shop-language";
 import { durationText, priceText } from "@/lib/shop-language";
 import { AuthForm } from "./auth-form";
 export { CheckoutAuth } from "./auth-form";
 import { SubscriptionTerm } from "./subscription-term";
 import { MobileDock } from "../mobile-dock";
+import { Mark } from "../product-mark";
+import { AccountConnections } from "./account-connections";
 
 type AccountProps = { lang: ShopLanguage; checkout?: boolean; embedded?: boolean; history?: boolean; resumeGoogle?: boolean; googleReturnTo?: "checkout" | "account" | "history"; onClose?: () => void };
 type Translate = (en: string, my: string) => string;
@@ -112,8 +116,29 @@ function PendingTelegram({ order, customer, telegram, lang, t, embedded, onClose
   </div>;
 }
 
-function OrderCard({ order, lang, t, customer, telegram, embedded, onClose }: {
-  order: CommerceOrder; lang: ShopLanguage; t: Translate; customer: Customer; telegram: string; embedded: boolean; onClose?: () => void;
+function PurchasedLogo({ line, products }: { line: CommerceOrderLine; products: Product[] }) {
+  const product = products.find(product => product.id === line.productId);
+  return <span className="customer-product-logo" aria-hidden="true">{product ? <Mark product={product} /> : <span>{line.productName.slice(0, 1)}</span>}</span>;
+}
+
+function DeliveredAccount({ line, t }: { line: CommerceOrderLine; t: Translate }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const details = line.accountDetails;
+  if (!details && !line.accountInfo) return null;
+  return <details className="customer-delivery" onToggle={event => { if (!event.currentTarget.open) setShowPassword(false); }}>
+    <summary>{t("Purchased account details", "ဝယ်ယူထားသော အကောင့်အချက်အလက်")}<ChevronDown size={16} aria-hidden /></summary>
+    {details && <dl className="customer-delivery-fields">
+      {details.account && <div><dt>{t("Account", "အကောင့်")}</dt><dd dir="auto">{details.account}</dd></div>}
+      {details.username && <div><dt>Username</dt><dd dir="auto">{details.username}</dd></div>}
+      {details.password && <div><dt>{t("Password", "စကားဝှက်")}</dt><dd className="customer-delivery-password"><span dir="auto">{showPassword ? details.password : "••••••••"}</span><button type="button" aria-pressed={showPassword} aria-label={showPassword ? t("Hide purchased account password", "ဝယ်ထားသောအကောင့် စကားဝှက် ဖျောက်ရန်") : t("Show purchased account password", "ဝယ်ထားသောအကောင့် စကားဝှက် ပြရန်")} onClick={() => setShowPassword(value => !value)}>{showPassword ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}</button></dd></div>}
+      {details.manager && <div><dt>Manager</dt><dd dir="auto">{details.manager}</dd></div>}
+    </dl>}
+    {line.accountInfo && <p dir="auto">{line.accountInfo}</p>}
+  </details>;
+}
+
+function OrderCard({ order, lang, t, customer, telegram, embedded, products, onClose }: {
+  order: CommerceOrder; lang: ShopLanguage; t: Translate; customer: Customer; telegram: string; embedded: boolean; products: Product[]; onClose?: () => void;
 }) {
   const approved = order.status === "approved";
   return <article className="customer-order" data-status={order.status}>
@@ -123,17 +148,15 @@ function OrderCard({ order, lang, t, customer, telegram, embedded, onClose }: {
       <span className="customer-order-status">{approved ? t("Approved", "အတည်ပြုပြီး") : t("Pending", "စောင့်ဆိုင်းဆဲ")}</span>
     </div>
     <ul className="customer-lines">{order.lines.map(line => <li key={line.id}>
-      <div className="customer-item-title">
+      <div className="customer-product-heading"><PurchasedLogo line={line} products={products} /><div className="customer-product-copy"><div className="customer-item-title">
         <strong>{line.productName}</strong><span>{t("Qty", "အရေအတွက်")} {line.quantity}</span>
       </div>
-      {line.planName && <p className="customer-item-plan">{line.planName}</p>}
+      {line.planName && <p className="customer-item-plan">{line.planName}</p>}</div></div>
       <div className="customer-item-meta">{line.duration && <span>{durationText(line.duration, lang)}</span>}
         {line.price && <span className="customer-unit-price"><small>{t("Each", "တစ်ခုလျှင်")}</small><strong>{priceText(line.price, lang)}</strong></span>}</div>
       {approved && <>
         <SubscriptionTerm startDate={line.startDate} endDate={line.endDate} lang={lang} />
-        {!embedded && line.accountInfo && <details className="customer-delivery"><summary>{t("Previously saved account details", "ယခင်သိမ်းထားသော အကောင့်အချက်အလက်")}<ChevronDown size={16} aria-hidden /></summary>
-          <p dir="auto">{line.accountInfo}</p>
-        </details>}
+        {!embedded && <DeliveredAccount line={line} t={t} />}
       </>}
     </li>)}</ul>
     {order.totalMmk !== null && <div className="customer-total"><span>{t("Order total", "စုစုပေါင်း")}</span><strong>{priceText(order.totalMmk.toLocaleString("en-US") + " MMK", lang)}</strong></div>}
@@ -141,17 +164,17 @@ function OrderCard({ order, lang, t, customer, telegram, embedded, onClose }: {
   </article>;
 }
 
-function RecentOrders({ orders, lang, t, brief = false, onClose }: { orders: CommerceOrder[]; lang: ShopLanguage; t: Translate; brief?: boolean; onClose?: () => void }) {
+function RecentOrders({ orders, lang, t, products, brief = false, onClose }: { orders: CommerceOrder[]; lang: ShopLanguage; t: Translate; products: Product[]; brief?: boolean; onClose?: () => void }) {
   const recent = orders.flatMap(order => order.lines.map(line => ({ orderId: order.id, line }))).slice(0, brief ? 2 : 3);
   return <section className="customer-section customer-recent" aria-labelledby="order-history">
     <div className="customer-heading"><h2 id="order-history">{brief ? t("Recent purchases", "လတ်တလော ဝယ်ယူမှုများ") : t("Order history", "အော်ဒါမှတ်တမ်း")}</h2>
-      <Link className="customer-history-link" href="/order-history" onClick={onClose}>{t("View all orders", "အားလုံးကြည့်ရန်")}<ArrowRight size={15} aria-hidden /></Link>
+      <a className="customer-history-link" href="/order-history" onClick={onClose}>{t("View all orders", "အားလုံးကြည့်ရန်")}<ArrowRight size={15} aria-hidden /></a>
     </div>
     {recent.length ? <ul className="customer-recent-list">{recent.map(({ orderId, line }) => <li key={`${orderId}-${line.id}`} className={brief ? "customer-recent-brief" : undefined}>
-      <div className="customer-recent-copy"><div className="customer-item-title"><strong title={brief ? line.productName : undefined}>{line.productName}</strong>{line.quantity > 1 && <span>{t("Qty", "အရေအတွက်")} {line.quantity}</span>}</div>
+      <div className="customer-product-heading"><PurchasedLogo line={line} products={products} /><div className="customer-recent-copy"><div className="customer-item-title"><strong title={brief ? line.productName : undefined}>{line.productName}</strong>{line.quantity > 1 && <span>{t("Qty", "အရေအတွက်")} {line.quantity}</span>}</div>
         {line.planName && <p className="customer-item-plan" title={brief ? line.planName : undefined}>{line.planName}</p>}
         {!brief && line.duration && <p className="customer-item-duration">{durationText(line.duration, lang)}</p>}
-      </div>
+      </div></div>
       <SubscriptionTerm startDate={line.startDate} endDate={line.endDate} lang={lang} compact />
     </li>)}</ul> : <p className="customer-empty">{t("Approved orders and subscription dates will appear here.", "အော်ဒါ အတည်ပြုပြီးရင် ဝယ်ယူမှုမှတ်တမ်းနဲ့ ဝန်ဆောင်မှုသက်တမ်းကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>}
   </section>;
@@ -170,7 +193,7 @@ function PendingPreview({ orders, lang, t, onClose }: { orders: CommerceOrder[];
   const number = (value: number) => new Intl.NumberFormat(lang === "my" ? "my-MM" : "en-GB").format(value);
   return <section className="customer-section customer-pending-preview" aria-labelledby="pending-orders">
     <div className="customer-heading"><h2 id="pending-orders">{t("Pending orders", "စောင့်ဆိုင်းဆဲ အော်ဒါများ")} <span className="customer-section-count">{number(orders.length)}</span></h2>
-      <Link className="customer-history-link" href="/order-history" onClick={onClose}>{t("View all", "အားလုံးကြည့်ရန်")}<ArrowRight size={15} aria-hidden /></Link>
+      <a className="customer-history-link" href="/order-history" onClick={onClose}>{t("View all", "အားလုံးကြည့်ရန်")}<ArrowRight size={15} aria-hidden /></a>
     </div>
     {orders.length ? <ul className="customer-pending-list">{orders.slice(0, 2).map(order => <li key={order.id}>
       <div className="customer-pending-item-heading"><strong><bdi>#{order.id.slice(0, 8).toUpperCase()}</bdi></strong><time dateTime={order.createdAt}>{formatDate(order.createdAt, lang)}</time></div>
@@ -186,11 +209,13 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [telegram, setTelegram] = useState("");
   const [orders, setOrders] = useState<CommerceOrder[] | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
   const [failed, setFailed] = useState(false);
   const [reload, setReload] = useState(0);
   const [historyFilter, setHistoryFilter] = useState<"approved" | "pending" | null>(null);
+  const customerId = customer?.id;
 
   useEffect(() => {
     if (embedded) return;
@@ -212,7 +237,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
         setCustomer(person);
         setOrders(null);
         if (person && checkout && !embedded) { window.location.replace("/?checkout=1"); return; }
-        if (person) {
+        if (person && (embedded || history)) {
           const response = await fetch(`/api/customer/orders?view=${history ? "history" : "overview"}`, options);
           if (!active) return;
           if (response.status === 401) { setCustomer(null); }
@@ -230,6 +255,18 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
     void load();
     return () => { active = false; controller.abort(); };
   }, [reload, checkout, embedded, history, resumeGoogle]);
+
+  useEffect(() => {
+    if (!customerId || (!embedded && !history)) return;
+    const controller = new AbortController();
+    // Product marks are public catalog data. A failed logo lookup must not hide orders.
+    void fetch("/api/catalog", { signal: controller.signal }).then(async response => {
+      if (!response.ok) return;
+      const data = await response.json() as { products: Product[] };
+      if (!controller.signal.aborted && Array.isArray(data.products)) setProducts(data.products);
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [customerId, embedded, history]);
 
   useEffect(() => {
     function clearOnLeave() { setCustomer(null); setOrders(null); setLoading(true); }
@@ -261,6 +298,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
       setOrders(null);
       setFailed(false);
       setLoggingOut(false);
+      window.dispatchEvent(new Event("digimium-account-changed"));
       refresh();
     } catch {
       setFailed(true);
@@ -272,6 +310,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
     if (resumeGoogle) { window.location.replace(googleReturnTo === "checkout" ? "/?checkout=1" : googleReturnTo === "history" ? "/order-history" : "/account"); return; }
     if (checkout && !embedded) { window.location.replace("/?checkout=1"); return; }
     setCustomer(person);
+    window.dispatchEvent(new Event("digimium-account-changed"));
     refresh();
   }
 
@@ -280,7 +319,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
   const selectedHistory = historyFilter ?? (approved.length > 0 || pending.length === 0 ? "approved" : "pending");
   const historyOrders = selectedHistory === "approved" ? approved : pending;
   const count = (value: number) => new Intl.NumberFormat(lang === "my" ? "my-MM" : "en-GB").format(value);
-  return <Container className={"customer-page" + (embedded ? " customer-embedded" : "") + (history ? " customer-history-page" : "")} lang={lang}>
+  return <Container className={"customer-page" + (embedded ? " customer-embedded" : "") + (history ? " customer-history-page" : !embedded ? " customer-profile-page" : "")} lang={lang}>
     {!embedded && <header className="customer-header">
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- The storefront and account use separate documents. */}
       <a href="/" className="customer-brand" aria-label={t("Digimium store", "Digimium စတိုး")}><Image src="/assets/logo.png" alt="digimium." width={142} height={48} unoptimized /></a>
@@ -302,24 +341,17 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
       {customer && <div className="customer-dashboard">
         <div className="customer-summary">
           <div>{!embedded && !history && <Title>{t("My account", "ကျွန်ုပ်၏အကောင့်")}</Title>}<p><strong className="customer-profile-name">{customer.name}</strong>{history && <span className="customer-profile-email">{customer.email || (customer.telegram?.username ? '@' + customer.telegram.username : 'Telegram')}</span>}</p></div>
-          <button className="customer-signout" type="button" onClick={logout} disabled={loggingOut}><LogOut size={16} aria-hidden />{loggingOut ? t("Signing out…", "ထွက်နေပါတယ်…") : t("Sign out", "အကောင့်ထွက်ရန်")}</button>
+          <div className="customer-profile-actions">{embedded && !history && <a className="customer-account-settings" href="/account" onClick={onClose} aria-label={t("Account settings", "အကောင့် ဆက်တင်များ")} title={t("Account settings", "အကောင့် ဆက်တင်များ")}><Settings size={20} aria-hidden /></a>}
+            <button className="customer-signout" type="button" onClick={logout} disabled={loggingOut}><LogOut size={16} aria-hidden />{loggingOut ? t("Signing out…", "ထွက်နေပါတယ်…") : t("Sign out", "အကောင့်ထွက်ရန်")}</button></div>
         </div>
         {!history && <AccountDetails customer={customer} lang={lang} t={t} />}
-        {embedded && !history && <Link className="customer-account-settings" href="/account" onClick={onClose}><Settings2 size={17} aria-hidden />{t("Account settings", "အကောင့် ဆက်တင်များ")}<ArrowRight size={16} aria-hidden /></Link>}
+        {!embedded && !history && <AccountConnections customer={customer} t={t} onUpdated={setCustomer} />}
         {!embedded && !history && customer.passwordAvailable !== false && <PasswordForm t={t} onUpdated={setCustomer} onSignedOut={() => { setCustomer(null); setOrders(null); refresh(); }} />}
         {!embedded && !history && customer.passwordAvailable === false && <p className="customer-google-connected">{customer.telegram ? t("Telegram account", "Telegram အကောင့်") : t("Google account", "Google အကောင့်")}</p>}
-        {!orders && !failed && <p role="status">{t("Loading orders…", "အော်ဒါများကို ဖော်ပြနေပါတယ်…")}</p>}
+        {(embedded || history) && !orders && !failed && <p role="status">{t("Loading orders…", "အော်ဒါများကို ဖော်ပြနေပါတယ်…")}</p>}
         {orders && <>
-          {!history && <RecentOrders orders={approved} lang={lang} t={t} brief={embedded} onClose={onClose} />}
+          {embedded && !history && <RecentOrders orders={approved} lang={lang} t={t} products={products} brief onClose={onClose} />}
           {embedded && !history && <PendingPreview orders={pending} lang={lang} t={t} onClose={onClose} />}
-          {!embedded && !history && <section className="customer-section" aria-labelledby="pending-orders">
-            <div className="customer-heading"><h2 id="pending-orders">{t("Pending orders", "စောင့်ဆိုင်းဆဲ အော်ဒါများ")} <span className="customer-section-count" data-pending>{pending.length}</span></h2>
-              <button type="button" className="customer-refresh" onClick={refresh} disabled={loading}><RefreshCw size={15} aria-hidden />{t("Refresh", "ပြန်ကြည့်ရန်")}</button>
-            </div>
-            {pending.length > 0 && <p className="customer-section-help">{t("Send your order in Telegram and wait for shop approval.", "အော်ဒါစာကို Telegram မှာ ပို့ပြီး ဆိုင်အတည်ပြုချက်ကို စောင့်ပါ။")}</p>}
-            {pending.length ? pending.map(order => <OrderCard key={order.id} order={order} customer={customer} telegram={telegram} lang={lang} t={t} embedded={embedded} onClose={onClose} />)
-              : <p className="customer-empty">{t("No orders are awaiting approval.", "အတည်ပြုရန် စောင့်ဆိုင်းနေသော အော်ဒါ မရှိပါ။")}</p>}
-          </section>}
           {history && <section className="customer-section customer-history-orders" aria-labelledby="customer-history-list-title">
             <div className="customer-history-toolbar">
               <div className="customer-history-filters" role="group" aria-label={t("Order status", "အော်ဒါ အခြေအနေ ရွေးရန်")}>
@@ -331,10 +363,10 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
             <div id="customer-history-list" aria-live="polite" aria-busy={loading}>
               <h2 id="customer-history-list-title" className="customer-history-list-title">{selectedHistory === "approved" ? t("Purchased plans", "ဝယ်ယူထားသော အစီအစဉ်များ") : t("Awaiting shop approval", "ဆိုင်အတည်ပြုရန် စောင့်ဆိုင်းဆဲ")}</h2>
               {selectedHistory === "pending" && pending.length > 0 && <p className="customer-section-help">{t("Send your order in Telegram and wait for shop approval.", "အော်ဒါစာကို Telegram မှာ ပို့ပြီး ဆိုင်အတည်ပြုချက်ကို စောင့်ပါ။")}</p>}
-              {historyOrders.length ? historyOrders.map(order => <OrderCard key={order.id} order={order} customer={customer} telegram={telegram} lang={lang} t={t} embedded={embedded} onClose={onClose} />)
+              {historyOrders.length ? <div className="customer-order-grid">{historyOrders.map(order => <OrderCard key={order.id} order={order} customer={customer} telegram={telegram} lang={lang} t={t} embedded={embedded} products={products} onClose={onClose} />)}</div>
                 : <p className="customer-empty">{selectedHistory === "pending" ? t("No orders are awaiting approval.", "အတည်ပြုရန် စောင့်ဆိုင်းနေသော အော်ဒါ မရှိပါ။") : t("Approved orders and subscription dates will appear here.", "အော်ဒါ အတည်ပြုပြီးရင် ဝယ်ယူမှုမှတ်တမ်းနဲ့ ဝန်ဆောင်မှုသက်တမ်းကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>}
             </div>
-            <Link href="/account" className="customer-history-account">{t("Account settings", "အကောင့်အချက်အလက် ကြည့်ရန်")}<ArrowRight size={16} aria-hidden /></Link>
+            <a href="/account" className="customer-history-account">{t("Account settings", "အကောင့်အချက်အလက် ကြည့်ရန်")}<ArrowRight size={16} aria-hidden /></a>
           </section>}
         </>}
       </div>}

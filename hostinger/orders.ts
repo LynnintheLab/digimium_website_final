@@ -17,12 +17,22 @@ import { ensureCustomerSchema, presentCustomer, type CustomerIdentityRow } from 
 import { limitGuestCheckout } from './guest-checkout';
 import { getPool } from './mysql';
 
+const MAX_ORDER_LINES = 3000;
+// Reject oversized collections before Zod 3 walks invalid elements and accumulates issues.
+function enforceCollectionLimit(body: unknown, field: 'items' | 'lines') {
+  const collection = body && typeof body === 'object' && !Array.isArray(body)
+    ? (body as Record<string, unknown>)[field] : undefined;
+  if (Array.isArray(collection) && collection.length > MAX_ORDER_LINES) {
+    throw new CommerceError(400, `An order can contain at most ${MAX_ORDER_LINES} items.`);
+  }
+}
+
 const catalogId = z.string().min(1).max(64).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const itemSchema = z.object({
   productId: catalogId, planId: catalogId.nullable(), quantity: z.number().int().positive().safe(),
 }).strict();
 const checkoutSchema = z.object({
-  requestId: z.string().uuid(), items: z.array(itemSchema).min(1).max(3000),
+  requestId: z.string().uuid(), items: z.array(itemSchema).min(1).max(MAX_ORDER_LINES),
 }).strict();
 const guestCheckoutSchema = z.union([
   checkoutSchema.extend({ checkoutMode: z.literal('guest') }),
@@ -37,13 +47,21 @@ function validDate(value: string) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 const date = z.string().refine(validDate);
+const deliveryField = (max: number) => z.string().max(max).refine(value => !/\p{Cc}/u.test(value));
+const accountDetailsSchema = z.object({
+  account: deliveryField(500).default(''),
+  password: deliveryField(1000).default(''),
+  manager: deliveryField(500).default(''),
+  username: deliveryField(500).default(''),
+}).strict();
 const fulfillmentSchema = z.object({
   revision: z.number().int().positive().max(0xfffffffe),
-  lines: z.array(z.object({ id: z.string().uuid(), startDate: date, endDate: date, accountInfo: z.string().max(4000).optional() })
-    .strict().refine(line => line.endDate >= line.startDate)).min(1).max(3000),
+  lines: z.array(z.object({ id: z.string().uuid(), startDate: date, endDate: date,
+    accountInfo: z.string().max(4000).optional(), accountDetails: accountDetailsSchema.optional() })
+    .strict().refine(line => line.endDate >= line.startDate)).min(1).max(MAX_ORDER_LINES),
 }).strict();
 
-type PurchasedLine = Omit<CommerceOrderLine, 'startDate' | 'endDate' | 'accountInfo'>;
+type PurchasedLine = Omit<CommerceOrderLine, 'startDate' | 'endDate' | 'accountInfo' | 'accountDetails'>;
 type OrderSnapshot = { lines: PurchasedLine[]; totalMmk: number | null };
 interface OrderRow extends RowDataPacket {
   id: string;
@@ -141,7 +159,8 @@ function present(row: OrderRow): CommerceOrder {
     status: row.approved_at ? 'approved' : 'pending', revision: row.revision, totalMmk: snapshot.totalMmk,
     lines: snapshot.lines.map(line => {
       const grant = delivery.get(line.id);
-      return { ...line, startDate: grant?.startDate ?? null, endDate: grant?.endDate ?? null, accountInfo: grant?.accountInfo ?? '' };
+      return { ...line, startDate: grant?.startDate ?? null, endDate: grant?.endDate ?? null, accountInfo: grant?.accountInfo ?? '',
+        ...(grant?.accountDetails ? { accountDetails: grant.accountDetails } : {}) };
     }),
   };
 }
@@ -188,12 +207,14 @@ async function existingCheckout(owner: CheckoutOwner, requestId: string, hash: B
 }
 
 export async function submitOrder(customerId: string, body: unknown) {
+  enforceCollectionLimit(body, 'items');
   const input = checkoutSchema.safeParse(body);
   if (!input.success) throw new CommerceError(400, 'Select valid items and quantities before submitting your order.');
   return storeOrder({ customerId }, input.data);
 }
 
 export async function submitGuestOrder(guestKey: Buffer, body: unknown, request: Request) {
+  enforceCollectionLimit(body, 'items');
   const input = guestCheckoutSchema.safeParse(body);
   if (!input.success) throw new CommerceError(400, 'Check the checkout details and selected items.');
   const guestName = 'guestName' in input.data ? input.data.guestName : null;
@@ -266,8 +287,9 @@ export async function adminCommerce() {
 
 export async function saveFulfillment(id: string, body: unknown) {
   if (!z.string().uuid().safeParse(id).success) throw new CommerceError(404, 'Order not found.');
+  enforceCollectionLimit(body, 'lines');
   const input = fulfillmentSchema.safeParse(body);
-  if (!input.success) throw new CommerceError(400, 'Enter valid start and end dates for every item.');
+  if (!input.success) throw new CommerceError(400, 'Check every item’s dates and optional account details.');
   await ensureOrders();
   const connection = await getPool().getConnection();
   try {
@@ -281,13 +303,16 @@ export async function saveFulfillment(id: string, body: unknown) {
     if (snapshot.lines.length !== input.data.lines.length || !snapshot.lines.every(line => grants.has(line.id))) {
       throw new CommerceError(400, 'Include the dates for every purchased item exactly once.');
     }
-    const previous = new Map(decryptFulfillment(row).map(line => [line.id, line.accountInfo]));
-    const lines = input.data.lines.map(({ id, startDate, endDate, accountInfo }) => {
-      const saved = previous.get(id) || '';
+    const previous = new Map(decryptFulfillment(row).map(line => [line.id, line]));
+    const lines = input.data.lines.map(({ id, startDate, endDate, accountInfo, accountDetails }) => {
+      const saved = previous.get(id)?.accountInfo || '';
       if (accountInfo && accountInfo !== saved) {
-        throw new CommerceError(400, 'Send purchased account details to the customer on Telegram.');
+        throw new CommerceError(400, 'Use the optional Account, Password, Manager and Username fields.');
       }
-      return { id, startDate, endDate, accountInfo: saved };
+      // Omission means a date-only edit; an explicit empty object clears these fields.
+      const details = accountDetails ?? previous.get(id)?.accountDetails;
+      const hasDetails = details && Object.values(details).some(value => value.length > 0);
+      return { id, startDate, endDate, accountInfo: saved, ...(hasDetails ? { accountDetails: details } : {}) };
     });
     row.approved_at ??= new Date().toISOString();
     row.fulfillment = encryptFulfillment(id, fulfillmentOwner(row), lines);

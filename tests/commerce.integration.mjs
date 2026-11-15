@@ -144,6 +144,10 @@ try {
   assert.equal((await submit({ ...submission, customerId: bob.id })).status, 400);
   assert.equal((await submit({ ...submission, customer: { name: 'Spoofed', email: second.email } })).status, 400);
   assert.equal((await submit({ ...submission, items: [{ ...item, price: '1 MMK' }] })).status, 400);
+  const oversizedItems = Array(3001).fill(null);
+  const collectionLimitError = { error: 'An order can contain at most 3000 items.' };
+  assert.deepEqual(await json(await submit({ ...submission, items: oversizedItems }), 400), collectionLimitError,
+    'Oversized invalid checkout arrays are rejected before element validation');
   for (const invalid of [{ ...item, productId: hidden.id }, { ...item, productId: unavailable.id }, { ...item, planId: 'draft' }, { ...item, planId: null }]) {
     assert.equal((await submit({ ...submission, items: [custom, invalid] })).status, 409, 'The entire cart must be accepted or rejected together');
   }
@@ -177,7 +181,7 @@ try {
     'Retry uses the original items and prices with the current store contact');
   const accountResponse = await json(await get(customerOrders, alice.cookie));
   assert.equal(accountResponse.telegram, updatedContact);
-  assert.deepEqual(accountResponse.customer, { id: alice.id, name: first.name, email: first.email, createdAt: alice.createdAt });
+  assert.deepEqual(accountResponse.customer, { id: alice.id, name: first.name, email: first.email, createdAt: alice.createdAt, signInMethods: { emailPassword: true, google: false, telegram: false } });
   assert.deepEqual((await json(await get(customerOrders + '?customerId=' + alice.id, bob.cookie))).orders, []);
   assert.deepEqual((await json(await get(adminCommerce, owner))).orders.find(row => row.id === id), before[0]);
   const lines = before[0].lines.map(line => ({ id: line.id, startDate: '2028-02-29', endDate: '2028-03-29' }));
@@ -185,22 +189,57 @@ try {
   const approval = { lines, revision: before[0].revision };
   assert.equal((await update(approval, bob.cookie)).status, 401);
   assert.equal((await update(approval, owner, 'https://foreign.invalid')).status, 403);
+  assert.deepEqual(await json(await update({ ...approval, lines: oversizedItems }), 400), collectionLimitError,
+    'Oversized invalid fulfillment arrays are rejected before element validation');
   for (const bad of [[lines[0]], [lines[0], lines[0]], [{ ...lines[0], startDate: '2027-02-29' }, lines[1]],
     [{ ...lines[0], endDate: '2028-02-28' }, lines[1]]]) {
     assert.equal((await update({ ...approval, lines: bad })).status, 400);
   }
   const privateDetails = 'Private historical delivery ' + randomUUID();
   assert.equal((await update({ ...approval, lines: [{ ...lines[0], accountInfo: privateDetails }, lines[1]] })).status, 400);
+  for (const accountDetails of [null, { account: 12 }, { unknown: 'unexpected' },
+    { account: 'x'.repeat(501) }, { password: 'x'.repeat(1001) }, { manager: 'x'.repeat(501) }, { username: 'x'.repeat(501) },
+    { account: 'first\nsecond' }, { password: 'bad\u0000value' }, { manager: 'bad\tvalue' }, { username: 'bad\rvalue' }]) {
+    assert.equal((await update({ ...approval, lines: [{ ...lines[0], accountDetails }, lines[1]] })).status, 400,
+      'Optional delivered account fields enforce types, limits and single-line values');
+  }
   const saved = await Promise.all([update(approval), update(approval)]);
   assert.deepEqual(saved.map(r => r.status).sort(), [200, 409]);
   const approved = (await json(saved.find(r => r.status === 200))).order;
   assert.equal(approved.status, 'approved');
   assert.equal(approved.lines[0].accountInfo, '');
   assert.equal(approved.lines[1].accountInfo, '');
+  assert.equal(approved.lines[0].accountDetails, undefined, 'Omitted optional fields never block approval');
   assert.deepEqual((await json(await get(customerOrders, alice.cookie))).orders.find(row => row.id === id), approved);
   assert.deepEqual((await json(await get(customerOrders, bob.cookie))).orders, []);
+  const deliveredAccount = {
+    account: 'service-account-' + randomUUID(), password: '  private-password-' + randomUUID() + '  ',
+    manager: 'manager-' + randomUUID(), username: 'username-' + randomUUID(),
+  };
+  const withDetails = (await json(await update({ revision: approved.revision,
+    lines: [{ ...lines[0], accountDetails: deliveredAccount }, lines[1]] }))).order;
+  assert.deepEqual(withDetails.lines[0].accountDetails, deliveredAccount);
+  assert.equal(withDetails.lines[1].accountDetails, undefined);
+  assert.deepEqual((await json(await get(adminCommerce, owner))).orders.find(order => order.id === id), withDetails);
+  assert.deepEqual((await json(await get(customerOrders + '?view=history', alice.cookie))).orders.find(order => order.id === id), withDetails,
+    'Only the owning customer can read approved structured delivery');
+  assert.deepEqual((await json(await get(customerOrders + '?view=history&customerId=' + alice.id, bob.cookie))).orders, []);
+  const structuredPreview = (await json(await get(customerOrders + '?view=overview', alice.cookie))).orders;
+  assert.ok(structuredPreview.every(order => order.lines.every(line => !Object.hasOwn(line, 'accountDetails'))),
+    'Overview omits structured credentials entirely');
+  assert.deepEqual(await json(await submit()), { ...checkout, telegram: updatedContact },
+    'Checkout retry and its Telegram projection omit structured credentials');
+  const dateOnly = (await json(await update({ revision: withDetails.revision, lines }))).order;
+  assert.deepEqual(dateOnly.lines[0].accountDetails, deliveredAccount, 'Date-only edits preserve structured account details');
+  const emptyAccount = { account: '', password: '', manager: '', username: '' };
+  const cleared = (await json(await update({ revision: dateOnly.revision,
+    lines: [{ ...lines[0], accountDetails: emptyAccount }, lines[1]] }))).order;
+  assert.equal(cleared.lines[0].accountDetails, undefined, 'Explicit blank fields clear structured details');
+  const restored = (await json(await update({ revision: cleared.revision,
+    lines: [{ ...lines[0], accountDetails: deliveredAccount }, lines[1]] }))).order;
   // Simulate a record encrypted by the release that accepted website credential delivery.
-  const historical = lines.map((line, index) => ({ ...line, accountInfo: index ? '' : privateDetails }));
+  const historical = lines.map((line, index) => ({ ...line, accountInfo: index ? '' : privateDetails,
+    ...(index ? {} : { accountDetails: deliveredAccount }) }));
   const iv = randomBytes(12);
   const key = createHmac('sha256', env.ORDER_FULFILLMENT_SECRET).update('digimium/order-fulfillment/v1').digest();
   const cipher = createCipheriv('aes-256-gcm', key, iv);
@@ -211,12 +250,16 @@ try {
   assert.deepEqual(await json(await submit()), { ...checkout, telegram: updatedContact },
     'Replaying checkout after delivery must never return fulfillment secrets');
   const changedLines = [{ ...lines[0], endDate: '2028-04-29' }, lines[1]];
-  const { order: edited } = await json(await update({ revision: approved.revision, lines: changedLines }));
+  const { order: edited } = await json(await update({ revision: restored.revision, lines: changedLines }));
   const [[stored]] = await db.execute('SELECT snapshot, fulfillment FROM digimium_orders WHERE id = ?', [id]);
   assert.ok(!Object.values(stored).some(value => value.includes(privateDetails)), 'No plaintext fulfillment in storage');
+  for (const value of Object.values(deliveredAccount)) {
+    assert.ok(!Object.values(stored).some(raw => raw.includes(value)), 'Structured account details are encrypted, never part of the purchase snapshot');
+  }
   assert.equal(edited.approvedAt, approved.approvedAt);
   assert.equal(edited.lines[0].endDate, changedLines[0].endDate);
   assert.equal(edited.lines[0].accountInfo, privateDetails, 'Date changes preserve historical encrypted delivery');
+  assert.deepEqual(edited.lines[0].accountDetails, deliveredAccount, 'Date changes preserve both legacy and structured delivery');
   assert.equal(edited.lines[0].price, '1,500 MMK');
   await json(await mutate(customerSession, 'DELETE', {}, alice.cookie));
   assert.equal((await get(customerOrders, alice.cookie)).status, 401);
@@ -241,7 +284,7 @@ try {
   assert.notEqual(activeCookie, newCookie);
   assert.notEqual(activeCookie, otherCookie);
   const winnerPassword = successful ? competing.newPassword : nextPassword;
-  assert.deepEqual((await json(changes[successful])).customer, { id: alice.id, name: first.name, email: first.email, createdAt: alice.createdAt });
+  assert.deepEqual((await json(changes[successful])).customer, { id: alice.id, name: first.name, email: first.email, createdAt: alice.createdAt, signInMethods: { emailPassword: true, google: false, telegram: false } });
   assert.equal((await get(customerOrders, newCookie)).status, 401);
   assert.equal((await get(customerOrders, otherCookie)).status, 401);
   assert.equal((await mutate(customerSession, 'POST', { action: 'login', email: first.email, password: first.password })).status, 401);
@@ -266,11 +309,14 @@ try {
   assert.equal(overview.filter(order => order.status === 'approved').flatMap(order => order.lines).length, 3);
   assert.ok(overview.some(order => order.id === priced.id && order.status === 'pending'));
   assert.ok(overview.every(order => order.lines.every(line => !line.accountInfo)), 'Account preview never returns historical credentials');
+  assert.ok(overview.every(order => order.lines.every(line => !Object.hasOwn(line, 'accountDetails'))), 'Account preview never returns structured credentials');
   const history = (await json(await get(customerOrders + '?view=history', activeCookie))).orders;
   assert.ok(history.some(order => order.id === priced.id && order.status === 'pending'), 'Full history includes pending orders for the status tabs');
   assert.ok(history.filter(order => order.status === 'pending').every(order => order.lines.every(line => !line.accountInfo)), 'Pending history never returns delivery credentials');
+  assert.ok(history.filter(order => order.status === 'pending').every(order => order.lines.every(line => !Object.hasOwn(line, 'accountDetails'))), 'Pending history never returns structured credentials');
   assert.equal(history.filter(order => order.status === 'approved').flatMap(order => order.lines).length, 4);
   assert.equal(history.find(order => order.id === id).lines[0].accountInfo, privateDetails);
+  assert.deepEqual(history.find(order => order.id === id).lines[0].accountDetails, deliveredAccount);
   assert.deepEqual((await json(await get(customerOrders + '?view=history&customerId=' + alice.id, bob.cookie))).orders, []);
 
   const guestSession = '/api/customer/guest-session';
@@ -288,6 +334,8 @@ try {
   const changedToken = guestCookie.slice(0, -2) + (guestCookie.at(-2) === 'a' ? 'b' : 'a') + guestCookie.at(-1);
   assert.equal((await submit(guestBody, changedToken)).status, 401);
   assert.equal((await submit(guestBody, guestCookie, 'https://foreign.invalid')).status, 403);
+  assert.deepEqual(await json(await submit({ ...guestBody, items: oversizedItems }, guestCookie), 400), collectionLimitError,
+    'Guest checkout rejects oversized arrays before parsing or storing an order');
   assert.equal((await submit({ items: [custom], requestId: randomUUID() }, guestCookie)).status, 401,
     'A returning guest is offered the name form instead of an invalid-order error');
   const signedInDuringGuestForm = await json(await submit({ ...guestBody, requestId: randomUUID() }, bob.cookie), 201);
@@ -336,12 +384,13 @@ try {
   const anotherGuest = await json(await submit(guestBody, anotherGuestCookie), 201);
   assert.notEqual(anotherGuest.id, guestCheckout.id, 'Same names and request IDs in independent browsers do not share orders');
   const guestApproval = { revision: guestOrder.revision,
-    lines: guestOrder.lines.map(line => ({ id: line.id, startDate: '2028-03-01', endDate: '2028-04-01' })) };
+    lines: guestOrder.lines.map(line => ({ id: line.id, startDate: '2028-03-01', endDate: '2028-04-01', accountDetails: emptyAccount })) };
   assert.equal((await mutate(adminCommerce + '/' + guestCheckout.id, 'PATCH', guestApproval, guestCookie)).status, 401);
   const approvedGuest = (await json(await mutate(adminCommerce + '/' + guestCheckout.id, 'PATCH', guestApproval, owner))).order;
   assert.equal(approvedGuest.status, 'approved');
   assert.equal(approvedGuest.guestName, 'ဒေါ်မြ');
   assert.equal(approvedGuest.lines[0].endDate, '2028-04-01');
+  assert.equal(approvedGuest.lines[0].accountDetails, undefined, 'Explicitly blank optional fields allow initial approval');
   assert.deepEqual((await json(await get(adminCommerce, owner))).orders.find(order => order.id === guestCheckout.id), approvedGuest,
     'Guest fulfillment can be read back by admin with its own encryption ownership');
   assert.deepEqual(await json(await submit(guestBody, guestCookie)), guestCheckout,

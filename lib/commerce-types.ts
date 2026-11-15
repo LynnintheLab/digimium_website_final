@@ -5,6 +5,14 @@ export type CommerceCustomer = {
   createdAt: string;
   passwordAvailable?: false;
   telegram?: { id: string; username: string | null };
+  signInMethods?: { emailPassword: boolean; google: boolean; telegram: boolean };
+};
+
+export type CommerceAccountDetails = {
+  account: string;
+  password: string;
+  manager: string;
+  username: string;
 };
 
 export type CommerceOrderLine = {
@@ -19,6 +27,7 @@ export type CommerceOrderLine = {
   startDate: string | null;
   endDate: string | null;
   accountInfo: string;
+  accountDetails?: CommerceAccountDetails;
 };
 
 export type CommerceOrder = {
@@ -38,6 +47,7 @@ export type OrderFulfillment = {
   startDate: string;
   endDate: string;
   accountInfo: string;
+  accountDetails?: CommerceAccountDetails;
 };
 
 export type TelegramOrder = Pick<CommerceOrder, 'id' | 'totalMmk'> & {

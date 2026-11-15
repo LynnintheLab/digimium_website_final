@@ -10,6 +10,7 @@ type Translate=(en:string,my:string)=>string;
 
 export function TelegramLogin({login,t}:{login:TelegramLoginController;t:Translate}) {
   const {challenge,status,error,busy,secondsLeft}=login;
+  const linking=login.purpose==='link';
   const waiting=status==='waiting';
   const terminal=status==='expired'||status==='rejected'||status==='error';
   const [qr,setQr]=useState<{flow:string;state:'loading'|'ready'|'error';src?:string}|null>(null);
@@ -42,8 +43,12 @@ export function TelegramLogin({login,t}:{login:TelegramLoginController;t:Transla
     rate_limited:t('Too many attempts. Please try again in a few minutes.','အကြိမ်ရေ များသွားပါတယ်။ မိနစ်အနည်းငယ်ကြာမှ ပြန်ကြိုးစားပါ။'),
     expired:t('This code has expired. Get a new code to continue.','ဒီ code ရဲ့ အချိန်ကုန်သွားပါပြီ။ Code အသစ်ယူပြီး ဆက်လုပ်ပါ။'),
     cancelled:t('This sign-in is no longer active. Get a new code to continue.','ဒီအကောင့်ဝင်ခြင်းကို ပယ်ဖျက်ထားပါတယ်။ Code အသစ်ယူပြီး ဆက်လုပ်ပါ။'),
+    signed_out:t('Sign in to your website account before connecting Telegram.','Telegram မချိတ်ခင် website အကောင့်ကို အရင်ဝင်ပါ။'),
+    session_changed:t('Your website session changed. Start again from Account settings.','Website အကောင့်ဝင်ထားမှု ပြောင်းသွားပါတယ်။ Account ဆက်တင်များကနေ ပြန်စပါ။'),
+    telegram_in_use:t('This Telegram is connected to another website account. Use that account or a different Telegram.','ဒီ Telegram ကို အခြား website အကောင့်နဲ့ ချိတ်ထားပြီးပါပြီ။ အဲ့ဒီအကောင့် သို့မဟုတ် အခြား Telegram ကို သုံးပါ။'),
+    telegram_already_linked:t('This account already has a Telegram connection. Refresh Account settings.','ဒီအကောင့်မှာ Telegram ချိတ်ထားပြီးပါပြီ။ Account ဆက်တင်များကို ပြန်ဖွင့်ပါ။'),
   };
-  const label=status==='starting'?t('Preparing your code…','Code ပြင်ဆင်နေပါတယ်…'):status==='approved'?t('Confirmed. Signing you in…','အတည်ပြုပြီးပါပြီ။ အကောင့်ဝင်နေပါတယ်…'):status==='expired'?t('Code expired','Code အချိန်ကုန်သွားပါပြီ'):status==='rejected'?t('Sign-in rejected','အကောင့်ဝင်ခြင်းကို ငြင်းပယ်လိုက်ပါတယ်'):status==='error'?t('Couldn’t continue','ဆက်လုပ်၍ မရသေးပါ'):t('Waiting for Telegram','Telegram မှ အတည်ပြုမှု စောင့်နေပါတယ်');
+  const label=status==='starting'?t('Preparing your code…','Code ပြင်ဆင်နေပါတယ်…'):status==='approved'?(linking?t('Confirmed. Connecting Telegram…','အတည်ပြုပြီးပါပြီ။ Telegram ချိတ်ဆက်နေပါတယ်…'):t('Confirmed. Signing you in…','အတည်ပြုပြီးပါပြီ။ အကောင့်ဝင်နေပါတယ်…')):status==='expired'?t('Code expired','Code အချိန်ကုန်သွားပါပြီ'):status==='rejected'?t('Request rejected','တောင်းဆိုမှုကို ငြင်းပယ်လိုက်ပါတယ်'):status==='error'?t('Couldn’t continue','ဆက်လုပ်၍ မရသေးပါ'):t('Waiting for Telegram','Telegram မှ အတည်ပြုမှု စောင့်နေပါတယ်');
   const StatusIcon=status==='approved'?CheckCircle2:status==='rejected'||status==='error'?CircleAlert:Clock3;
   return <div ref={root} className="customer-telegram-login" data-state={status} aria-busy={busy}>
     <p className="customer-telegram-login-status" role="status"><StatusIcon size={17} aria-hidden/><span>{label}</span></p>
