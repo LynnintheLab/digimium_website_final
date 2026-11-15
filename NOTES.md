@@ -2,7 +2,7 @@
 
 ## Current status
 
-The remaining full-lint error is fixed locally: the logo path event handler is named `applyExistingPath` at its definition and Enter/button callsites, avoiding false Hook classification. Validation, disabled/uploading guards, callbacks and UI behavior are unchanged. Full lint exits zero (0 errors, 17 existing warnings), all 82 tests pass, and the Node 24 standalone build/packaging and typecheck pass. Testing/production rollout is pending.
+The remaining full-lint error is fixed and source `cb302ca` is live on testing and production (Hostinger Completed/Current): the logo path event handler is named `applyExistingPath` at its definition and Enter/button callsites, avoiding false Hook classification. Validation, disabled/uploading guards, callbacks and UI behavior are unchanged. Full lint exits zero (0 errors, 17 existing warnings), all 82 tests pass, and the Node 24 standalone build/packaging and typecheck pass. Both hosts passed four bounded read-only checks for storefront, catalog, admin redirect and login; no live data changed.
 
 All 15 remaining Moderate audit entries are fixed and source `ac0bcac` is live on testing and production (Hostinger Completed/Current). Scoped core-utils/esbuild 0.25.12, Satori/fflate 0.7.5 and Estree/minimatch 11.0.1 overrides plus Drizzle Kit 0.31.11 yield zero full and production-only npm audit findings. Clean install, 82 unit tests, standalone build/typecheck, four compatibility cases, Drizzle generate/check, all six fresh Hostinger security suites, separate Sites integrations, twelve preview probes and Miniflare/Undici/TLS checks passed. Focused lint passes; full lint retains a reproduced baseline logo-editor naming error plus 17 warnings. Both hosts passed all 14 bounded read-only checks and Chrome plan/account checks without browser errors; production English/session/cart were preserved. Hostinger scans show one High label each for the officially withdrawn Deno/esbuild advisory, with zero Moderate; this does not match the active npm graph and is documented in `docs/SECURITY-MODERATE-FOLLOWUP-2026-11-15.md`. No real provider/order/account/giveaway mutations occurred; owned local fixtures stopped.
 
@@ -68,7 +68,7 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
-Renamed the ordinary logo-path handler and independently reviewed its three references. Verified full lint, the existing 82 tests, standalone build and typecheck in an isolated snapshot. No new tests or runtime/dependency/authentication changes were required. Test logs are ignored under `outputs/security/lint-fix-*`; rollout is pending.
+Renamed the ordinary logo-path handler and independently reviewed its three references. Verified full lint, the existing 82 tests, standalone build and typecheck in an isolated snapshot. No new tests or runtime/dependency/authentication changes were required. Testing and production deployed `cb302ca` and passed all four read-only checks each. Test logs and live summaries are ignored under `outputs/security/lint-fix-*`; final follow-up is documentation only.
 
 Deployed and verified `ac0bcac` on both environments. Cleared all 15 Moderate audit entries with no application runtime behavior changes; all 82 tests and six security suites pass. Both hosted read-only batches and browser smoke checks pass. Recorded the hosting scanner’s remaining withdrawn advisory separately, preserved live customer state, and completed fixture/browser cleanup. Evidence is ignored under `outputs/security/`; final follow-up is documentation only.
 
@@ -192,7 +192,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Deploy the validated lint fix to testing, verify it, then promote to production. Keep the 17 existing non-blocking lint warnings separate from the resolved error.
+- Lint error fix and retest are complete and live. Full lint exits zero; the 17 existing non-blocking warnings remain separate future cleanup.
 
 - Moderate fixes and security retest are complete and live. Retain the four compatibility regressions and review scoped overrides when parent packages update. The hosting scanner retains one withdrawn esbuild advisory per host; do not force unrelated updates or suppress active advisories to hide it. The later lint follow-up resolves the logo-editor naming error.
 
