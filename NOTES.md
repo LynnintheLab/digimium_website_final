@@ -2,6 +2,8 @@
 
 ## Current status
 
+The remaining full-lint error is fixed locally: the logo path event handler is named `applyExistingPath` at its definition and Enter/button callsites, avoiding false Hook classification. Validation, disabled/uploading guards, callbacks and UI behavior are unchanged. Full lint exits zero (0 errors, 17 existing warnings), all 82 tests pass, and the Node 24 standalone build/packaging and typecheck pass. Testing/production rollout is pending.
+
 All 15 remaining Moderate audit entries are fixed and source `ac0bcac` is live on testing and production (Hostinger Completed/Current). Scoped core-utils/esbuild 0.25.12, Satori/fflate 0.7.5 and Estree/minimatch 11.0.1 overrides plus Drizzle Kit 0.31.11 yield zero full and production-only npm audit findings. Clean install, 82 unit tests, standalone build/typecheck, four compatibility cases, Drizzle generate/check, all six fresh Hostinger security suites, separate Sites integrations, twelve preview probes and Miniflare/Undici/TLS checks passed. Focused lint passes; full lint retains a reproduced baseline logo-editor naming error plus 17 warnings. Both hosts passed all 14 bounded read-only checks and Chrome plan/account checks without browser errors; production English/session/cart were preserved. Hostinger scans show one High label each for the officially withdrawn Deno/esbuild advisory, with zero Moderate; this does not match the active npm graph and is documented in `docs/SECURITY-MODERATE-FOLLOWUP-2026-11-15.md`. No real provider/order/account/giveaway mutations occurred; owned local fixtures stopped.
 
 Build/preview High findings are fixed and runtime `830373c` is live on testing and production (Hostinger Completed/Current): full audit is 0 Critical / 0 High / 15 Moderate / 0 Low; production-only audit remains zero. Narrow updates use Vinext 1.0.0, Vite 8.1.6, RSC plugin 0.5.34, Cloudflare Vite plugin 1.49.0, Wrangler 4.116.0 and matching Workers Types 5.20260730.1, retaining React 19.2.9 and Miniflare 4. The scoped Miniflare Undici 7.30.1 override closes current 7.x advisories; retain existing Sharp override. Compatible transitive patches fix brace-expansion, Browserslist and JS-YAML. A clean install, 78 unit tests, standalone build/typecheck, focused lint and all six disposable Hostinger security suites passed. Separate Sites build/catalog/logo integrations and 12 preview security checks passed; actual Miniflare dispatch/upstream and invalid-certificate rejection through the overridden Undici passed. All 14 bounded read-only live checks per host passed; Chrome verified plans/account controls without captured browser errors. Existing production English/session/cart were preserved. No real orders, provider messages, giveaway launch/entries or Sites publication are part of this change.
@@ -65,6 +67,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Renamed the ordinary logo-path handler and independently reviewed its three references. Verified full lint, the existing 82 tests, standalone build and typecheck in an isolated snapshot. No new tests or runtime/dependency/authentication changes were required. Test logs are ignored under `outputs/security/lint-fix-*`; rollout is pending.
 
 Deployed and verified `ac0bcac` on both environments. Cleared all 15 Moderate audit entries with no application runtime behavior changes; all 82 tests and six security suites pass. Both hosted read-only batches and browser smoke checks pass. Recorded the hosting scanner’s remaining withdrawn advisory separately, preserved live customer state, and completed fixture/browser cleanup. Evidence is ignored under `outputs/security/`; final follow-up is documentation only.
 
@@ -188,7 +192,9 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Moderate fixes and security retest are complete and live. Retain the four compatibility regressions and review scoped overrides when parent packages update. The hosting scanner retains one withdrawn esbuild advisory per host; do not force unrelated updates or suppress active advisories to hide it. The pre-existing logo-editor full-lint naming error remains separate follow-up.
+- Deploy the validated lint fix to testing, verify it, then promote to production. Keep the 17 existing non-blocking lint warnings separate from the resolved error.
+
+- Moderate fixes and security retest are complete and live. Retain the four compatibility regressions and review scoped overrides when parent packages update. The hosting scanner retains one withdrawn esbuild advisory per host; do not force unrelated updates or suppress active advisories to hide it. The later lint follow-up resolves the logo-editor naming error.
 
 - Previous Zod/React and eight High fixes remain in place. The newer Moderate follow-up supersedes their earlier remaining-finding counts; keep the testing/production status in that report authoritative.
 

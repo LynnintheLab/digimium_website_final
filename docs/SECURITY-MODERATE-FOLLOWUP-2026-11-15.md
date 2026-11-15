@@ -41,3 +41,7 @@ Both hosts passed all **14 bounded read-only checks** after deployment: public c
 These results cover the tested dependency graph and bounded application paths, not an exhaustive penetration test or host operating-system audit. Native Windows was not exercised on this Mac.
 
 Ignored local evidence is under `outputs/security/`: `moderate-audit-before-2026-11-15.json`, `moderate-audit-after-2026-11-15.json`, `moderate-runtime-audit-2026-11-15.json`, unit/build/typecheck/Drizzle/lint logs, the Hostinger suite summary, Sites/Miniflare/TLS evidence, both hosted read-only summaries and hosting-scanner comparisons.
+
+## Lint follow-up
+
+The owner subsequently requested the remaining lint error be fixed. The plain logo-path event handler is renamed from `useExistingPath` to `applyExistingPath` at its definition and both callsites, so ESLint no longer classifies it as a Hook. Validation, disabled/uploading guards, button and Enter behavior are unchanged. Full lint now exits zero with **0 errors and 17 existing warnings**. All **82 tests**, standalone build/packaging and TypeScript pass on Node 24. No dependencies, authentication rules or persisted data changed; no new implementation-mirroring test was added for this naming-only fix. Testing and production rollout are pending. Ignored logs are `outputs/security/lint-fix-*-2026-11-15.log`.
