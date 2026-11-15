@@ -67,18 +67,32 @@ function statusText(campaign: GiveawayCampaign, lang: ShopLanguage) {
 function campaignDate(value: string, lang: ShopLanguage) {
   return new Intl.DateTimeFormat(lang === 'my' ? 'my-MM' : 'en-GB', { timeZone: 'Asia/Yangon', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
+function prizeNumber(value: number, lang: ShopLanguage) {
+  // Keep the server and browsers with limited Myanmar Intl data identical.
+  return lang === 'my' ? String(value).replace(/\d/g, digit => '၀၁၂၃၄၅၆၇၈၉'[Number(digit)]) : String(value);
+}
 
 export function GiveawayBanner({ campaign, lang }: { campaign: GiveawayCampaign; lang: ShopLanguage }) {
-  return <a className="giveaway-banner" href="#giveaway"><Gift size={18} aria-hidden/><strong>digimium. Giveaway</strong><span>{lang === 'my' ? 'လက်ဆောင် ၆ ဦးစာ' : '6 prize slots'}</span><span className="giveaway-banner-status">{statusText(campaign, lang)}<ArrowRight size={16} aria-hidden/></span></a>;
+  return <a className="giveaway-banner" href="#giveaway">
+    <span className="giveaway-banner-icon" aria-hidden><Gift size={21}/></span>
+    <strong>digimium. Giveaway</strong>
+    <span className="giveaway-banner-total">{lang === 'my' ? 'လက်ဆောင် ၆ ဦးစာ' : '6 prize slots'}</span>
+    <span className="giveaway-banner-status">{campaign.status === 'draft' && <span>{lang === 'my' ? 'နမူနာ' : 'Demo'} · </span>}{statusText(campaign, lang)}<ArrowRight size={17} aria-hidden/></span>
+  </a>;
 }
 
 export function GiveawayPromo({ campaign, lang }: { campaign: GiveawayCampaign; lang: ShopLanguage }) {
+  const total = prizeNumber(campaign.prizes.reduce((sum, prize) => sum + prize.winners, 0), lang);
   return <div className="giveaway-promo-content">
-    <span className="giveaway-promo-status">{statusText(campaign, lang)}</span>
-    <h2>Giveaway<span>{lang === 'my' ? 'လက်ဆောင် ၆ ဦးစာ' : 'A little more, on us.'}</span></h2>
-    <div className="giveaway-promo-logos" aria-hidden>{campaign.prizes.map(prize => <span key={prize.id}><img src={'/assets/marks/' + prize.mark + '.svg'} alt=""/></span>)}</div>
-    <p>{lang === 'my' ? 'Gemini · Canva · ChatGPT' : 'Gemini · Canva · ChatGPT'}</p>
-    <small>{lang === 'my' ? 'အကောင့်ဖွင့်၊ Telegram ချိတ်ပြီး ပါဝင်ပါ။' : 'Create an account. Connect Telegram. Join.'}</small>
+    <span className="giveaway-promo-status">{campaign.status === 'draft' && <>{lang === 'my' ? 'နမူနာ' : 'Demo'} · </>}{statusText(campaign, lang)}</span>
+    <h2>Giveaway</h2>
+    <p className="giveaway-promo-total"><strong>{total}</strong><span>{lang === 'my' ? 'ဦးစာ လက်ဆောင်' : 'prize slots'}</span></p>
+    <ul className="giveaway-promo-prizes">{campaign.prizes.map(prize => <li key={prize.id}>
+      <span className="giveaway-promo-mark" aria-hidden><img src={'/assets/marks/' + prize.mark + '.svg'} alt=""/></span>
+      <span className="giveaway-promo-plan"><strong>{prize.plan}</strong><span>{durationText(prize.duration, lang)}</span></span>
+      <span className="giveaway-promo-winners">{lang === 'my' ? `${prizeNumber(prize.winners, lang)} ဦး` : `× ${prize.winners}`}</span>
+    </li>)}</ul>
+    <small>{lang === 'my' ? 'Website အကောင့် + Telegram ချိတ်ထားရန် လိုအပ်သည်။' : 'Website account + connected Telegram required.'}</small>
   </div>;
 }
 
@@ -90,7 +104,7 @@ export function GiveawayDetails({ controller, lang }: { controller: GiveawayCont
   return <section className="giveaway-section wrap" id="giveaway" aria-labelledby="giveaway-title">
     <div className="giveaway-heading"><div><span className="giveaway-section-status">{statusText(campaign, lang)}</span><h2 id="giveaway-title">digimium. Giveaway</h2></div><span className="giveaway-winner-total"><Users size={19} aria-hidden/>{t('6 prize slots', 'လက်ဆောင် ၆ ဦးစာ')}</span></div>
     <div className="giveaway-prizes">{campaign.prizes.map(prize => <div className="giveaway-prize" key={prize.id}>
-      <img src={'/assets/marks/' + prize.mark + '.svg'} alt=""/><div><h3>{prize.plan}</h3><p>{durationText(prize.duration, lang)} <span>·</span> {lang === 'my' ? `${new Intl.NumberFormat('my-MM').format(prize.winners)} ဦး` : `${prize.winners} ${prize.winners === 1 ? 'winner' : 'winners'}`}</p></div>
+      <img src={'/assets/marks/' + prize.mark + '.svg'} alt=""/><div><h3>{prize.plan}</h3><p>{durationText(prize.duration, lang)} <span>·</span> {lang === 'my' ? `${prizeNumber(prize.winners, lang)} ဦး` : `${prize.winners} ${prize.winners === 1 ? 'winner' : 'winners'}`}</p></div>
     </div>)}</div>
     {campaign.startsAt && campaign.endsAt && <dl className="giveaway-dates"><div><dt>{t('Starts', 'စတင်ချိန်')}</dt><dd><time dateTime={campaign.startsAt}>{campaignDate(campaign.startsAt, lang)}</time></dd></div><div><dt>{t('Ends', 'ပြီးဆုံးချိန်')}</dt><dd><time dateTime={campaign.endsAt}>{campaignDate(campaign.endsAt, lang)}</time></dd></div><div><dt>{t('Timezone', 'စံတော်ချိန်')}</dt><dd>{t('Myanmar Time (MMT)', 'မြန်မာစံတော်ချိန်')}</dd></div></dl>}
     <div className="giveaway-entry" aria-busy={controller.checking}>

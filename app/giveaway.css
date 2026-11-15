@@ -1,16 +1,26 @@
-.giveaway-banner { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 7px 16px; min-height: 46px; padding: 8px 24px; background: var(--brand-navy); color: #fff; font-size: 13px; line-height: 1.8; }
-.giveaway-banner > svg { flex: none; }
-.giveaway-banner-status { display: inline-flex; align-items: center; gap: 8px; color: #e2e7f6; }
+.giveaway-banner { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 18px; min-height: 64px; padding: 12px 24px; background: var(--brand-navy); color: #fff; font-size: 14px; line-height: 1.8; }
+.giveaway-banner-icon { display: grid; place-items: center; color: #ffd45a; }
+.giveaway-banner > strong { font-size: 16px; font-weight: 700; }
+.giveaway-banner-total { padding: 3px 12px; border-radius: 6px; background: #ffd45a; color: var(--brand-navy); font-weight: 700; }
+.giveaway-banner-status { display: inline-flex; align-items: center; gap: 5px; color: var(--brand-on-dark-muted); font-size: 12px; }
+.giveaway-banner-status > svg { margin-left: 5px; }
 .giveaway-banner:focus-visible { outline-offset: -4px; outline-color: #fff; }
-.giveaway-promo-content { padding: 28px 28px 18px; min-height: 330px; position: relative; z-index: 1; }
-.giveaway-promo-status { display: inline-flex; margin-bottom: 16px; color: #e2e7f6; font-size: 13px; }
-.giveaway-promo-content h2 { font-size: 44px; line-height: 1.1; letter-spacing: -.035em; }
-.giveaway-promo-content h2 > span { display: block; margin-top: 10px; font-size: 21px; line-height: 1.8; letter-spacing: 0; }
-.giveaway-promo-logos { display: flex; gap: 16px; margin-top: 22px; }
-.giveaway-promo-logos > span { display: grid; place-items: center; width: 52px; height: 52px; background: #fff; border-radius: 12px; }
-.giveaway-promo-logos img { width: 34px; height: 34px; object-fit: contain; }
-.giveaway-promo-content p { margin-top: 18px; font-size: 17px; }
-.giveaway-promo-content small { display: block; margin-top: 8px; color: #e2e7f6; font-size: 13px; line-height: 1.8; }
+.giveaway-promo-content { padding: 12px 32px 14px; min-height: 352px; position: relative; z-index: 1; }
+.giveaway-promo-status { display: inline-flex; gap: 4px; margin-bottom: 12px; padding: 3px 9px; border-radius: 6px; background: #ffd45a; color: var(--brand-navy); font-size: 12px; font-weight: 700; }
+.giveaway-promo-content h2 { font-size: 44px; font-weight: 700; line-height: 1.12; letter-spacing: -.035em; }
+.giveaway-promo-total { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+.giveaway-promo-total > strong { color: #ffd45a; font-size: 54px; font-weight: 700; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.giveaway-promo-total > span { font-size: 21px; line-height: 1.8; }
+.giveaway-promo-prizes { display: grid; gap: 0; list-style: none; padding: 0; margin: 14px 0 0; }
+.giveaway-promo-prizes > li { display: grid; grid-template-columns: 40px minmax(0,1fr) auto; align-items: center; gap: 12px; padding-block: 10px; border-top: 1px solid var(--brand-on-dark-line); }
+.giveaway-promo-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 8px; background: #fff; }
+.giveaway-promo-mark img { width: 28px; height: 28px; object-fit: contain; }
+.giveaway-promo-plan { display: grid; gap: 2px; min-width: 0; }
+.giveaway-promo-plan > strong { font-size: 14px; line-height: 1.6; font-weight: 600; overflow-wrap: anywhere; }
+.giveaway-promo-plan > span { font-size: 12px; color: var(--brand-on-dark-muted); line-height: 1.8; }
+.giveaway-promo-winners { color: #ffd45a; font-size: 16px; font-weight: 700; white-space: nowrap; }
+.giveaway-promo-content small { display: block; margin-top: 10px; color: var(--brand-on-dark-muted); font-size: 12px; line-height: 1.9; }
+.showcase .giveaway-promo-link { color: #fff; font-weight: 600; }
 .giveaway-section { padding-block: 36px; border-block: 1px solid var(--line); scroll-margin-top: 110px; }
 .giveaway-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
 .giveaway-heading h2 { margin-top: 4px; color: var(--brand-navy); font-size: 30px; line-height: 1.6; }
@@ -35,12 +45,34 @@
 .giveaway-error { margin-top: 16px; color: #9b2639; font-size: 14px; }
 .giveaway-error button { border: 0; padding: 6px; background: transparent; color: inherit; text-decoration: underline; }
 @media (max-width: 800px) {
-  .giveaway-banner { gap: 4px 10px; padding-inline: 16px; font-size: 12px; }
-  .giveaway-banner > span:not(.giveaway-banner-status) { display: none; }
+  .giveaway-banner { gap: 6px 10px; padding: 10px 16px; font-size: 12px; }
+  .giveaway-banner > strong { font-size: 14px; }
+  .giveaway-banner-total { padding: 2px 9px; }
+  .giveaway-banner-status { font-size: 11px; }
+  .giveaway-promo-content { padding: 10px 24px 12px; }
+  .giveaway-promo-content h2 { font-size: 40px; }
+  .giveaway-promo-total > strong { font-size: 48px; }
+  .giveaway-promo-total > span { font-size: 18px; }
+  .giveaway-promo-prizes > li { gap: 10px; }
+  .giveaway-promo-plan > strong { font-size: 13px; }
+  .giveaway-promo-winners { font-size: 14px; }
   .giveaway-prizes { grid-template-columns: 1fr; gap: 0; margin-top: 12px; }
   .giveaway-prize { padding-block: 16px; border-bottom: 1px solid var(--line); }
   .giveaway-entry { align-items: start; flex-direction: column; gap: 16px; }
   .giveaway-entry .button { width: 100%; }
   .giveaway-heading h2 { font-size: 26px; }
   .giveaway-section { padding-block: 24px; }
+}
+
+@media (max-width: 420px) {
+  .giveaway-banner { display: grid; grid-template-columns: auto auto auto; justify-content: center; column-gap: 9px; }
+  .giveaway-banner-icon > svg { width: 18px; height: 18px; }
+  .giveaway-banner > strong { font-size: 12px; }
+  .giveaway-banner-total { font-size: 11px; }
+  .giveaway-banner-status { grid-column: 1 / -1; justify-self: center; }
+  .giveaway-promo-content { padding-inline: 20px; }
+  .giveaway-promo-prizes > li { grid-template-columns: 34px minmax(0,1fr) auto; gap: 8px; }
+  .giveaway-promo-mark { width: 34px; height: 34px; }
+  .giveaway-promo-mark img { width: 24px; height: 24px; }
+  .giveaway-promo-content small { font-size: 11px; }
 }

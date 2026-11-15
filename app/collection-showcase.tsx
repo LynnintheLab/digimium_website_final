@@ -55,13 +55,14 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
   const hidden = useSyncExternalStore(watchVisibility, pageIsHidden, serverPageHidden);
   const motionStopped = motionPaused || hidden;
   const count = slides.length + (giveaway ? 1 : 0);
+  const delay = giveaway && page.index % count === 0 ? 14000 : rotationDelay;
   const rotating = count > 1 && !motionStopped && !reducedMotion && !held && !hovered && !focusWithin && !touching;
 
   useEffect(() => {
     if (!rotating) return;
-    const timer = window.setTimeout(() => setPage({ index: (page.index + 1) % count, direction: 1 }), rotationDelay);
+    const timer = window.setTimeout(() => setPage({ index: (page.index + 1) % count, direction: 1 }), delay);
     return () => window.clearTimeout(timer);
-  }, [count, page, rotating]);
+  }, [count, delay, page, rotating]);
 
   if (!count) return null;
   const current = page.index % count;
@@ -187,7 +188,7 @@ export function CollectionShowcase({ products, lang, motionPaused, onProduct, on
               className={clippedEdge ? 'more-slides' : undefined} onClick={() => goTo(i)} />;
           })}
         </div>}
-        {isGiveaway ? <a className="collection-link" href="#giveaway">{t('Giveaway details', 'Giveaway အသေးစိတ်')}<ArrowRight size={17} aria-hidden/></a> : collection && category
+        {isGiveaway ? <a className="collection-link giveaway-promo-link" href="#giveaway">{t('See the prizes', 'ဆုများကြည့်ရန်')}<ArrowRight size={17} aria-hidden/></a> : collection && category
           ? <button className="collection-link" type="button" onClick={() => onCategory(category)}>{categoryName(category, lang)} <ArrowRight size={17} /></button>
           : <button type="button" className="collection-link showcase-offer-link" onClick={() => openProduct(product, plan?.id)}
               aria-label={[product.name, plan && planName(plan, lang), viewPlan].filter(Boolean).join(' · ')}>{viewPlan} <ArrowUpRight size={17} /></button>}
