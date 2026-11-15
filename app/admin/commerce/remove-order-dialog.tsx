@@ -5,7 +5,7 @@ import { LoaderCircle, Trash2 } from 'lucide-react';
 import type { CommerceOrder } from '@/lib/commerce-types';
 import { orderReference, orderTotal } from './order-editor';
 
-export default function RemovePendingDialog({ order, onClose, onRemoved, onReload }: {
+export default function RemoveOrderDialog({ order, onClose, onRemoved, onReload }: {
   order: CommerceOrder;
   onClose: () => void;
   onRemoved: (id: string) => void;
@@ -17,6 +17,7 @@ export default function RemovePendingDialog({ order, onClose, onRemoved, onReloa
   const [error, setError] = useState('');
   const [stale, setStale] = useState(false);
   const reference = orderReference(order.id);
+  const approved = order.status === 'approved';
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
@@ -49,19 +50,23 @@ export default function RemovePendingDialog({ order, onClose, onRemoved, onReloa
     finally { setBusy(false); }
   }
 
-  return <dialog ref={dialog} className="commerce-remove-dialog" aria-labelledby="remove-pending-title" aria-describedby="remove-pending-description"
+  return <dialog ref={dialog} className="commerce-remove-dialog" aria-labelledby="remove-order-title" aria-describedby="remove-order-description"
     onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
     <div className="commerce-remove-content">
-      <h2 id="remove-pending-title">Remove pending order {reference}?</h2>
-      <p id="remove-pending-description">Permanently remove this pending order and its tracking record. This cannot be undone. Approved orders cannot be removed here.</p>
+      <h2 id="remove-order-title">{approved ? 'Delete approved order ' : 'Remove pending order '}{reference}?</h2>
+      <p id="remove-order-description">{approved
+        ? order.customerId === null
+          ? 'Permanently delete this approved guest order, including its saved plan dates and purchased account details. This cannot be undone.'
+          : 'Permanently delete this approved order, including its saved plan dates and purchased account details. It will be removed from the customer’s order history and plan list. This cannot be undone.'
+        : 'Permanently remove this pending order and its tracking record. This cannot be undone.'}</p>
       <p><strong>{orderTotal(order)}</strong> · {order.lines.map(line => line.productName).join(', ')}</p>
-      <label className="admin-field">Type <strong>{reference}</strong> to confirm<input value={confirmation} autoComplete="off" disabled={busy || stale} onChange={event => setConfirmation(event.target.value)} /></label>
+      <label className="admin-field"><span>Type <strong>{reference}</strong> to confirm</span><input value={confirmation} autoComplete="off" disabled={busy || stale} onChange={event => setConfirmation(event.target.value)} /></label>
       {error && <p className="commerce-form-error" role="alert">{error}</p>}
       <div className="commerce-customer-actions">
         <button type="button" className="admin-button admin-button-secondary" disabled={busy} onClick={onClose}>Cancel</button>
         {stale ? <button type="button" className="admin-button admin-button-primary" onClick={onReload}>Refresh orders</button>
           : <button type="button" className="admin-button commerce-danger-button" disabled={busy || confirmation.trim().toUpperCase() !== reference} onClick={() => void remove()}>
-            {busy ? <LoaderCircle size={16} className="admin-spinner"/> : <Trash2 size={16}/>}Remove order
+            {busy ? <LoaderCircle size={16} className="admin-spinner"/> : <Trash2 size={16}/>} {approved ? 'Delete order' : 'Remove order'}
           </button>}
       </div>
     </div>

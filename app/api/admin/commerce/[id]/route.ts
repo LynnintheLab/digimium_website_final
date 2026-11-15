@@ -27,8 +27,8 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     if (!isAllowedMutation(request)) return commerceJson({ error: 'Remove orders from this website.' }, 403);
     const { id } = await context.params;
     const body = await readCommerceJson(request, 1024);
-    const { removePendingOrder } = await import('../../../../../hostinger/orders');
-    return commerceJson(await removePendingOrder(id, body));
+    const { removeOrder } = await import('../../../../../hostinger/orders');
+    return commerceJson(await removeOrder(id, body));
   } catch (error) {
     return commerceErrorResponse(error);
   }

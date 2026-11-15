@@ -6,7 +6,7 @@ Runtime source **`3c43359`** reached **Hostinger Completed/Current on testing an
 
 - **Admin → Customers → Edit:** update display name and email. Connected identity IDs remain read-only. An email/password account must retain an email.
 - **Admin → Customers → Delete:** review order/entry counts, then type the exact displayed customer name. This permanently removes that customer's account, sessions, connected identities, orders, giveaway entries and provably owned Telegram challenges. Cancel leaves data intact. Deletion is not a ban: later verified sign-in can create a new empty account.
-- **Admin → Orders → Pending → Remove:** type the displayed order reference. Approved orders have no Remove control. Stale data must be reloaded before retrying.
+- **Admin → Orders → Pending → Remove / Approved → Delete:** type the displayed order reference. The later [approved-order deletion follow-up](APPROVED-ORDER-DELETION-2026-11-15.md) extends the original pending-only control. Stale data must be reloaded before retrying.
 
 The owner will clean test data himself. No live customer/order edits or deletions were performed; **Kosai Namti must remain untouched**. No name-based protection was added: check the selected customer and impact counts before using the controls. Keep database backups before manual permanent cleanup.
 

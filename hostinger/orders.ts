@@ -60,7 +60,7 @@ const fulfillmentSchema = z.object({
     accountInfo: z.string().max(4000).optional(), accountDetails: accountDetailsSchema.optional() })
     .strict().refine(line => line.endDate >= line.startDate)).min(1).max(MAX_ORDER_LINES),
 }).strict();
-const pendingRemovalSchema = z.object({
+const orderRemovalSchema = z.object({
   revision: z.number().int().positive().max(0xffffffff),
   confirmation: z.string().uuid(),
 }).strict();
@@ -334,10 +334,10 @@ export async function saveFulfillment(id: string, body: unknown) {
   }
 }
 
-/** Admin-only operation: approval and removal serialize on the same order row. */
-export async function removePendingOrder(id: string, body: unknown) {
+/** Admin-only operation: approval, fulfillment edits and removal lock the same order row. */
+export async function removeOrder(id: string, body: unknown) {
   if (!z.string().uuid().safeParse(id).success) throw new CommerceError(404, 'Order not found.');
-  const input = pendingRemovalSchema.safeParse(body);
+  const input = orderRemovalSchema.safeParse(body);
   if (!input.success || input.data.confirmation !== id) {
     throw new CommerceError(400, 'Confirm this order’s full ID before removing it.');
   }
@@ -345,15 +345,14 @@ export async function removePendingOrder(id: string, body: unknown) {
   const connection = await getPool().getConnection();
   try {
     await connection.beginTransaction();
-    const [rows] = await connection.execute<(Pick<OrderRow, 'id' | 'approved_at' | 'revision'> & RowDataPacket)[]>(
-      'SELECT id, approved_at, revision FROM digimium_orders WHERE id = ? FOR UPDATE', [id],
+    const [rows] = await connection.execute<(Pick<OrderRow, 'id' | 'revision'> & RowDataPacket)[]>(
+      'SELECT id, revision FROM digimium_orders WHERE id = ? FOR UPDATE', [id],
     );
     const row = rows[0];
     if (!row) throw new CommerceError(404, 'Order not found.');
-    if (row.approved_at !== null) throw new CommerceError(409, 'Only pending orders can be removed.');
     if (row.revision !== input.data.revision) throw new CommerceError(409, 'This order changed. Refresh before removing it.');
     const [removed] = await connection.execute<ResultSetHeader>(
-      'DELETE FROM digimium_orders WHERE id = ? AND approved_at IS NULL AND revision = ?', [id, row.revision],
+      'DELETE FROM digimium_orders WHERE id = ? AND revision = ?', [id, row.revision],
     );
     if (removed.affectedRows !== 1) throw new CommerceError(409, 'This order changed. Refresh before removing it.');
     await connection.commit();

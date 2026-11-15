@@ -6,7 +6,7 @@ import type { CommerceCustomer, CommerceOrder } from '@/lib/commerce-types';
 import { customerContact } from '@/lib/customer-identity';
 import OrderEditor, { orderReference, orderTotal } from './order-editor';
 import CustomerEditor from './customer-editor';
-import RemovePendingDialog from './remove-pending-dialog';
+import RemoveOrderDialog from './remove-order-dialog';
 import './commerce.css';
 
 type CommerceData = { customers: CommerceCustomer[]; orders: CommerceOrder[] };
@@ -138,7 +138,7 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
         setEditingCustomer(null); if (customerId === id) clearCustomer(); setNotice('Customer and their associated records deleted.');
         requestAnimationFrame(() => listHeading.current?.focus());
       }} /> : selected ? <OrderEditor key={selected.id + '-' + selected.revision} order={selected} customer={selected.customerId ? customersById.get(selected.customerId) : undefined}
-      onDirtyChange={onDirtyChange} onBack={backToList} onRemove={setRemovingOrder}
+      onDirtyChange={onDirtyChange} onBack={backToList} onRemove={(order, trigger) => { removeTrigger.current = trigger; setRemovingOrder(order); }}
       onReload={async () => { if (await refresh()) onDirtyChange(false); }}
       onSaved={order => {
         invalidateRefresh();
@@ -200,17 +200,17 @@ export default function AdminCommerce({ view, customerId, onDirtyChange, clearCu
           <span className="commerce-row-end"><strong>{orderTotal(order)}</strong>
             <span>{dateFormat.format(new Date(order.createdAt))}</span></span>
           <ChevronRight size={18} aria-hidden="true" />
-        </button>{order.status === 'pending' && <div className="commerce-row-actions"><button type="button" className="admin-text-button commerce-danger-link" aria-label={'Remove pending order ' + orderReference(order.id)} onClick={event => { removeTrigger.current = event.currentTarget; setRemovingOrder(order); }}><Trash2 size={16}/>Remove</button></div>}</li>;
+        </button><div className="commerce-row-actions"><button type="button" className="admin-text-button commerce-danger-link" aria-label={(order.status === 'approved' ? 'Delete approved order ' : 'Remove pending order ') + orderReference(order.id)} onClick={event => { removeTrigger.current = event.currentTarget; setRemovingOrder(order); }}><Trash2 size={16}/>{order.status === 'approved' ? 'Delete' : 'Remove'}</button></div></li>;
       })}</ul> : <p className="commerce-empty">{term ? 'No matching orders.' : filter === 'pending' ? 'No orders are waiting for approval.' : filter === 'approved' ? 'No approved orders yet.' : 'No orders yet.'}</p>}
     </section> : refreshing && <p className="commerce-empty" role="status">Loading {view}…</p>}
-    {removingOrder && <RemovePendingDialog key={removingOrder.id} order={removingOrder}
-      onClose={() => { setRemovingOrder(null); requestAnimationFrame(() => removeTrigger.current?.focus()); }}
+    {removingOrder && <RemoveOrderDialog key={removingOrder.id} order={removingOrder}
+      onClose={() => { setRemovingOrder(null); requestAnimationFrame(() => { if (removeTrigger.current?.isConnected) removeTrigger.current.focus(); else listHeading.current?.focus(); }); }}
       onReload={() => { setRemovingOrder(null); setSelectedId(null); onDirtyChange(false); void refresh(); }}
       onRemoved={id => {
         invalidateRefresh();
         setData(current => current ? { ...current, orders: current.orders.filter(order => order.id !== id) } : current);
         setRemovingOrder(null); if (selectedId === id) setSelectedId(null);
-        onDirtyChange(false); setNotice('Pending order removed.');
+        onDirtyChange(false); setNotice(removingOrder.status === 'approved' ? 'Approved order and its saved plan details deleted.' : 'Pending order removed.');
         requestAnimationFrame(() => listHeading.current?.focus());
       }}/>}
   </div>;

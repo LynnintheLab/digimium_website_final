@@ -125,7 +125,7 @@ The private file is ignored by Git. This mode verifies the bot identity, registe
 
 ### Customer and pending-order cleanup controls
 
-Admin → Customers offers Edit and Delete. Editing changes name/email only; connected identity IDs remain read-only. Delete displays the account's order/entry counts and requires its exact displayed name, then permanently removes its owned data and sessions. Admin → Orders → Pending offers Remove with an exact order-reference confirmation; approved orders cannot be removed this way. Conflicts require a fresh reload. The owner handles test-data cleanup himself; preserve Kosai Namti and inspect the selected account before confirming. See [behavior and verification](ADMIN-GIVEAWAY-LAYOUT-2026-11-15.md).
+Admin → Customers offers Edit and Delete. Editing changes name/email only; connected identity IDs remain read-only. Delete displays the account's order/entry counts and requires its exact displayed name, then permanently removes its owned data and sessions. Admin → Orders → Pending offers Remove, and Approved offers Delete, each with an exact order-reference confirmation. Approved deletion removes the stored order, plan dates and delivery details from subsequent customer history/plan reads. Conflicts require a fresh reload. The owner handles test-data cleanup himself; preserve Kosai Namti and inspect the selected account before confirming. See [customer controls](ADMIN-GIVEAWAY-LAYOUT-2026-11-15.md) and [approved-order deletion](APPROVED-ORDER-DELETION-2026-11-15.md).
 
 ## 4. Verify the live store
 
