@@ -40,6 +40,10 @@ Customer registration and orders create their additional tables on first use. Gi
 
 ## 3. Set the private application values
 
+### Giveaway visibility
+
+Admin → Giveaways → **Hide giveaway** removes the banner, promotion, prizes and countdown from the public storefront and stops new entries. Existing participants and schedule are retained. **Show giveaway** restores public visibility using the saved schedule. The first request after this release adds `is_visible` to an existing campaign table; the application database user needs ALTER privilege, as with existing migrations. Keep the postponed campaign hidden until the owner is ready to reopen it.
+
 To send codes to your own Resend account inbox, set `RESEND_FROM_EMAIL=onboarding@resend.dev` and set `ADMIN_EMAIL` to the inbox associated with the Resend account that owns the API key. Resend delivers codes from this built-in sender only to that inbox. This setup skips DNS verification. [Resend’s testing sender](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain)
 
 To deliver codes to a different admin inbox, verify a domain you own in Resend, publish its supplied DNS records, and use a sender address on that domain. [Resend domains](https://resend.com/docs/dashboard/domains/introduction)

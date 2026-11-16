@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Gift, LoaderCircle, RefreshCw, Rocket, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Gift, LoaderCircle, RefreshCw, Rocket, Save } from 'lucide-react';
 import { giveawayDatesError, giveawayMyanmarInput, giveawayUtcInput, type AdminGiveawayData } from '@/lib/giveaway';
 import './giveaway.css';
 
@@ -65,6 +65,21 @@ export default function AdminGiveaway({ onDirtyChange }: { onDirtyChange: (dirty
     finally { setBusy(false); }
   }
 
+  async function setVisibility(visible: boolean) {
+    if (busy || !data) return;
+    setBusy(true); setError(''); setNotice(''); setFailureStatus(0);
+    try {
+      const response = await fetch(path, { method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: visible ? 'show' : 'hide', revision: data.campaign.revision }) });
+      const result = await response.json() as AdminGiveawayData & { error?: string };
+      if (!response.ok) { setFailureStatus(response.status); setError(result.error || 'Could not change giveaway visibility.'); return; }
+      // Visibility changes do not discard unfinished schedule edits.
+      setData(result);
+      setNotice(visible ? 'Giveaway is visible. The saved schedule controls when entries open.' : 'Giveaway hidden everywhere on the website. New entries are stopped; existing entries and dates are kept.');
+    } catch { setError('Could not confirm the change. Load the latest settings before retrying.'); }
+    finally { setBusy(false); }
+  }
+
   function reload(page = data?.pagination.page || 1) {
     if (dirty && !window.confirm('Load the latest giveaway and discard your unsaved edits?')) return;
     void load(page);
@@ -80,6 +95,10 @@ export default function AdminGiveaway({ onDirtyChange }: { onDirtyChange: (dirty
       <section className="giveaway-admin-settings" aria-labelledby="giveaway-settings-title">
         <div className="giveaway-admin-heading"><h2 id="giveaway-settings-title"><Gift size={20} aria-hidden /> Giveaways</h2>
           <span className="giveaway-admin-status" data-status={data.campaign.status}>{data.campaign.status}</span>
+        </div>
+        <div className="giveaway-admin-visibility" data-visible={data.campaign.visible !== false}>
+          <div><h3>Website visibility</h3><p className="giveaway-admin-help">{data.campaign.visible === false ? 'Hidden: banner, promotion, prizes and countdown are not shown. Customers cannot join.' : 'Visible: customers can see the giveaway. Entries follow the saved schedule.'} Existing entries and dates are preserved.</p></div>
+          <button type="button" className={'admin-button ' + (data.campaign.visible === false ? 'admin-button-primary' : 'admin-button-secondary')} disabled={busy || failureStatus === 409} onClick={() => void setVisibility(data.campaign.visible === false)}>{data.campaign.visible === false ? <Eye size={16} aria-hidden/> : <EyeOff size={16} aria-hidden/>}{data.campaign.visible === false ? 'Show giveaway' : 'Hide giveaway'}</button>
         </div>
         <ul className="giveaway-admin-prizes">{data.campaign.prizes.map(prize => <li key={prize.id}>
           <strong>{prize.plan}</strong><span>{prize.duration} · {prize.winners} {prize.winners === 1 ? 'winner' : 'winners'}</span>

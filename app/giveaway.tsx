@@ -11,7 +11,7 @@ import { durationText, type ShopLanguage } from '../lib/shop-language';
 import './giveaway.css';
 
 export function useGiveaway(enabled: boolean, initialData: GiveawayView | null = null) {
-  const [data, setData] = useState<GiveawayView | null>(initialData);
+  const [data, setData] = useState<GiveawayView | null>(initialData?.campaign.visible === false ? null : initialData);
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -22,10 +22,10 @@ export function useGiveaway(enabled: boolean, initialData: GiveawayView | null =
     const run = ++request.current;
     try {
       const response = await fetch('/api/giveaway', { cache: 'no-store' });
-      const value = await response.json();
+      const value = await response.json() as GiveawayView | null;
       if (!mounted.current || run !== request.current) return;
       if (!response.ok) throw new Error('unavailable');
-      setData(value as GiveawayView); setError('');
+      setData(value?.campaign.visible === false ? null : value); setError('');
     } catch { if (mounted.current && run === request.current) setError('unavailable'); }
     finally { if (mounted.current && run === request.current) setChecking(false); }
   }, [enabled]);
@@ -53,7 +53,8 @@ export function useGiveaway(enabled: boolean, initialData: GiveawayView | null =
       const response = await fetch('/api/giveaway', { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify({ campaignId: data.campaign.id }) });
       const value = await response.json() as GiveawayView & { error?: string };
       if (!mounted.current || run !== request.current) return;
-      if (response.ok) setData(value as GiveawayView);
+      if (response.status === 404) { setData(null); setError(''); }
+      else if (response.ok) setData(value as GiveawayView);
       else { await refresh(); setError(value.error || 'unavailable'); }
     } catch { if (mounted.current) setError('connection'); }
     finally { if (mounted.current) setBusy(false); }
@@ -63,7 +64,7 @@ export function useGiveaway(enabled: boolean, initialData: GiveawayView | null =
 export type GiveawayController = ReturnType<typeof useGiveaway>;
 
 function statusText(campaign: GiveawayCampaign, lang: ShopLanguage) {
-  const labels = { draft: ['Coming soon', 'မကြာမီ'], scheduled: ['Starts soon', 'မကြာမီ စတင်မည်'], open: ['Open now', 'ပါဝင်နိုင်ပါပြီ'], ended: ['Entries closed', 'ပါဝင်ချိန် ကုန်ဆုံးပါပြီ'] };
+  const labels = { draft: ['Coming soon', 'မကြာမီ'], scheduled: ['Starts soon', 'မကြာမီ စတင်မည်'], open: ['Open now', 'ပါဝင်နိုင်ပါပြီ'], ended: ['Entries closed', 'ပါဝင်ချိန် ကုန်ဆုံးပါပြီ'], paused: ['Paused', 'ခေတ္တရပ်ထားသည်'] };
   return labels[campaign.status][lang === 'my' ? 1 : 0];
 }
 function campaignDate(value: string, lang: ShopLanguage) {

@@ -37,7 +37,7 @@ export function AccountConnections({ customer, onUpdated, t }: { customer: Comme
   const methods = customer.signInMethods;
   return <section className="account-connections" aria-labelledby="account-signin-methods">
     <h2 id="account-signin-methods">{t('Sign-in methods', 'အကောင့်ဝင်ရောက်နည်းများ')}</h2>
-    <p className="account-connections-intro">{t('These methods open this same account. Connect Telegram to join the giveaway and view your existing plans in the bot.', 'ချိတ်ထားတဲ့ နည်းလမ်းတွေကနေ ဒီအကောင့်တစ်ခုတည်းကို ဝင်နိုင်ပါတယ်။ Giveaway ဝင်ဖို့နဲ့ ယခင်ဝယ်ထားတဲ့ plan တွေကို bot မှာ ကြည့်ဖို့ Telegram ချိတ်ထားပါ။')}</p>
+    <p className="account-connections-intro">{t('These methods open this same account. Connect Telegram to view your existing orders and plan terms in the bot.', 'ချိတ်ထားတဲ့ နည်းလမ်းတွေကနေ ဒီအကောင့်တစ်ခုတည်းကို ဝင်နိုင်ပါတယ်။ ယခင်ဝယ်ထားတဲ့ အော်ဒါနဲ့ Plan သက်တမ်းတွေကို bot မှာ ကြည့်ဖို့ Telegram ချိတ်ထားပါ။')}</p>
     {methods ? <ul className="account-method-list">
       <li><Mail size={20} aria-hidden/><div><strong>{t('Email and password', 'Email နှင့် စကားဝှက်')}</strong>{methods.emailPassword && customer.email && <span>{customer.email}</span>}</div><span className="account-method-state" data-connected={methods.emailPassword || undefined}>{methods.emailPassword ? t('Enabled', 'သုံးထားသည်') : t('Not enabled', 'သုံးမထားပါ')}</span></li>
       <li><GoogleMark/><div><strong>Google</strong>{methods.google && customer.email && <span>{customer.email}</span>}</div><span className="account-method-state" data-connected={methods.google || undefined}>{methods.google ? t('Connected', 'ချိတ်ဆက်ပြီး') : t('Connect — coming soon', 'ချိတ်ဆက်ရန် — မကြာမီ')}</span></li>

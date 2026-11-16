@@ -15,6 +15,12 @@ test('giveaway is draft until an explicit launch and uses exact window boundarie
   assert.equal(giveawayStatus(campaign, Date.parse(end) - 1), 'open');
   assert.equal(giveawayStatus(campaign, Date.parse(end)), 'ended');
 });
+test('a hidden giveaway stays paused independently of its saved launch window', () => {
+  const campaign = { startsAt: start, endsAt: end, launchedAt: start, visible: false };
+  for (const now of [Date.parse(start) - 1, Date.parse(start), Date.parse(end)]) assert.equal(giveawayStatus(campaign, now), 'paused');
+  assert.equal(giveawayStatus({ ...campaign, launchedAt: null }, Date.parse(start)), 'paused');
+  assert.equal(giveawayStatus({ ...campaign, visible: true }, Date.parse(start)), 'open');
+});
 test('giveaway times round-trip through Myanmar rather than device-local time', () => {
   assert.equal(giveawayMyanmarInput(start), '2026-11-15T06:30');
   assert.equal(giveawayUtcInput('2026-11-15T06:30'), start);

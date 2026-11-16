@@ -50,6 +50,10 @@ try {
   await new Promise((resolve, reject) => probe.once('error', reject).listen(Number(base.port), base.hostname, resolve));
   await new Promise(resolve => probe.close(resolve));
   await db.query(await readFile(new URL('hostinger/schema.sql', root), 'utf8'));
+  // Start with the previous production table shape to exercise the additive visibility migration.
+  await db.query(await readFile(new URL('hostinger/customer-auth-schema.sql', root), 'utf8'));
+  const giveawaySchema = await readFile(new URL('hostinger/giveaway-schema.sql', root), 'utf8');
+  await db.query(giveawaySchema.replace('  is_visible TINYINT UNSIGNED NOT NULL DEFAULT 1,\n', ''));
   server = spawn(process.execPath, ['--import', new URL('tests/fixtures/resend-fetch.mjs', root).href, fileURLToPath(new URL('.next/standalone/server.js', root))], {
     cwd: fileURLToPath(root), env: { ...env, FIXTURE_MAIL_FAILURE: '0', NODE_ENV: 'production', HOSTNAME: base.hostname, PORT: base.port }, stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
@@ -59,6 +63,7 @@ try {
   }
   const draft = await json(await get(publicPath));
   assert.equal(draft.campaign.status, 'draft');
+  assert.equal(draft.campaign.visible, true, 'Legacy campaigns retain their previous public visibility after migration');
   assert.equal(draft.campaign.launchedAt, null);
   assert.equal(draft.viewer.reason, 'sign_in');
   assert.equal((await json(await get(publicPath))).campaign.id, draft.campaign.id, 'Draft campaign ID persists');
@@ -116,6 +121,26 @@ try {
   assert.equal(publicAlice.viewer.joined, true); assert.equal(publicAlice.viewer.canJoin, false);
   const publicText = JSON.stringify(publicAlice);
   for (const privateValue of [alice.name, alice.email, alice.id, '910000000000001', 'giveaway_fixture_0']) assert.ok(!publicText.includes(privateValue), 'Public response excludes participant data');
+  const visibility = (action, revision = admin.campaign.revision, session = owner, origin = base.origin) => mutate(adminPath, 'PATCH', { action, revision }, session, origin);
+  assert.equal((await visibility('hide', admin.campaign.revision, '')).status, 401);
+  assert.equal((await visibility('hide', admin.campaign.revision, owner, 'https://foreign.invalid')).status, 403);
+  assert.equal((await visibility('hide', admin.campaign.revision - 1)).status, 409);
+  assert.equal((await mutate(adminPath, 'PATCH', { action: 'hide', revision: admin.campaign.revision, startsAt: start }, owner)).status, 400, 'Visibility never accepts an accidental schedule edit');
+  const beforeHide = structuredClone(admin);
+  admin = await json(await visibility('hide'));
+  assert.equal(admin.campaign.visible, false);
+  assert.equal(admin.campaign.status, 'paused');
+  assert.equal(admin.campaign.revision, beforeHide.campaign.revision + 1);
+  for (const field of ['id', 'startsAt', 'endsAt', 'launchedAt']) assert.equal(admin.campaign[field], beforeHide.campaign[field]);
+  assert.deepEqual(admin.entries, beforeHide.entries, 'Hiding preserves every participant and its snapshot');
+  assert.equal(await json(await get(publicPath)), null, 'Hidden public campaigns reveal no dates, prizes or viewer information');
+  assert.equal(await json(await get(publicPath, alice.cookie)), null);
+  assert.equal((await join(bob)).status, 404, 'New entries are refused while hidden');
+  assert.equal((await join(alice)).status, 404, 'Retries do not reveal a hidden campaign');
+  admin = await json(await visibility('show'));
+  assert.equal(admin.campaign.visible, true);
+  assert.equal(admin.campaign.status, 'open');
+  assert.equal((await json(await get(publicPath, alice.cookie))).viewer.joined, true, 'Showing restores the original entry');
   await json(await join(bob), 201);
   admin = await json(await update('save'));
   assert.equal(admin.entryCount, 2);
@@ -150,7 +175,7 @@ try {
   assert.equal(new Set([...pageOne.entries, ...pageTwo.entries].map(entry => entry.id)).size, 102);
   const finalPublic = await json(await get(publicPath));
   assert.equal(finalPublic.entries, undefined); assert.equal(finalPublic.entryCount, undefined);
-  console.log('Giveaway integration passed: draft/launch/window, auth/origin/link eligibility, concurrent deduplication, immutable ownership, privacy and private pagination.');
+  console.log('Giveaway integration passed: draft/launch/window, authenticated reversible visibility, entry preservation, auth/origin/link eligibility, concurrent deduplication, immutable ownership, privacy and private pagination.');
 } finally {
   if (server && server.exitCode === null && !server.signalCode) {
     const exited = once(server, 'exit'); server.kill('SIGTERM');

@@ -9,14 +9,14 @@ import { ensureCustomerSchema, type Customer } from './customer-auth';
 import { getPool } from './mysql';
 
 let schemaReady: Promise<void> | undefined;
-const columns = `id, revision, DATE_FORMAT(starts_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS startsAt,
+const columns = `id, revision, is_visible AS visible, DATE_FORMAT(starts_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS startsAt,
   DATE_FORMAT(ends_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS endsAt,
   DATE_FORMAT(launched_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS launchedAt`;
-type CampaignRow = RowDataPacket & { id: string; revision: number; startsAt: string | null; endsAt: string | null; launchedAt: string | null };
+type CampaignRow = RowDataPacket & { id: string; revision: number; visible: number; startsAt: string | null; endsAt: string | null; launchedAt: string | null };
 const iso = (value: string | null) => value ? value.replace(/(\.\d{3})\d{3}Z$/, '$1Z') : null;
 const sqlDate = (value: string | null) => value ? value.replace('T', ' ').slice(0, 23) : null;
 function present(row: CampaignRow): GiveawayCampaign {
-  const dates = { startsAt: iso(row.startsAt), endsAt: iso(row.endsAt), launchedAt: iso(row.launchedAt) };
+  const dates = { startsAt: iso(row.startsAt), endsAt: iso(row.endsAt), launchedAt: iso(row.launchedAt), visible: Boolean(Number(row.visible)) };
   return { id: row.id, revision: Number(row.revision), ...dates, status: giveawayStatus(dates), prizes: GIVEAWAY_PRIZES.map(prize => ({ ...prize })) };
 }
 
@@ -28,6 +28,16 @@ export function ensureGiveaway(): Promise<void> {
       if (!(error instanceof Error && 'code' in error && error.code === 'ER_NO_SUCH_TABLE')) throw error;
       const schema = await readFile(join(process.cwd(), 'hostinger', 'giveaway-schema.sql'), 'utf8');
       for (const statement of schema.split(';').filter(value => value.trim())) await getPool().query(statement);
+    }
+    // Additive migration preserves existing dates, launch state and participant ownership.
+    try { await getPool().query('SELECT is_visible FROM digimium_giveaway_campaigns LIMIT 0'); }
+    catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ER_BAD_FIELD_ERROR')) throw error;
+      try { await getPool().query('ALTER TABLE digimium_giveaway_campaigns ADD is_visible TINYINT UNSIGNED NOT NULL DEFAULT 1'); }
+      catch (migrationError) {
+        if (!(migrationError instanceof Error && 'code' in migrationError && migrationError.code === 'ER_DUP_FIELDNAME')) throw migrationError;
+      }
+      await getPool().query('SELECT is_visible FROM digimium_giveaway_campaigns LIMIT 0');
     }
   })().catch(error => { schemaReady = undefined; throw error; });
 }
@@ -43,8 +53,9 @@ async function campaign() {
   return present(rows[0]);
 }
 
-export async function publicGiveaway(customer: Customer | null): Promise<GiveawayData> {
+export async function publicGiveaway(customer: Customer | null): Promise<GiveawayData | null> {
   const current = await campaign();
+  if (!current.visible) return null;
   let joined = false;
   if (customer) {
     const [rows] = await getPool().execute<RowDataPacket[]>(
@@ -62,6 +73,7 @@ export async function joinGiveaway(customer: Customer, raw: unknown): Promise<{ 
   const parsed = joinSchema.safeParse(raw);
   if (!parsed.success) throw new CommerceError(400, 'Choose the current giveaway.');
   const current = await campaign();
+  if (!current.visible) throw new CommerceError(404, 'The giveaway is unavailable.');
   if (parsed.data.campaignId !== current.id) throw new CommerceError(409, 'This giveaway has changed. Refresh and try again.');
   const connection = await getPool().getConnection();
   let created = false;
@@ -69,6 +81,8 @@ export async function joinGiveaway(customer: Customer, raw: unknown): Promise<{ 
     await connection.beginTransaction();
     const [campaignRows] = await connection.execute<CampaignRow[]>(`SELECT ${columns} FROM digimium_giveaway_campaigns WHERE id = ? FOR UPDATE`, [current.id]);
     if (!campaignRows.length) throw new CommerceError(409, 'This giveaway has changed. Refresh and try again.');
+    // Visibility is serialized with admin changes; stale pages cannot join or recover a hidden campaign.
+    if (!present(campaignRows[0]).visible) throw new CommerceError(404, 'The giveaway is unavailable.');
     // Check the verified, stable identity inside the transaction. Names/usernames are never eligibility proof.
     const [people] = await connection.execute<(RowDataPacket & { name: string; email: string | null; telegramId: string; telegramUsername: string | null })[]>(
       `SELECT c.name, c.email, t.telegram_id AS telegramId, t.username AS telegramUsername
@@ -112,8 +126,11 @@ export async function adminGiveaway(page = 1): Promise<AdminGiveawayData> {
     email: row.email, telegramId: row.telegramId, telegramUsername: row.telegramUsername, joinedAt: iso(row.joinedAt)! })), pagination: { page, pageSize, totalPages } };
 }
 
-const saveSchema = z.object({ revision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER - 1), action: z.enum(['save', 'launch']),
-  startsAt: z.string().nullable(), endsAt: z.string().nullable() }).strict();
+const revisionSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER - 1);
+const saveSchema = z.discriminatedUnion('action', [
+  z.object({ revision: revisionSchema, action: z.enum(['save', 'launch']), startsAt: z.string().nullable(), endsAt: z.string().nullable() }).strict(),
+  z.object({ revision: revisionSchema, action: z.enum(['hide', 'show']) }).strict(),
+]);
 export async function updateGiveaway(raw: unknown): Promise<AdminGiveawayData> {
   const parsed = saveSchema.safeParse(raw);
   if (!parsed.success) throw new CommerceError(400, 'Check the giveaway settings.');
@@ -125,13 +142,19 @@ export async function updateGiveaway(raw: unknown): Promise<AdminGiveawayData> {
     const [rows] = await connection.execute<CampaignRow[]>(`SELECT ${columns} FROM digimium_giveaway_campaigns WHERE id = ? FOR UPDATE`, [current.id]);
     if (!rows.length || Number(rows[0].revision) !== input.revision) throw new CommerceError(409, 'The giveaway changed. Load the latest settings before saving.');
     const previous = present(rows[0]);
-    if (input.action === 'launch' && previous.launchedAt) throw new CommerceError(409, 'This giveaway has already been launched.');
-    const error = giveawayDatesError(input.startsAt, input.endsAt, input.action === 'launch');
-    if (error) throw new CommerceError(400, error);
-    if (previous.launchedAt && (!input.startsAt || !input.endsAt)) throw new CommerceError(400, 'A launched giveaway must keep its start and end times.');
-    await connection.execute(`UPDATE digimium_giveaway_campaigns SET starts_at = ?, ends_at = ?,
-      launched_at = ${input.action === 'launch' ? 'UTC_TIMESTAMP(3)' : 'launched_at'}, revision = revision + 1, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
-    [sqlDate(input.startsAt), sqlDate(input.endsAt), current.id]);
+    if (!('startsAt' in input)) {
+      await connection.execute('UPDATE digimium_giveaway_campaigns SET is_visible = ?, revision = revision + 1, updated_at = UTC_TIMESTAMP(3) WHERE id = ?',
+        [input.action === 'show' ? 1 : 0, current.id]);
+    } else {
+      if (input.action === 'launch' && previous.launchedAt) throw new CommerceError(409, 'This giveaway has already been launched.');
+      const error = giveawayDatesError(input.startsAt, input.endsAt, input.action === 'launch');
+      if (error) throw new CommerceError(400, error);
+      if (previous.launchedAt && (!input.startsAt || !input.endsAt)) throw new CommerceError(400, 'A launched giveaway must keep its start and end times.');
+      await connection.execute(`UPDATE digimium_giveaway_campaigns SET starts_at = ?, ends_at = ?,
+        launched_at = ${input.action === 'launch' ? 'UTC_TIMESTAMP(3)' : 'launched_at'},
+        is_visible = ${input.action === 'launch' ? '1' : 'is_visible'}, revision = revision + 1, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
+      [sqlDate(input.startsAt), sqlDate(input.endsAt), current.id]);
+    }
     await connection.commit();
   } catch (error) {
     await connection.rollback();

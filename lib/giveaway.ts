@@ -1,4 +1,4 @@
-export type GiveawayStatus = 'draft' | 'scheduled' | 'open' | 'ended';
+export type GiveawayStatus = 'draft' | 'scheduled' | 'open' | 'ended' | 'paused';
 export type GiveawayPrize = { id: string; service: string; plan: string; duration: string; winners: number; mark: string };
 export const GIVEAWAY_PRIZES: GiveawayPrize[] = [
   { id: 'gemini', service: 'Gemini', plan: 'Gemini Pro', duration: '3 months', winners: 2, mark: 'gemini' },
@@ -7,7 +7,7 @@ export const GIVEAWAY_PRIZES: GiveawayPrize[] = [
 ];
 export type GiveawayCampaign = {
   id: string; revision: number; status: GiveawayStatus; startsAt: string | null; endsAt: string | null;
-  launchedAt: string | null; prizes: GiveawayPrize[];
+  launchedAt: string | null; visible: boolean; prizes: GiveawayPrize[];
 };
 export type GiveawayViewer = {
   signedIn: boolean; telegramLinked: boolean; joined: boolean; canJoin: boolean;
@@ -17,7 +17,8 @@ export type GiveawayData = { campaign: GiveawayCampaign; viewer: GiveawayViewer 
 export type GiveawayEntry = { id: string; customerId: string; name: string; email: string | null; telegramId: string; telegramUsername: string | null; joinedAt: string };
 export type AdminGiveawayData = { campaign: GiveawayCampaign; entryCount: number; entries: GiveawayEntry[]; pagination: { page: number; pageSize: number; totalPages: number } };
 
-export function giveawayStatus(campaign: Pick<GiveawayCampaign, 'startsAt' | 'endsAt' | 'launchedAt'>, now = Date.now()): GiveawayStatus {
+export function giveawayStatus(campaign: Pick<GiveawayCampaign, 'startsAt' | 'endsAt' | 'launchedAt'> & { visible?: boolean }, now = Date.now()): GiveawayStatus {
+  if (campaign.visible === false) return 'paused';
   if (!campaign.launchedAt || !campaign.startsAt || !campaign.endsAt) return 'draft';
   if (now < Date.parse(campaign.startsAt)) return 'scheduled';
   return now < Date.parse(campaign.endsAt) ? 'open' : 'ended';
