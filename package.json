@@ -26,6 +26,7 @@
     "configure:telegram": "node scripts/configure-telegram.mjs",
     "test:giveaway": "node tests/giveaway.integration.mjs",
     "test:admin-customers": "node tests/admin-customers.integration.mjs",
+    "test:admin-orders": "node tests/admin-orders.integration.mjs",
     "test:notifications": "node --experimental-transform-types tests/notifications.integration.mjs"
   },
   "dependencies": {

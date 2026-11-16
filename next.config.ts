@@ -14,7 +14,13 @@ const nextConfig: NextConfig = {
       { key: 'Referrer-Policy', value: 'no-referrer' },
       { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
     ];
-    return ['/account/:path*', '/order-history/:path*', '/admin/:path*', '/api/:path*'].map(source => ({ source, headers }));
+    return ['/account/:path*', '/order-history/:path*', '/admin/:path*', '/api/:path*'].map(source => ({
+      source,
+      // Native admin POST forms need a non-opaque Origin. Cross-origin referrers
+      // remain suppressed, and customer/API responses keep no-referrer.
+      headers: headers.map(header => header.key === 'Referrer-Policy' && source === '/admin/:path*'
+        ? { ...header, value: 'same-origin' } : header),
+    }));
   },
 };
 

@@ -18,7 +18,7 @@ The Hostinger build protects `/admin` with a one-time code sent to the owner’s
 | Product plans | Only published plans appear to customers. Unpriced products remain available for enquiries. |
 | Cart | The cart survives sign-in and clears when the server acknowledges the order. |
 | Customer account | Account is optional for buying. Open Account for profile and brief plan/pending previews. The round gear opens full profile/settings and Telegram linking; Order history shows all purchases, segmented remaining-day gauges and optional delivered account details. |
-| Order administration | Review customers and saved orders in `/admin`. Match the Telegram reference, confirm dates and approve purchases after arranging delivery in the chat. |
+| Order administration | Review customers and saved orders in `/admin`. Create a pending record for an existing customer’s earlier guest purchase, review the actual prices, then approve its dates and optional delivery details. |
 | Legacy Sites checkout | The Sites deployment opens a Telegram order draft. |
 | Admin | Create and edit products, plans, descriptions, categories, availability, featured state, publication, and contact settings. |
 | Short descriptions | One switch hides all short descriptions from public cards, product dialogs, and public catalog data while preserving the saved text. |

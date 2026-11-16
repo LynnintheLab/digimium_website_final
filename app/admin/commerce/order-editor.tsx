@@ -21,7 +21,7 @@ function initialDetails(line: CommerceOrderLine) {
 }
 type LineDetails = ReturnType<typeof initialDetails>;
 
-export default function OrderEditor({ order, customer, onSaved, onBack, onReload, onDirtyChange, onRemove }: {
+export default function OrderEditor({ order, customer, onSaved, onBack, onReload, onDirtyChange, onRemove, backLabel = 'Back to orders' }: {
   order: CommerceOrder;
   customer?: CommerceCustomer;
   onSaved: (order: CommerceOrder) => void;
@@ -29,6 +29,7 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
   onReload: () => Promise<void>;
   onDirtyChange: (dirty: boolean) => void;
   onRemove: (order: CommerceOrder, trigger: HTMLButtonElement) => void;
+  backLabel?: string;
 }) {
   const pending = order.status === 'pending';
   const rejected = order.status === 'rejected';
@@ -91,7 +92,7 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
         if (dirty && !window.confirm('Discard your edits and return to orders?')) return;
         onDirtyChange(false);
         onBack();
-      }}><ArrowLeft size={16} />Back to orders</button>
+      }}><ArrowLeft size={16} />{backLabel}</button>
       <div className="commerce-heading-line">
         <h2 id="commerce-order-title" tabIndex={-1}>Order {orderReference(order.id)}</h2>
         <span className="commerce-status" data-status={order.status}>{rejected ? 'Rejected' : pending ? 'Pending' : 'Approved'}</span>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, ArrowRight, LoaderCircle, Save, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LoaderCircle, Plus, Save, Send, Trash2 } from 'lucide-react';
 import type { AdminCustomerRecord, CommerceCustomer } from '@/lib/commerce-types';
 import { customerContact } from '@/lib/customer-identity';
 import { normalizeNotificationActionLabel, normalizeNotificationActionUrl, type NotificationAction } from '@/lib/notification-action';
@@ -15,11 +15,12 @@ type Props = {
   onSaved: (customer: CommerceCustomer) => void;
   onRemoved: (id: string) => void;
   onDirtyChange: (dirty: boolean) => void;
+  onCreateOrder: (customer: CommerceCustomer, trigger: HTMLButtonElement) => void;
 };
 
 type ButtonDestination = 'none' | 'telegram' | 'store' | 'history' | 'account' | 'contact' | 'custom';
 
-export default function CustomerEditor({ id, startDeleting, telegramContact, onBack, onSaved, onRemoved, onDirtyChange }: Props) {
+export default function CustomerEditor({ id, startDeleting, telegramContact, onBack, onSaved, onRemoved, onDirtyChange, onCreateOrder }: Props) {
   const [record, setRecord] = useState<AdminCustomerRecord | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -202,6 +203,10 @@ export default function CustomerEditor({ id, startDeleting, telegramContact, onB
       }}><ArrowLeft size={16}/>Back to customers</button>
       <h2 ref={heading} id="commerce-customer-title" tabIndex={-1}>Customer details</h2>
       {record && <div className="commerce-customer"><strong>{record.customer.name}</strong><span>{customerContact(record.customer)}</span></div>}
+      {record && !deleting && <button type="button" className="admin-button admin-button-secondary commerce-customer-create" disabled={busy || unavailable} onClick={event => {
+        if (dirty || messageDirty) { setError('Save or cancel profile edits, and send or clear your message draft before creating an order.'); return; }
+        onDirtyChange(false); onCreateOrder(record.customer, event.currentTarget);
+      }}><Plus size={16}/>Create order for this customer</button>}
     </div>
     {loading ? <p className="commerce-empty" role="status">Loading customer…</p> : record && <>
       <form className="commerce-customer-form" onSubmit={save}>

@@ -74,6 +74,16 @@ The website prepares and copies an order; it does not send the customer's messag
 
 Orders includes both registered customers and guests. A Telegram-only row shows **Telegram guest** and has no email or customer account; older named guest orders keep their supplied nickname. Search by the order reference, match it to the customer’s Telegram message, and confirm payment and deliver access there. Approve the plan dates in admin afterward. Guest dates stay in the admin record; signed-in purchases appear in that customer’s Order history with time remaining. The customer’s Account panel previews three recent plans and links to the full history.
 
+## Record an earlier purchase for a customer
+
+When someone buys as a Telegram guest and later registers a website account, create an account-owned record from **Customers → Create order**, **Customer details → Create order for this customer**, or **Orders → Create order**. From a customer-specific entry point, the selected account is fixed; from all Orders, search and select the exact existing customer. Check the displayed name, contact and customer ID.
+
+Choose the product and published plan, quantity and actual **Unit price (MMK)**. Prices begin with the currently saved catalog price, including a discount if active. For an earlier negotiated price, enter the actual amount paid per item. An unpriced offer needs an explicit amount. Review the line totals and order total, then choose **Create pending order**.
+
+The saved record opens in the existing order editor. Set the original subscription start/expiry dates, optionally add Account/Password/Manager/Username, and approve when the purchase is confirmed. Any approval/rejection note is visible in this customer’s full history. Creating the pending record alone does not activate a subscription.
+
+This creates a separate record for the chosen account. It does not move, delete or automatically claim an existing guest order and does not send a checkout message or Telegram alert. After an uncertain network result, keep the form and choose **Retry same request** to recover the same order. If the catalog changed, reload it and review the retained selections and entered prices before submitting again.
+
 ## Data and recovery
 
 Admin saves write a complete, versioned snapshot to MySQL on Hostinger or D1 on Sites. Seed JSON initializes an empty database only; changing seed files does not replace an existing saved catalog.

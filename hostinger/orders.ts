@@ -59,6 +59,14 @@ const accountDetailsSchema = z.object({
 const customerNoteSchema = z.string().max(1000)
   .transform(value => value.replace(/\r\n?/g, '\n').trim())
   .refine(value => !/[\p{Cc}\u202a-\u202e\u2066-\u2069]/u.test(value.replace(/\n/g, '')));
+const adminOrderSchema = z.object({
+  customerId: z.string().uuid(),
+  requestId: z.string().uuid(),
+  expectedCatalogRevision: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER - 1),
+  items: z.array(itemSchema.extend({ unitPriceMmk: z.number().int().nonnegative().safe().optional() }))
+    .min(1).max(MAX_ORDER_LINES),
+  customerNote: customerNoteSchema.optional(),
+}).strict();
 const fulfillmentSchema = z.object({
   revision: z.number().int().positive().max(0xfffffffe),
   customerNote: customerNoteSchema.optional(),
@@ -200,15 +208,29 @@ function present(row: OrderRow): CommerceOrder {
   };
 }
 
-function snapshotCart(items: CartItem[], catalog: Catalog): OrderSnapshot {
+function snapshotCart(items: CartItem[], catalog: Catalog, adminUnitPrices?: (number | undefined)[]): OrderSnapshot {
   const rows = resolveOrder(items, catalog.products);
   if (rows.length !== items.length) throw new CommerceError(409, 'A selected offer is no longer available or appears twice. Review your cart.');
-  const lines = rows.map(({ product, plan, productId, planId, quantity }) => {
+  const lines = rows.map(({ product, plan, productId, planId, quantity }, index) => {
     const offer = plan ?? product;
-    const currentPrice = effectivePrice(offer);
+    const override = adminUnitPrices?.[index];
+    const currentPrice = override === undefined ? effectivePrice(offer) : override.toLocaleString('en-US') + ' MMK';
     return { id: randomUUID(), productId, productName: product.name, planId, planName: plan?.name ?? null,
       price: priceOnEnquiry(currentPrice) ? '' : currentPrice, duration: offer.duration, quantity };
   });
+  if (adminUnitPrices) {
+    let total = 0;
+    for (const line of lines) {
+      const amount = parseMmk(line.price);
+      if (amount === undefined) throw new CommerceError(400, 'Enter an actual whole MMK unit price for every unpriced offer.');
+      const lineTotal = amount * line.quantity;
+      if (!Number.isSafeInteger(lineTotal) || !Number.isSafeInteger(total + lineTotal)) {
+        throw new CommerceError(400, 'The order total exceeds the supported amount.');
+      }
+      total += lineTotal;
+    }
+    return { lines, totalMmk: total };
+  }
   const total = totalMmk(rows);
   if (total === undefined && lines.every(line => parseMmk(line.price) !== undefined)) {
     throw new CommerceError(400, 'The order total exceeds the supported amount.');
@@ -311,6 +333,64 @@ async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSc
 }
 
 const orderColumns = 'id, customer_id, guest_key, guest_name, created_at, approved_at, rejected_at, customer_note, revision, snapshot, fulfillment';
+
+/** Record an existing purchase for a selected account without moving any guest order. */
+export async function createAdminOrder(body: unknown): Promise<{ order: CommerceOrder; created: boolean }> {
+  enforceCollectionLimit(body, 'items');
+  const input = adminOrderSchema.safeParse(body);
+  if (!input.success) throw new CommerceError(400, 'Choose a registered customer, current catalog, valid items and whole MMK prices.');
+  const { customerId, requestId, expectedCatalogRevision, items } = input.data;
+  const customerNote = input.data.customerNote ?? '';
+  // Separate this operation from customer checkout, including its idempotency payload.
+  const hash = createHash('sha256').update(JSON.stringify([
+    'digimium/admin-order/v1', customerId, expectedCatalogRevision,
+    items.map(item => [item.productId, item.planId, item.quantity, item.unitPriceMmk ?? null]), customerNote,
+  ])).digest();
+  await ensureOrders();
+  const connection = await getPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    // Customer administration locks the same parent first. A concurrent removal
+    // therefore either notices this order in its version check or wins before us.
+    const [customers] = await connection.execute<RowDataPacket[]>(
+      'SELECT id FROM digimium_customers WHERE id = ? FOR UPDATE', [customerId],
+    );
+    if (!customers.length) throw new CommerceError(404, 'Customer not found. Reload the customer directory.');
+    const [existing] = await connection.execute<(OrderRow & { request_hash: Buffer })[]>(
+      'SELECT ' + orderColumns + ', request_hash FROM digimium_orders WHERE customer_id = ? AND request_id = ? FOR UPDATE',
+      [customerId, requestId],
+    );
+    if (existing[0]) {
+      if (!hash.equals(existing[0].request_hash)) throw new CommerceError(409, 'This order request was already used with different details.');
+      const order = present(existing[0]);
+      await connection.commit();
+      return { order, created: false };
+    }
+    const [catalog] = await connection.execute<(CatalogSnapshot & RowDataPacket)[]>(
+      "SELECT payload, revision, updated_at AS updatedAt FROM digimium_catalog WHERE id = 'main' LOCK IN SHARE MODE",
+    );
+    const current = catalog.length ? decodeSnapshot(catalog[0]) : initialCatalog();
+    if (current.revision !== expectedCatalogRevision) {
+      throw new CommerceError(409, 'The catalog changed. Reload the latest catalog before creating this order.');
+    }
+    const snapshot = snapshotCart(items, current, items.map(item => item.unitPriceMmk));
+    const id = randomUUID();
+    await connection.execute(
+      'INSERT INTO digimium_orders (id, customer_id, request_id, request_hash, created_at, snapshot, customer_note) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, customerId, requestId, hash, new Date().toISOString(), JSON.stringify(snapshot), customerNote],
+    );
+    const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ?', [id]);
+    const order = present(rows[0]);
+    await connection.commit();
+    // This is a historical record, not a new checkout or a Telegram message.
+    return { order, created: true };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
 
 export async function customerOrders(customerId: string) {
   await ensureOrders();
