@@ -32,7 +32,7 @@ truncation. Older challenges and text fallbacks still use text edits; new photo
 prompts store their message kind and use caption edits for approval/rejection.
 Notification failure is bounded to two seconds and never invalidates the website
 session; acknowledgement retries do not send it again.
-Account linking and logout-all-device functionality are outside this change.
+The Telegram message-presentation change described above did not add account linking or logout-all-device controls. Current Telegram connection is implemented through the exact-session flow described in [Connect Telegram to an existing account](#connect-telegram-to-an-existing-account).
 
 ## Email and Google account behavior
 
