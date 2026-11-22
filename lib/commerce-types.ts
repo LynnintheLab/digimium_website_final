@@ -1,3 +1,5 @@
+import type { WebsiteCheckout } from './payment';
+
 export type CommerceCustomer = {
   id: string;
   name: string;
@@ -48,6 +50,7 @@ export type CommerceOrder = {
   revision: number;
   lines: CommerceOrderLine[];
   totalMmk: number | null;
+  checkout?: WebsiteCheckout;
 };
 
 export type OrderFulfillment = {

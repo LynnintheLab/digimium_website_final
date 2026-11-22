@@ -40,9 +40,11 @@ export async function getCatalog(): Promise<Catalog> {
 
 export async function getPublicCatalog(): Promise<Catalog> {
   const catalog = await getCatalog();
-  return { ...catalog, products: catalog.products.filter((product) => product.published).map((product) => ({
+  const { paymentMethods, ...settings } = catalog.settings;
+  return { ...catalog, settings, ...(paymentMethods ? { paymentMethodIds: paymentMethods.filter(method => method.enabled).map(method => method.id) } : {}),
+    products: catalog.products.filter((product) => product.published).map((product) => ({
     ...product,
-    ...(catalog.settings.hideShortDescriptions ? { description: "", mm: undefined } : {}),
+    ...(settings.hideShortDescriptions ? { description: "", mm: undefined } : {}),
     ...(product.plans ? { plans: product.plans.filter((plan) => plan.published) } : {}),
   })) };
 }

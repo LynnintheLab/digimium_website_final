@@ -12,6 +12,9 @@ import { initialCatalog } from '../lib/initial-catalog';
 import { effectivePrice, parseMmk } from '../lib/pricing';
 import { resolveTelegramContact } from '../lib/telegram-contact';
 import { priceOnEnquiry } from '../lib/shop-language';
+import { checkoutFieldsFor, MAX_CUSTOMER_INPUT_UNITS, type CustomerOrderInput, type WebsiteCheckout } from '../lib/payment';
+import { paymentDecisionSchema, proofRequestSchema, quoteOrderSchema, selectPaymentSchema, websiteCheckoutSchema } from '../lib/payment-validation';
+import { identifyLogo, LogoInputError } from '../lib/logo-storage';
 import type { CatalogSnapshot } from '../lib/storage-types';
 import { ensureCustomerSchema, presentCustomer, type CustomerIdentityRow } from './customer-auth';
 import { limitGuestCheckout } from './guest-checkout';
@@ -99,6 +102,8 @@ interface OrderRow extends RowDataPacket {
   revision: number;
   snapshot: string;
   fulfillment: string | null;
+  checkout_state: string | null;
+  customer_inputs: string | null;
 }
 
 let schemaReady: Promise<void> | undefined;
@@ -131,6 +136,7 @@ async function bootstrap() {
   // Additive, independently guarded columns also repair a partially applied manual migration.
   for (const [column, definition] of [
     ['rejected_at', 'CHAR(24) CHARACTER SET ascii NULL'], ['customer_note', 'TEXT NULL'],
+    ['checkout_state', 'MEDIUMTEXT NULL'], ['customer_inputs', 'MEDIUMTEXT NULL'],
   ]) {
     try {
       await pool.query(`SELECT ${column} FROM digimium_orders LIMIT 0`);
@@ -143,6 +149,16 @@ async function bootstrap() {
       await pool.query(`SELECT ${column} FROM digimium_orders LIMIT 0`);
     }
   }
+  await pool.query(`CREATE TABLE IF NOT EXISTS digimium_order_proofs (
+    order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    request_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    request_hash BINARY(32) NOT NULL,
+    content_type VARCHAR(32) CHARACTER SET ascii NOT NULL,
+    image_bytes MEDIUMBLOB NOT NULL,
+    created_at CHAR(24) CHARACTER SET ascii NOT NULL,
+    PRIMARY KEY (order_id, request_id),
+    CONSTRAINT order_proofs_order FOREIGN KEY (order_id) REFERENCES digimium_orders (id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 }
 export function ensureOrders() {
   return schemaReady ??= bootstrap().catch(error => {
@@ -191,21 +207,26 @@ export function decryptOrderTermDates(row: Pick<OrderRow, 'id' | 'customer_id' |
   });
 }
 
-function present(row: OrderRow): CommerceOrder {
+function present(row: OrderRow, includeDelivery = true): CommerceOrder {
   const snapshot: OrderSnapshot = JSON.parse(row.snapshot);
   const approved = !!row.approved_at && !row.rejected_at;
-  const delivery = new Map((approved ? decryptFulfillment(row) : []).map(line => [line.id, line]));
+  const delivery = new Map((approved && includeDelivery ? decryptFulfillment(row) : []).map(line => [line.id, line]));
   return {
     id: row.id, customerId: row.customer_id, createdAt: row.created_at, approvedAt: approved ? row.approved_at : null,
     rejectedAt: row.rejected_at ?? null, customerNote: row.customer_note ?? '',
     ...(row.guest_name ? { guestName: row.guest_name } : {}),
     status: row.rejected_at ? 'rejected' : approved ? 'approved' : 'pending', revision: row.revision, totalMmk: snapshot.totalMmk,
+    ...(row.checkout_state ? { checkout: JSON.parse(row.checkout_state) as WebsiteCheckout } : {}),
     lines: snapshot.lines.map(line => {
       const grant = delivery.get(line.id);
       return { ...line, startDate: grant?.startDate ?? null, endDate: grant?.endDate ?? null, accountInfo: grant?.accountInfo ?? '',
         ...(grant?.accountDetails ? { accountDetails: grant.accountDetails } : {}) };
     }),
   };
+}
+
+function presentCheckout(row: OrderRow): CommerceOrder {
+  return present(row, false);
 }
 
 function snapshotCart(items: CartItem[], catalog: Catalog, adminUnitPrices?: (number | undefined)[]): OrderSnapshot {
@@ -332,7 +353,7 @@ async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSc
   return winner;
 }
 
-const orderColumns = 'id, customer_id, guest_key, guest_name, created_at, approved_at, rejected_at, customer_note, revision, snapshot, fulfillment';
+const orderColumns = 'id, customer_id, guest_key, guest_name, created_at, approved_at, rejected_at, customer_note, revision, snapshot, fulfillment, checkout_state';
 
 /** Record an existing purchase for a selected account without moving any guest order. */
 export async function createAdminOrder(body: unknown): Promise<{ order: CommerceOrder; created: boolean }> {
@@ -392,12 +413,325 @@ export async function createAdminOrder(body: unknown): Promise<{ order: Commerce
   }
 }
 
+function checkoutKey(purpose: 'inputs' | 'proof' | 'request') {
+  const secret = process.env.ORDER_FULFILLMENT_SECRET?.trim() || process.env.ADMIN_AUTH_SECRET?.trim();
+  if (!secret || secret.length < 32) throw new Error('Missing order encryption key.');
+  return createHmac('sha256', secret).update('digimium/website-checkout/v1/' + purpose).digest();
+}
+
+function encryptCheckoutData(id: string, customerId: string, purpose: 'inputs' | 'proof', data: Buffer) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', checkoutKey(purpose), iv);
+  cipher.setAAD(Buffer.from(id + '/' + customerId));
+  const ciphertext = Buffer.concat([cipher.update(data), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]);
+}
+
+function decryptCheckoutData(id: string, customerId: string, purpose: 'inputs' | 'proof', data: Buffer) {
+  const decipher = createDecipheriv('aes-256-gcm', checkoutKey(purpose), data.subarray(0, 12));
+  decipher.setAuthTag(data.subarray(12, 28));
+  decipher.setAAD(Buffer.from(id + '/' + customerId));
+  return Buffer.concat([decipher.update(data.subarray(28)), decipher.final()]);
+}
+
+function collectCustomerInputs(input: z.infer<typeof websiteCheckoutSchema>, snapshot: OrderSnapshot, catalog: Catalog): CustomerOrderInput[] {
+  let inputUnits = 0;
+  return input.items.flatMap((item, index) => {
+    const product = catalog.products.find(product => product.id === item.productId)!;
+    const plan = product.plans?.find(plan => plan.id === item.planId);
+    const fields = checkoutFieldsFor(product, plan);
+    const units = item.inputs ?? [];
+    if (!fields.length) {
+      if (units.length) throw new CommerceError(400, 'This offer does not request customer details. Review the current form.');
+      return [];
+    }
+    inputUnits += item.quantity;
+    if (inputUnits > MAX_CUSTOMER_INPUT_UNITS) {
+      throw new CommerceError(400, `Enter customer details for at most ${MAX_CUSTOMER_INPUT_UNITS} accounts in one order.`);
+    }
+    const needsEveryUnit = fields.some(field => field.required);
+    if ((needsEveryUnit && units.length !== item.quantity) || new Set(units.map(unit => unit.unit)).size !== units.length) {
+      throw new CommerceError(400, 'Fill in the requested details for each account in your order.');
+    }
+    return units.map(unit => {
+      if (unit.unit >= item.quantity || Object.keys(unit.values).some(id => !fields.some(field => field.id === id))) {
+        throw new CommerceError(400, 'The requested customer fields changed. Review the current form.');
+      }
+      return { lineId: snapshot.lines[index].id, unit: unit.unit, fields: fields.map(field => {
+        const value = Object.hasOwn(unit.values, field.id) ? unit.values[field.id] : '';
+        if (field.required && !value.trim()) throw new CommerceError(400, 'Fill in every required customer detail.');
+        if (field.type === 'email' && value && !z.string().email().safeParse(value).success) {
+          throw new CommerceError(400, 'Enter a valid email address for each email field.');
+        }
+        return { id: field.id, label: field.label, ...(field.labelMy ? { labelMy: field.labelMy } : {}), type: field.type, value };
+      }) };
+    });
+  });
+}
+
+export async function createWebsiteOrder(customerId: string, body: unknown): Promise<{ order: CommerceOrder; created: boolean }> {
+  enforceCollectionLimit(body, 'items');
+  const parsed = websiteCheckoutSchema.safeParse(body);
+  if (!parsed.success) throw new CommerceError(400, 'Review the cart and requested customer details.');
+  const input = parsed.data;
+  if (input.expectedCustomerId !== customerId) {
+    throw new CommerceError(409, 'The signed-in account changed. Review your checkout again.');
+  }
+  // A keyed digest prevents guessed customer passwords from being checked against a database dump.
+  const canonicalItems = input.items.map(item => {
+    const units = (item.inputs ?? []).map(unit => [unit.unit, Object.entries(unit.values).sort(([a], [b]) => a.localeCompare(b))]);
+    units.sort((a, b) => Number(a[0]) - Number(b[0]));
+    return [item.productId, item.planId, item.quantity, units];
+  });
+  const canonical = [customerId, input.expectedCatalogRevision, canonicalItems];
+  const hash = createHmac('sha256', checkoutKey('request')).update(JSON.stringify(canonical)).digest();
+  await ensureOrders();
+  const connection = await getPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [customers] = await connection.execute<RowDataPacket[]>('SELECT id, name FROM digimium_customers WHERE id = ? FOR UPDATE', [customerId]);
+    if (!customers.length) throw new CommerceError(401, 'Sign in again before placing your order.');
+    const [existing] = await connection.execute<(OrderRow & { request_hash: Buffer })[]>(
+      'SELECT ' + orderColumns + ', request_hash FROM digimium_orders WHERE customer_id = ? AND request_id = ? FOR UPDATE',
+      [customerId, input.requestId]);
+    if (existing[0]) {
+      if (!existing[0].checkout_state || !hash.equals(existing[0].request_hash)) throw new CommerceError(409, 'This request was already submitted with different details.');
+      await connection.commit();
+      return { order: presentCheckout(existing[0]), created: false };
+    }
+    const [catalogRows] = await connection.execute<(CatalogSnapshot & RowDataPacket)[]>(
+      "SELECT payload, revision, updated_at AS updatedAt FROM digimium_catalog WHERE id = 'main' LOCK IN SHARE MODE");
+    const catalog = catalogRows.length ? decodeSnapshot(catalogRows[0]) : initialCatalog();
+    if (catalog.revision !== input.expectedCatalogRevision) throw new CommerceError(409, 'The catalog changed. Reload it and review your order.');
+    const snapshot = snapshotCart(input.items, catalog);
+    const customerInputs = collectCustomerInputs(input, snapshot, catalog);
+    const id = randomUUID();
+    const checkout: WebsiteCheckout = { stage: snapshot.totalMmk === null ? 'quote_required' : snapshot.totalMmk === 0 ? 'processing' : 'awaiting_payment' };
+    const encrypted = encryptCheckoutData(id, customerId, 'inputs', Buffer.from(JSON.stringify(customerInputs))).toString('base64');
+    await connection.execute(`INSERT INTO digimium_orders
+      (id, customer_id, request_id, request_hash, created_at, snapshot, checkout_state, customer_inputs)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [id, customerId, input.requestId, hash, new Date().toISOString(), JSON.stringify(snapshot), JSON.stringify(checkout), encrypted]);
+    await enqueueNotificationAlert(connection, { kind: 'order-created', dedupeKey: 'order-created:' + id, entityId: id,
+      customerName: customers[0].name, orderReference: id.replaceAll('-', '').slice(0, 8).toUpperCase(),
+      productSummary: snapshot.lines.slice(0, 6).map(line => line.productName + (line.planName ? ' · ' + line.planName : '') + ' × ' + line.quantity).join('\n').slice(0, 350),
+      totalMmk: snapshot.totalMmk });
+    const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ?', [id]);
+    await connection.commit();
+    await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000 }).catch(() => {});
+    return { order: presentCheckout(rows[0]), created: true };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function recoverWebsiteOrder(customerId: string, requestId: string) {
+  if (!z.string().uuid().safeParse(requestId).success) throw new CommerceError(400, 'Choose a valid checkout request.');
+  await ensureOrders();
+  const [rows] = await getPool().execute<OrderRow[]>('SELECT ' + orderColumns +
+    ' FROM digimium_orders WHERE customer_id = ? AND request_id = ? AND checkout_state IS NOT NULL', [customerId, requestId]);
+  if (!rows[0]) throw new CommerceError(404, 'The checkout has not been saved.');
+  return { order: presentCheckout(rows[0]) };
+}
+
+export async function orderDetails(id: string, customerId?: string, includeInputs = true) {
+  if (!z.string().uuid().safeParse(id).success) throw new CommerceError(404, 'Order not found.');
+  await ensureOrders();
+  const [rows] = await getPool().execute<OrderRow[]>('SELECT ' + orderColumns + (includeInputs ? ', customer_inputs' : '') +
+    ' FROM digimium_orders WHERE id = ?' + (customerId ? ' AND customer_id = ?' : ''), customerId ? [id, customerId] : [id]);
+  const row = rows[0];
+  if (!row) throw new CommerceError(404, 'Order not found.');
+  if (!includeInputs) return { order: presentCheckout(row) };
+  const customerInputs: CustomerOrderInput[] = row.customer_inputs && row.customer_id
+    ? JSON.parse(decryptCheckoutData(id, row.customer_id, 'inputs', Buffer.from(row.customer_inputs, 'base64')).toString('utf8')) : [];
+  return { order: present(row), customerInputs };
+}
+
+function editableWebsiteOrder(row: OrderRow | undefined, revision: number): { row: OrderRow; checkout: WebsiteCheckout } {
+  if (!row) throw new CommerceError(404, 'Order not found.');
+  if (row.revision !== revision) throw new CommerceError(409, 'This order changed. Refresh before continuing.');
+  if (!row.checkout_state || !row.customer_id) throw new CommerceError(409, 'This order uses the existing support workflow.');
+  if (row.approved_at || row.rejected_at) throw new CommerceError(409, 'This order is already completed or rejected.');
+  return { row, checkout: JSON.parse(row.checkout_state) };
+}
+
+function usdtAmount(totalMmk: number, rate: number | undefined) {
+  if (!rate || !Number.isFinite(rate) || rate <= 0) throw new CommerceError(409, 'The Binance payment rate is unavailable. Choose another method.');
+  // Interpret the saved decimal rate exactly, including scientific notation.
+  // Round half up to two USDT decimal places without binary floating-point drift.
+  const [coefficient, exponent = '0'] = rate.toString().toLowerCase().split('e');
+  const [whole, fraction = ''] = coefficient.split('.');
+  const scale = fraction.length - Number(exponent);
+  const hundred = BigInt(100);
+  const two = BigInt(2);
+  const numerator = BigInt(whole + fraction) * BigInt(10) ** BigInt(Math.max(-scale, 0));
+  const denominator = BigInt(10) ** BigInt(Math.max(scale, 0));
+  const scaledTotal = BigInt(totalMmk) * hundred * denominator;
+  const cents = (scaledTotal * two + numerator) / (numerator * two);
+  if (cents < BigInt(1) || cents > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new CommerceError(409, 'This amount is outside the Binance payment range. Choose another method.');
+  }
+  return (cents / hundred).toString() + '.' + (cents % hundred).toString().padStart(2, '0');
+}
+
+export async function selectOrderPayment(customerId: string, id: string, body: unknown) {
+  const parsed = selectPaymentSchema.safeParse(body);
+  if (!parsed.success || !z.string().uuid().safeParse(id).success) throw new CommerceError(400, 'Choose a payment method and refresh the order.');
+  await ensureOrders();
+  const connection = await getPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ? AND customer_id = ? FOR UPDATE', [id, customerId]);
+    const { row, checkout } = editableWebsiteOrder(rows[0], parsed.data.revision);
+    if (!['awaiting_payment', 'payment_rejected'].includes(checkout.stage)) throw new CommerceError(409, 'Payment details can only change before review.');
+    const snapshot: OrderSnapshot = JSON.parse(row.snapshot);
+    if (snapshot.totalMmk === null || snapshot.totalMmk <= 0) throw new CommerceError(409, 'Wait for the order price before choosing payment.');
+    const [catalogRows] = await connection.execute<(CatalogSnapshot & RowDataPacket)[]>(
+      "SELECT payload, revision, updated_at AS updatedAt FROM digimium_catalog WHERE id = 'main' LOCK IN SHARE MODE");
+    const catalog = catalogRows.length ? decodeSnapshot(catalogRows[0]) : initialCatalog();
+    const method = catalog.settings.paymentMethods?.find(method => method.id === parsed.data.methodId && method.enabled);
+    if (!method || !method.accountName || !method.accountNumber) throw new CommerceError(409, 'This payment method is unavailable. Choose another method.');
+    const amount = method.id === 'binance' ? usdtAmount(snapshot.totalMmk, method.mmkPerUsdt) : String(snapshot.totalMmk);
+    checkout.stage = 'awaiting_payment';
+    checkout.payment = { method, amount, currency: method.id === 'binance' ? 'USDT' : 'MMK',
+      submittedAt: null, approvedAt: null, rejectedAt: null, note: '', proofUrl: null };
+    row.checkout_state = JSON.stringify(checkout);
+    row.revision++;
+    await connection.execute('UPDATE digimium_orders SET checkout_state = ?, revision = ? WHERE id = ?', [row.checkout_state, row.revision, id]);
+    await connection.commit();
+    return { order: present(row) };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally { connection.release(); }
+}
+
+export async function submitOrderProof(customerId: string, id: string, body: unknown, bytes: Uint8Array<ArrayBuffer>, declaredMime: string) {
+  const parsed = proofRequestSchema.safeParse(body);
+  if (!parsed.success || !z.string().uuid().safeParse(id).success) throw new CommerceError(400, 'Refresh the order before uploading payment proof.');
+  if (!bytes.length || bytes.length > 5 * 1024 * 1024) throw new CommerceError(413, 'Choose an image smaller than 5 MB.');
+  try {
+    if (identifyLogo(bytes).mime !== declaredMime) throw new CommerceError(415, 'The image type does not match its contents.');
+  } catch (error) {
+    if (error instanceof LogoInputError) throw new CommerceError(error.status, error.message);
+    throw error;
+  }
+  const hash = createHash('sha256').update(declaredMime).update(bytes).digest();
+  await ensureOrders();
+  const connection = await getPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ? AND customer_id = ? FOR UPDATE', [id, customerId]);
+    const row = rows[0];
+    if (!row) throw new CommerceError(404, 'Order not found.');
+    const [previous] = await connection.execute<(RowDataPacket & { request_hash: Buffer })[]>(
+      'SELECT request_hash FROM digimium_order_proofs WHERE order_id = ? AND request_id = ?', [id, parsed.data.requestId]);
+    if (previous[0]) {
+      if (!hash.equals(previous[0].request_hash)) throw new CommerceError(409, 'This upload request was already used for another image.');
+      await connection.commit();
+      return { order: presentCheckout(row) };
+    }
+    const { checkout } = editableWebsiteOrder(row, parsed.data.revision);
+    if (!['awaiting_payment', 'payment_rejected'].includes(checkout.stage) || !checkout.payment) {
+      throw new CommerceError(409, 'Choose the payment method before uploading its screenshot.');
+    }
+    const now = new Date().toISOString();
+    const encrypted = encryptCheckoutData(id, customerId, 'proof', Buffer.from(bytes));
+    await connection.execute(`INSERT INTO digimium_order_proofs (order_id, request_id, request_hash, content_type, image_bytes, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)`,
+    [id, parsed.data.requestId, hash, declaredMime, encrypted, now]);
+    checkout.stage = 'payment_review';
+    checkout.payment.submittedAt = now;
+    checkout.payment.approvedAt = null;
+    checkout.payment.rejectedAt = null;
+    checkout.payment.note = '';
+    checkout.payment.proofUrl = '/api/customer/orders/' + id + '/proof?version=' + parsed.data.requestId;
+    row.checkout_state = JSON.stringify(checkout);
+    row.revision++;
+    await connection.execute('UPDATE digimium_orders SET checkout_state = ?, revision = ? WHERE id = ?', [row.checkout_state, row.revision, id]);
+    await connection.commit();
+    return { order: present(row) };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally { connection.release(); }
+}
+
+export async function orderProof(id: string, customerId?: string, version?: string | null) {
+  if (!z.string().uuid().safeParse(id).success || (version && !z.string().uuid().safeParse(version).success)) throw new CommerceError(404, 'Payment proof not found.');
+  await ensureOrders();
+  const [rows] = await getPool().execute<(RowDataPacket & { customer_id: string; request_id: string; content_type: string; image_bytes: Buffer })[]>(
+    `SELECT o.customer_id, p.request_id, p.content_type, p.image_bytes FROM digimium_orders o
+      INNER JOIN digimium_order_proofs p ON p.order_id = o.id WHERE o.id = ?` + (customerId ? ' AND o.customer_id = ?' : '') +
+      (version ? ' AND p.request_id = ?' : '') + ' ORDER BY p.created_at DESC, p.request_id LIMIT 1',
+    [id, ...(customerId ? [customerId] : []), ...(version ? [version] : [])]);
+  const row = rows[0];
+  if (!row || (version && row.request_id !== version)) throw new CommerceError(404, 'Payment proof not found.');
+  return { contentType: row.content_type, bytes: decryptCheckoutData(id, row.customer_id, 'proof', row.image_bytes) };
+}
+
+async function updateWebsiteOrder(id: string, body: unknown, action: unknown) {
+  const parsed = action === 'quote' ? quoteOrderSchema.safeParse(body) : paymentDecisionSchema.safeParse(body);
+  if (!parsed.success || !z.string().uuid().safeParse(id).success) throw new CommerceError(400, 'Enter a valid payment decision or quote and current revision.');
+  await ensureOrders();
+  const connection = await getPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
+    const { row, checkout } = editableWebsiteOrder(rows[0], parsed.data.revision);
+    const snapshot: OrderSnapshot = JSON.parse(row.snapshot);
+    if (parsed.data.action === 'quote') {
+      if (!['quote_required', 'awaiting_payment', 'payment_rejected'].includes(checkout.stage)) throw new CommerceError(409, 'The order has already reached payment review.');
+      const prices = new Map(parsed.data.lines.map(line => [line.id, line.unitPriceMmk]));
+      if (prices.size !== snapshot.lines.length || prices.size !== parsed.data.lines.length || snapshot.lines.some(line => !prices.has(line.id))) {
+        throw new CommerceError(400, 'Include one price for every order item.');
+      }
+      let total = 0;
+      snapshot.lines = snapshot.lines.map(line => {
+        const amount = prices.get(line.id)!;
+        const subtotal = amount * line.quantity;
+        if (!Number.isSafeInteger(subtotal) || !Number.isSafeInteger(total + subtotal)) throw new CommerceError(400, 'The quote exceeds the supported amount.');
+        total += subtotal;
+        return { ...line, price: amount.toLocaleString('en-US') + ' MMK' };
+      });
+      snapshot.totalMmk = total;
+      checkout.stage = total === 0 ? 'processing' : 'awaiting_payment';
+      checkout.quotedAt = new Date().toISOString();
+      delete checkout.payment;
+    } else {
+      if (checkout.stage !== 'payment_review' || !checkout.payment?.proofUrl) throw new CommerceError(409, 'Review a submitted payment screenshot first.');
+      if (parsed.data.action === 'payment-approve') {
+        checkout.stage = 'processing';
+        checkout.payment.approvedAt = new Date().toISOString();
+        checkout.payment.rejectedAt = null;
+      } else {
+        checkout.stage = 'payment_rejected';
+        checkout.payment.rejectedAt = new Date().toISOString();
+        checkout.payment.approvedAt = null;
+      }
+      checkout.payment.note = parsed.data.note ?? '';
+    }
+    row.snapshot = JSON.stringify(snapshot);
+    row.checkout_state = JSON.stringify(checkout);
+    row.revision++;
+    await connection.execute('UPDATE digimium_orders SET snapshot = ?, checkout_state = ?, revision = ? WHERE id = ?',
+      [row.snapshot, row.checkout_state, row.revision, id]);
+    await connection.commit();
+    return present(row);
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally { connection.release(); }
+}
+
 export async function customerOrders(customerId: string) {
   await ensureOrders();
   const [rows] = await getPool().execute<OrderRow[]>(
     'SELECT ' + orderColumns + ' FROM digimium_orders WHERE customer_id = ? ORDER BY created_at DESC, id', [customerId],
   );
-  return rows.map(present);
+  return rows.map(row => present(row));
 }
 
 export async function adminCommerce() {
@@ -411,7 +745,7 @@ export async function adminCommerce() {
     ),
     pool.query<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders ORDER BY created_at DESC, id'),
   ]);
-  return { customers: customers.map(presentCustomer), orders: orders.map(present) };
+  return { customers: customers.map(presentCustomer), orders: orders.map(row => present(row)) };
 }
 
 export async function saveFulfillment(id: string, body: unknown) {
@@ -429,6 +763,10 @@ export async function saveFulfillment(id: string, body: unknown) {
     if (row.revision !== input.data.revision) throw new CommerceError(409, 'This order changed. Refresh before saving.');
     if (row.rejected_at) throw new CommerceError(409, 'A rejected order cannot be approved. Edit its customer note instead.');
     const snapshot: OrderSnapshot = JSON.parse(row.snapshot);
+    const checkout: WebsiteCheckout | undefined = row.checkout_state ? JSON.parse(row.checkout_state) : undefined;
+    if (checkout && snapshot.totalMmk !== 0 && !checkout.payment?.approvedAt) {
+      throw new CommerceError(409, 'Approve the payment before completing this order.');
+    }
     const grants = new Set(input.data.lines.map(line => line.id));
     if (snapshot.lines.length !== input.data.lines.length || !snapshot.lines.every(line => grants.has(line.id))) {
       throw new CommerceError(400, 'Include the dates for every purchased item exactly once.');
@@ -448,12 +786,16 @@ export async function saveFulfillment(id: string, body: unknown) {
       await connection.execute("DELETE FROM digimium_notifications WHERE order_id = ? AND kind = 'expiry'", [id]);
     }
     row.approved_at ??= new Date().toISOString();
+    if (checkout) {
+      checkout.stage = 'completed';
+      row.checkout_state = JSON.stringify(checkout);
+    }
     row.fulfillment = encryptFulfillment(id, fulfillmentOwner(row), lines);
     if (input.data.customerNote !== undefined) row.customer_note = input.data.customerNote;
     row.revision++;
     const order = present(row);
-    await connection.execute('UPDATE digimium_orders SET approved_at = ?, fulfillment = ?, customer_note = ?, revision = ? WHERE id = ?',
-      [row.approved_at, row.fulfillment, row.customer_note, row.revision, id]);
+    await connection.execute('UPDATE digimium_orders SET approved_at = ?, fulfillment = ?, customer_note = ?, revision = ?, checkout_state = ? WHERE id = ?',
+      [row.approved_at, row.fulfillment, row.customer_note, row.revision, row.checkout_state ?? null, id]);
     await connection.commit();
     return order;
   } catch (error) {
@@ -499,6 +841,7 @@ async function saveOrderDecision(id: string, body: unknown) {
 /** Older callers still send fulfillment without an action; decisions are explicit new variants. */
 export async function updateOrder(id: string, body: unknown) {
   const action = body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>).action : undefined;
+  if (action === 'quote' || action === 'payment-approve' || action === 'payment-reject') return updateWebsiteOrder(id, body, action);
   return action === 'reject' || action === 'note' ? saveOrderDecision(id, body) : saveFulfillment(id, body);
 }
 

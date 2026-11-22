@@ -3,14 +3,17 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import type { ProductPlan } from '@/lib/catalog';
+import type { CustomerField } from '@/lib/payment';
 import DurationField from './duration-field';
 import PriceField from './price-field';
+import RequestedInformationEditor from './requested-information-editor';
 import './plan-editor.css';
 
 export type PlanEditorProps = {
   plans: ProductPlan[];
   onChange: (plans: ProductPlan[]) => void;
   disabled?: boolean;
+  checkoutFields?: CustomerField[];
 };
 
 const MAX_PLANS = 30;
@@ -19,7 +22,7 @@ export function planFieldId(planId: string, field: 'name' | 'price' | 'discount-
   return `service-plan-${planId}-${field}`;
 }
 
-export function PlanEditor({ plans, onChange, disabled = false }: PlanEditorProps) {
+export function PlanEditor({ plans, onChange, disabled = false, checkoutFields }: PlanEditorProps) {
   const prefix = useId();
   const pendingFocus = useRef<string | null>(null);
   const [notice, setNotice] = useState('');
@@ -96,6 +99,8 @@ export function PlanEditor({ plans, onChange, disabled = false }: PlanEditorProp
               price={plan.price} discountPrice={plan.discountPrice} onChange={patch => updatePlan(plan.id, patch)} />
             <DurationField id={planFieldId(plan.id, 'duration')} value={plan.duration} onChange={duration => updatePlan(plan.id, { duration })} />
           </div>
+          {checkoutFields !== undefined && <RequestedInformationEditor fields={plan.checkoutFields} inheritedFields={checkoutFields}
+            disabled={disabled} onChange={fields => updatePlan(plan.id, { checkoutFields: fields })}/>}
           <div className="admin-plan-actions">
             <label className="admin-plan-publish" htmlFor={planFieldId(plan.id, 'published')}>
               <input id={planFieldId(plan.id, 'published')} type="checkbox" checked={plan.published} onChange={event => updatePlan(plan.id, { published: event.target.checked })} />

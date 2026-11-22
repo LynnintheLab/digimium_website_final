@@ -7,7 +7,7 @@
 .payment-methods img { display: block; width: 28px; height: 28px; border-radius: 5px; object-fit: contain; flex: none; }
 .payment-methods-compact { display: grid; gap: 8px; }
 .payment-methods-compact .payment-methods-heading strong { font-size: 13px; }
-.payment-methods-compact ul { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 6px; }
+.payment-methods-compact ul { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px; }
 .payment-methods-compact li { display: grid; justify-items: center; gap: 4px; font-size: 12px; text-align: center; }
 .payment-methods-compact img { width: 27px; height: 27px; }
 @media (max-width: 800px) {
@@ -15,6 +15,6 @@
   .payment-methods:not(.payment-methods-compact) .payment-methods-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; }
   .payment-methods:not(.payment-methods-compact) .payment-methods-heading strong { font-size: 14px; }
   .payment-methods:not(.payment-methods-compact) .payment-methods-heading p { font-size: 14px; }
-  .payment-methods:not(.payment-methods-compact) ul { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 7px; }
+  .payment-methods:not(.payment-methods-compact) ul { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px; }
   .payment-methods:not(.payment-methods-compact) li { display: flex; flex-direction: column; gap: 4px; font-size: 12px; text-align: center; }
 }

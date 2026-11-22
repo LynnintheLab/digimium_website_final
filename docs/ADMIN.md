@@ -70,9 +70,24 @@ Use Settings to edit Telegram, email, and Viber contacts, then save. Enter a Tel
 
 The website prepares and copies an order; it does not send the customer's message. Large orders may be split into numbered drafts. Customers send each part in the same conversation. Clipboard restrictions have a manual-copy fallback.
 
-## Guest and account orders
+## Configure website checkout
 
-Orders includes both registered customers and guests. A Telegram-only row shows **Telegram guest** and has no email or customer account; older named guest orders keep their supplied nickname. Search by the order reference, match it to the customer’s Telegram message, and confirm payment and deliver access there. Approve the plan dates in admin afterward. Guest dates stay in the admin record; signed-in purchases appear in that customer’s Order history with time remaining. The customer’s Account panel previews two recent purchased plans and links to the full history.
+1. Open **Payments** in Admin. Enter the receiver name and account number or Binance Pay ID for each method you want to offer. You can upload a merchant QR image and add payment instructions.
+2. For Binance Pay, enter how many MMK equal one USDT. Checkout uses the saved rate to calculate the amount, rounded to two decimal places. Once a customer selects a method, the order keeps the displayed destination and amount.
+3. Enable the configured methods and choose **Save changes**. Enabled methods appear to signed-in customers at checkout.
+4. In **Services**, select a product and open **Information needed from customer**. Add the service email, service password or other text fields needed for fulfillment. Fields can be required or optional and have English and Myanmar labels. Plans inherit the product fields by default. Choose plan-specific fields to replace them, or select no fields for plans that supply a new account.
+
+Request service credentials only when needed to fulfill a plan. Customer-supplied values and payment screenshots are encrypted. Open the specific order to view them. Passwords are masked by default.
+
+## Review and complete website orders
+
+1. In **Orders**, open the customer’s order. If the status is **Quote required**, enter the actual MMK unit price for each line and save the quote.
+2. When the status is **Review payment**, open the screenshot and verify the actual transfer in your payment account. Approve payment or reject the screenshot with an optional customer-facing reason. A rejected screenshot can be replaced by the customer.
+3. After payment approval, set the subscription dates, enter any account details the customer should receive, and choose **Mark completed**. Order history displays the delivered details with the password masked by default. Customers can follow the status from checkout or Order history.
+
+## Guest and earlier account orders
+
+Orders includes both registered customers and guests. A Telegram-only row shows **Telegram guest** and has no email or customer account. Match the order reference to the Telegram message, then confirm payment and deliver access there. Approve the plan dates in Admin afterward. Previously created Telegram account orders retain their original workflow and appear in the owning customer’s Order history.
 
 ## Record an earlier purchase for a customer
 

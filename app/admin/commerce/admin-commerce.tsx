@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ChevronRight, RefreshCw, Search, X, Pencil, Trash2, Plus } from 'lucide-react';
 import type { CommerceCustomer, CommerceOrder } from '@/lib/commerce-types';
 import { customerContact } from '@/lib/customer-identity';
-import OrderEditor, { orderReference, orderTotal } from './order-editor';
+import OrderEditor, { orderReference, orderStageLabel, orderTotal } from './order-editor';
 import CustomerEditor from './customer-editor';
 import RemoveOrderDialog from './remove-order-dialog';
 import CreateOrder from './create-order';
@@ -112,7 +112,7 @@ export default function AdminCommerce({ view, customerId, telegramContact, onDir
   const shownOrders = scopedOrders.filter(order => {
     if (filter !== 'all' && order.status !== filter) return false;
     const customer = order.customerId ? customersById.get(order.customerId) : undefined;
-    return [order.id, orderReference(order.id), customer?.name, customer && customerContact(customer), order.guestName, order.customerId === null ? 'Telegram guest' : '',
+    return [order.id, orderReference(order.id), orderStageLabel(order), customer?.name, customer && customerContact(customer), order.guestName, order.customerId === null ? 'Telegram guest' : '',
       ...order.lines.flatMap(line => [line.productName, line.planName])]
       .some(value => value?.toLowerCase().includes(term));
   });
@@ -176,6 +176,14 @@ export default function AdminCommerce({ view, customerId, telegramContact, onDir
         invalidateRefresh();
         setData(current => current ? { ...current, orders: current.orders.map(row => row.id === order.id ? order : row) } : current);
         setFilter(order.status);
+        if (order.checkout && order.status === 'pending') {
+          setNotice(order.checkout.stage === 'processing' ? selected.checkout?.stage === 'quote_required'
+            ? 'Quote saved. This complimentary order is ready for fulfillment.' : 'Payment approved. Fulfill the purchase, then mark this order completed.'
+            : order.checkout.stage === 'payment_rejected' ? 'Payment rejected. The customer can review your note and submit new proof.'
+              : 'Quote saved. The customer can continue to payment.');
+          requestAnimationFrame(() => document.getElementById('commerce-order-title')?.focus());
+          return;
+        }
         setNotice(order.status === 'rejected'
           ? selected.status === 'rejected' ? 'Customer note updated.' : order.customerId ? 'Order rejected. Status updated in the customer’s order history.' : 'Guest order rejected. Decision saved in the order record.'
           : selected.status === 'pending' ? selected.customerId ? 'Order approved and added to the customer’s history.' : 'Guest order approved. Dates saved in the order record.' : 'Order details and customer note updated.');
@@ -231,7 +239,7 @@ export default function AdminCommerce({ view, customerId, telegramContact, onDir
           setNotice('');
           requestAnimationFrame(() => document.getElementById('commerce-order-title')?.focus());
         }}>
-          <span className="commerce-row-main"><strong>{orderReference(order.id)} <span className="commerce-status" data-status={order.status}>{order.status === 'rejected' ? 'Rejected' : order.status === 'pending' ? 'Pending' : 'Approved'}</span></strong>
+          <span className="commerce-row-main"><strong>{orderReference(order.id)} <span className="commerce-status" data-status={order.status} data-stage={order.checkout?.stage}>{orderStageLabel(order)}</span></strong>
             <span>{customer ? customer.name + ' · ' + customerContact(customer) : order.guestName ? order.guestName + ' · Guest' : order.customerId === null ? 'Telegram guest' : 'Customer'}</span>
             <span>{order.lines.map(line => line.productName + (line.planName ? ' · ' + line.planName : '')).join(', ')}</span>
           </span>

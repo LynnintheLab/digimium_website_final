@@ -1,6 +1,6 @@
 # Digimium website
 
-Digimium is a bilingual digital subscription catalog for browsing products in Myanmar by default, choosing a plan, and ordering through Telegram with purchase records in a customer account. The storefront uses a soft blue/lavender gradient, navy sections, colored brand marks, Manrope for English, and Wa Lone for Myanmar.
+Digimium is a bilingual digital subscription store with website checkout for signed-in customers and Telegram ordering for guests. The storefront defaults to Myanmar and uses a soft blue/lavender gradient, navy sections, colored brand marks, Manrope for English, and Wa Lone for Myanmar.
 
 - Host on Hostinger: [hPanel and GitHub deployment steps](docs/HOSTINGER.md)
 - Earlier Sites deployment: [Digimium](https://digimium-minimal.aungnyeinchantun23.chatgpt.site)
@@ -17,6 +17,7 @@ The Hostinger build protects `/admin` with a one-time code sent to the owner’s
 | Storefront | An automatic showcase of best sellers, gift promotions and discounts, with category collections when no promotion or discount is active. Includes search, category filters, FAQ, English/Myanmar and contact links. |
 | Product plans | Only published plans appear to customers. Unpriced products remain available for enquiries. |
 | Cart | The cart survives sign-in and clears when the server acknowledges the order. |
+| Website checkout | Signed-in customers provide the service details required by their plans, select a configured payment method, and submit a payment screenshot for Admin review. Order history shows progress and delivered account details. |
 | Customer account | Account is optional for buying. Open Account for profile and brief plan/pending previews. The round gear opens full profile/settings and Telegram linking; Order history shows all purchases, segmented remaining-day gauges and optional delivered account details. |
 | Order administration | Review customers and saved orders in `/admin`. Create a pending record for an existing customer’s earlier guest purchase, review the actual prices, then approve its dates and optional delivery details. |
 | Legacy Sites checkout | The Sites deployment opens a Telegram order draft. |
@@ -29,7 +30,7 @@ The Hostinger build protects `/admin` with a one-time code sent to the owner’s
 
 The starting catalog contains **54 products and 104 plan records**, with **50 plans selected for public display**. Admin edits can alter these counts. Keep the current plan visibility unless the owner explicitly changes it. Source and pricing decisions are documented in [data/IMPORT-SOURCES.md](data/IMPORT-SOURCES.md).
 
-Checkout offers Buy with an account or Buy on Telegram. Account sign-in and registration stay inside the order popup, then return to the cart for review. Telegram-only checkout asks for no name or email and explains that the purchase will not appear in website history; account checkout uses the signed-in customer’s name and email. Telegram-only orders appear in admin with a Guest label and reference and are not linked to a website account. Checkout opens a Telegram draft with the order reference and that identity. Customers send the message themselves. Payment and service-account delivery continue in Telegram, followed by manual website approval. Admin may additionally save optional encrypted account details for the customer’s approved full history. MySQL stores customer records and order snapshots separately from the editable catalog.
+Account sign-in and registration stay inside the order dialog, then return to the cart for review. Signed-in customers use the private checkout page to submit plan details and choose KPay, AYA Pay, Wave Pay or Binance Pay when configured. They transfer the displayed amount using the selected provider and upload a screenshot on the website. Admin verifies the payment, prepares the service and completes delivery in Order history. An unpriced offer waits for an Admin quote before payment. Guests send their saved order reference and selection to Digimium on Telegram. [Admin checkout guide](docs/ADMIN.md#configure-website-checkout)
 
 Customer login supports email/password, configured Google OAuth and configured Telegram code approval; phone remains Coming soon. Existing Google/email customers can link an unclaimed Telegram identity without moving their orders. The giveaway requires that verified link; admin sets its dates and explicitly launches it. See [future login provider setup](docs/LOGIN-PROVIDERS.md) for the required accounts and activation work.
 

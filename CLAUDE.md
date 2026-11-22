@@ -8,7 +8,7 @@ Digimium is a bilingual digital subscription catalog with a persistent browser c
 - Preserve the established blue/lavender gradient, navy panels, colored logos, Manrope, and Wa Lone.
 - Keep current product/plan publication flags unless the owner asks to change them. Do not invent prices or delivery promises.
 - Preserve the red Myanmar checkout guidance and the extra unpriced-selection sentence.
-- Checkout prepares a Telegram draft; customers send it. Do not describe it as automatic messaging or payment processing.
+- Signed-in customers use website checkout for configured service fields, payment instructions and screenshot upload. Admin verifies payment before completing fulfillment. Guests send their order draft in Telegram.
 - Keep `.openai/hosting.json` bound to the existing Site for updates. GitHub pushes and Sites publication are separate actions.
 
 ## Commands

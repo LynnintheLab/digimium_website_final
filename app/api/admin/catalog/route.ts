@@ -62,7 +62,10 @@ export async function PUT(request: Request) {
     return Response.json({ error: "Some catalog details need attention.", issues: parsed.error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })) }, { status: 400, headers: privateHeaders });
   }
   try {
-    await validateLogoReferences(parsed.data.products);
+    await validateLogoReferences([
+      ...parsed.data.products,
+      ...(parsed.data.settings.paymentMethods ?? []).map(method => ({ logoPath: method.qrPath })),
+    ]);
     return Response.json(await saveCatalog(parsed.data), { headers: privateHeaders });
   } catch (error) {
     if (error instanceof CatalogConflictError) return errorResponse(error.message, 409);

@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS digimium_orders (
   revision INT UNSIGNED NOT NULL DEFAULT 1,
   snapshot MEDIUMTEXT NOT NULL,
   fulfillment MEDIUMTEXT NULL,
+  checkout_state MEDIUMTEXT NULL,
+  customer_inputs MEDIUMTEXT NULL,
   UNIQUE KEY orders_customer_request (customer_id, request_id),
   UNIQUE KEY orders_guest_request (guest_key, request_id),
   INDEX orders_customer_created (customer_id, created_at),

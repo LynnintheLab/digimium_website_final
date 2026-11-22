@@ -43,8 +43,8 @@ function CheckoutNote({askAboutPrice, lang, compact = false}: {askAboutPrice: bo
     ? 'ဈေးနှုန်း မဖော်ပြထားသော အစီအစဉ်အတွက် Admin က ဈေးနှုန်း အတည်ပြုပေးပါမယ်။'
     : 'Digimium will confirm the price of any plan marked “Price on enquiry”.'}</p> : null;
   if (commerceEnabled) return <p className="order-checkout-note">{lang === 'my'
-    ? 'ငွေပေးချေမှုနဲ့ service အကောင့်ရယူမှုကို Telegram မှာ ဆက်လုပ်ပါ။'
-    : 'Arrange payment and service delivery in Telegram.'}
+    ? 'အကောင့်ဝင်ပြီး website မှာ ငွေချေကာ ဝန်ဆောင်မှုရယူနိုင်ပါတယ်။ အကောင့်မရှိဘဲ ဝယ်ရန် Telegram ကို ရွေးပါ။'
+    : 'Sign in to pay and receive your service on the website, or choose Telegram to buy without an account.'}
     {askAboutPrice && <><br/>{lang === 'my' ? 'ဈေးနှုန်း မဖော်ပြထားသော အစီအစဉ်အတွက် Admin က ဈေးနှုန်း အတည်ပြုပေးပါမယ်။' : 'Digimium will confirm the price of any plan marked “Price on enquiry”.'}</>}
   </p>;
   return <p lang="my" className="order-checkout-note">
@@ -414,16 +414,24 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       setSubmitting(false);
     }
   }
+  async function continueWebsiteCheckout() {
+    if (inFlight.current || !checkoutRows.length) return;
+    const identity = await checkSession();
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- A fresh document keeps storefront analytics out of private checkout.
+    if (identity.status === 'signed-in') window.location.assign('/checkout');
+    else if (identity.status === 'signed-out') setScreen('auth');
+    else setOrderError(t('We couldn’t check your account. Please try again.', 'အကောင့်ကို စစ်ဆေးမရသေးပါ။ ပြန်ကြိုးစားပါ။'));
+  }
   function changeQuantity(item: CartItem, difference: number) {
     saveCart(cart.map(entry => sameItem(item, entry) ?
       {...entry, quantity: Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, entry.quantity + difference))} : entry));
   }
-  const checkoutAllowed = ready && Boolean(checkoutUrl) && checkoutRows.length > 0 && (screen !== 'product' || Boolean(selected));
+  const checkoutAllowed = ready && (commerceEnabled || Boolean(checkoutUrl)) && checkoutRows.length > 0 && (screen !== 'product' || Boolean(selected));
   const checkoutControl = commerceEnabled
     ? <button type="button" className="order-action order-primary" disabled={!checkoutAllowed || submitting} onClick={() => {
         if (screen === 'product') { saveCart(effectiveCart); begin('cart'); }
-        else void placeOrder();
-      }}>{screen === 'product' ? t('Buy', 'ဝယ်ယူမည်') : submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Place order', 'Order တင်မည်')}<ArrowUpRight size={17}/></button>
+        else void continueWebsiteCheckout();
+      }}>{screen === 'product' ? t('Buy', 'ဝယ်ယူမည်') : submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Continue to checkout', 'အော်ဒါ ဆက်တင်မယ်')}<ArrowUpRight size={17}/></button>
     : checkoutAllowed
     ? <a className="order-action order-primary" href={checkoutUrl} target="_blank" rel="noopener noreferrer" onClick={checkout}>
         {t('Buy on Telegram', 'ဝယ်ယူမည်')}<ArrowUpRight size={17}/>
@@ -505,10 +513,10 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
             {accountNotice && sessionState.status === 'signed-in' && <p className="order-account-notice" role="status">{t('You’re signed in. Review your order before continuing.', 'အကောင့်ဝင်ပြီးပါပြီ။ အော်ဒါကို ပြန်စစ်နိုင်ပါတယ်။')}</p>}
             {commerceEnabled ? sessionState.status === 'checking' ? <p className="order-session-status" role="status">{t('Checking your account…', 'အကောင့် စစ်ဆေးနေသည်…')}</p>
               : sessionState.status === 'failed' ? <div className="order-session-error"><p className="order-checkout-note" role="alert">{t('We couldn’t check your account. Please try again.', 'အကောင့်ကို စစ်ဆေးမရသေးပါ။ ပြန်ကြိုးစားပါ။')}</p><button type="button" className="order-action order-secondary" onClick={() => void checkSession()}><RefreshCw size={16}/>{t('Try again', 'ပြန်စမ်းမယ်')}</button></div>
-              : sessionState.status === 'signed-in' ? <div className="order-actions order-place-action"><button type="button" className="order-action order-primary" disabled={!checkoutAllowed || submitting} onClick={() => void placeOrder()}>{submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Place order', 'Order တင်မည်')}<ArrowUpRight size={17}/></button></div>
+              : sessionState.status === 'signed-in' ? <div className="order-actions order-place-action"><button type="button" className="order-action order-primary" disabled={!checkoutAllowed || submitting} onClick={() => void continueWebsiteCheckout()}>{submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Continue to checkout', 'အော်ဒါ ဆက်တင်မယ်')}<ArrowUpRight size={17}/></button></div>
               : <div className="order-actions order-purchase-options">
                 <button type="button" className="order-action order-secondary" disabled={!checkoutAllowed || submitting} onClick={() => { setOrderError(''); setScreen('auth'); }}><strong>{t('Create account', 'အကောင့်ဖွင့်မည်')}</strong></button>
-                <button type="button" className="order-action order-primary" disabled={!checkoutAllowed || submitting} onClick={() => { setOrderError(''); setScreen('guest'); }}><strong>{t('Buy on Telegram', 'Telegram မှဝယ်မည်')}</strong></button>
+                <button type="button" className="order-action order-primary" disabled={!checkoutAllowed || !checkoutUrl || submitting} onClick={() => { setOrderError(''); setScreen('guest'); }}><strong>{t('Buy on Telegram', 'Telegram မှဝယ်မည်')}</strong></button>
               </div> : <div className="order-actions"><button type="button" className="order-action order-secondary" onClick={closeOrder}>{t('Keep browsing', 'ဆက်လက် ရွေးချယ်ရန်')}</button>{checkoutControl}</div>}
           </footer>
         </> : <div className="order-empty"><ShoppingBag size={30}/><p>{t('Your cart is empty. Choose a product and add a plan.', 'ဈေးခြင်းထဲမှာ ပစ္စည်း မရှိသေးပါ။ ဝန်ဆောင်မှုတစ်ခု ရွေးပြီး အစီအစဉ်ကို ထည့်လိုက်ပါ။')}</p>{orderError && <p className="order-checkout-note" role="alert">{orderError}</p>}{commerceEnabled && savedReceipt && <button className="order-action order-primary" onClick={() => void resumeReceipt()}>{t('View saved order', 'သိမ်းထားတဲ့ အော်ဒါ ကြည့်မယ်')}</button>}<button className="order-action order-secondary" onClick={closeOrder}>{t('Browse products', 'ပစ္စည်းများ ကြည့်ရန်')}</button></div>)}
@@ -531,7 +539,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
           </div>
           <footer className="order-footer order-guest-footer">
             {orderError && <p className="order-checkout-note" role="alert">{orderError}</p>}
-            <button type="button" className="order-action order-primary" aria-describedby="order-guest-notice" disabled={submitting || !checkoutAllowed} onClick={() => void placeOrder(true)}>{submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Buy on Telegram', 'Telegram မှဝယ်ယူမည်')}<ArrowUpRight size={17}/></button>
+            <button type="button" className="order-action order-primary" aria-describedby="order-guest-notice" disabled={submitting || !checkoutAllowed || !checkoutUrl} onClick={() => void placeOrder(true)}>{submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Buy on Telegram', 'Telegram မှဝယ်ယူမည်')}<ArrowUpRight size={17}/></button>
             <button type="button" className="order-guest-back" disabled={submitting} onClick={() => { setOrderError(''); setSessionState({status: 'checking', customerId: null}); setScreen('cart'); }}>{t('Back to cart', 'ဈေးခြင်းသို့ ပြန်ရန်')}</button>
           </footer>
         </>}

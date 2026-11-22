@@ -6,9 +6,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleAlert, Eye, EyeOff,
   LayoutGrid, LoaderCircle, LogOut, Mail, Plus, RotateCcw, Save, Search,
-  Settings, ShoppingBag, Sparkles, Users, X, Gift,
+  Settings, ShoppingBag, Sparkles, Users, X, Gift, CreditCard,
 } from 'lucide-react';
 import { categories, type Catalog, type CatalogSettings, type Product } from '@/lib/catalog';
+import { customerFieldSchema, paymentMethodSchema } from '@/lib/catalog-validation';
 
 import { DEFAULT_TELEGRAM_CONTACT, resolveTelegramContact, validTelegramUsername } from '@/lib/telegram-contact';
 import { discountPriceError } from '@/lib/pricing';
@@ -19,6 +20,8 @@ import DurationField from './duration-field';
 import PriceField from './price-field';
 import { PlanEditor, planFieldId } from './plan-editor';
 import { LogoEditor, ServiceMark } from './logo-editor';
+import RequestedInformationEditor, { requestedFieldId } from './requested-information-editor';
+import PaymentSettings from './payment-settings';
 
 type Feedback = { message: string; kind: 'load' | 'save' | 'conflict' | 'auth' | 'validation'; status?: number };
 type ValidationIssue = { message: string; productId?: string; field: string };
@@ -38,6 +41,11 @@ function sameContent(a: Catalog | null, b: Catalog | null) {
 function validateCatalog(catalog: Catalog): ValidationIssue | null {
   const unsafeText = /[<>\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]|(?:[a-z][a-z\d+.-]*:\/\/|\b(?:javascript|data|vbscript|mailto):|\bwww\.)/i;
   for (const product of catalog.products) {
+    const checkoutFields = [...(product.checkoutFields ?? []), ...(product.plans ?? []).flatMap(plan => plan.checkoutFields ?? [])];
+    for (const field of checkoutFields) {
+      const validation = customerFieldSchema.safeParse(field);
+      if (!validation.success) return { message: `${product.name} — ${validation.error.issues[0].message}`, productId: product.id, field: requestedFieldId(field.id) };
+    }
     if (!product.name.trim()) return { message: 'Give this service a name before saving.', productId: product.id, field: 'service-name' };
     if (!product.description.trim()) return { message: `Add a description for ${product.name} before saving.`, productId: product.id, field: 'service-description' };
     for (const [field, value] of Object.entries({ name: product.name, description: product.description, mm: product.mm, price: product.price, duration: product.duration })) {
@@ -66,6 +74,14 @@ function validateCatalog(catalog: Catalog): ValidationIssue | null {
     return { message: 'Enter the Telegram username for order messages, such as @LynnIsHeree.', field: 'contact-telegram' };
   }
   if (!catalog.settings.viberLabel.trim()) return { message: 'Add the Viber number as you want customers to see it.', field: 'contact-viber-label' };
+  for (const method of catalog.settings.paymentMethods ?? []) {
+    const validation = paymentMethodSchema.safeParse(method);
+    if (!validation.success) {
+      const issue = validation.error.issues[0];
+      const field = issue.path[0] === 'accountNumber' ? 'number' : issue.path[0] === 'mmkPerUsdt' ? 'rate' : issue.path[0] === 'instructions' ? 'instructions' : 'name';
+      return { message: issue.message, field: `payment-${method.id}-${field}` };
+    }
+  }
   return null;
 }
 
@@ -74,7 +90,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
   const [draft, setDraft] = useState<Catalog | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showServiceEditor, setShowServiceEditor] = useState(false);
-  const [view, setView] = useState<'services' | 'settings' | 'orders' | 'customers' | 'giveaway'>('services');
+  const [view, setView] = useState<'services' | 'settings' | 'payments' | 'orders' | 'customers' | 'giveaway'>('services');
   const [orderCustomerId, setOrderCustomerId] = useState<string | null>(null);
   const [orderDirty, setOrderDirty] = useState(false);
   const [search, setSearch] = useState('');
@@ -200,7 +216,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
     if (issue) {
       setFeedback({ message: issue.message, kind: 'validation' });
       if (issue.productId) { setView('services'); setSelectedId(issue.productId); setShowServiceEditor(true); }
-      else setView('settings');
+      else setView(issue.field.startsWith('payment-') ? 'payments' : 'settings');
       requestAnimationFrame(() => document.getElementById(issue.field)?.focus());
       return;
     }
@@ -240,7 +256,8 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
   const pages = {
     services: ['Service catalog', 'A little care for your digital collection.'],
     settings: ['Contact settings', 'Keep it easy for customers to reach you.'],
-    orders: ['Orders', 'Match Telegram orders and record subscription dates.'],
+    payments: ['Payment methods', 'Manage merchant destinations and checkout payment instructions.'],
+    orders: ['Orders', 'Review payments, deliver purchases and record subscription dates.'],
     customers: ['Customers', 'View registered customers and their orders.'],
     giveaway: ['Giveaways', 'Set the schedule and review verified entries.'],
   };
@@ -255,6 +272,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
         {commerceEnabled && <>
           <button type="button" onClick={() => navigate('orders')} aria-current={view === 'orders' ? 'page' : undefined}><ShoppingBag size={18} />Orders</button>
           <button type="button" onClick={() => navigate('customers')} aria-current={view === 'customers' ? 'page' : undefined}><Users size={18} />Customers</button>
+          <button type="button" onClick={() => navigate('payments')} aria-current={view === 'payments' ? 'page' : undefined}><CreditCard size={18} />Payment methods</button>
           <button type="button" onClick={() => navigate('giveaway')} aria-current={view === 'giveaway' ? 'page' : undefined}><Gift size={18} />Giveaways</button>
         </>}
         <button type="button" onClick={() => navigate('settings')} aria-current={view === 'settings' ? 'page' : undefined}><Settings size={18} />Contact settings</button>
@@ -272,7 +290,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
       <header className="admin-page-header">
         <div><h1>{pages[view][0]}</h1><p>{pages[view][1]}</p></div>
         {!commerceView && view !== 'giveaway' && <div className="admin-header-actions">
-          <span className={`admin-save-state ${dirty ? 'is-dirty' : ''}`} aria-live="polite">{uploadingLogo ? 'Uploading logo…' : saving ? 'Saving changes…' : dirty ? 'Unsaved changes' : draft ? 'All changes saved' : ''}</span>
+          <span className={`admin-save-state ${dirty ? 'is-dirty' : ''}`} aria-live="polite">{uploadingLogo ? 'Uploading image…' : saving ? 'Saving changes…' : dirty ? 'Unsaved changes' : draft ? 'All changes saved' : ''}</span>
           <button className="admin-button admin-button-secondary admin-revert" type="button" disabled={!dirty || saving || loading || uploadingLogo} onClick={discardChanges}><RotateCcw size={16} />Revert</button>
           <button className="admin-button admin-button-primary" type="submit" form="admin-catalog-form" disabled={!dirty || saving || loading || uploadingLogo || feedback?.kind === 'conflict'}>{saving ? <LoaderCircle size={16} className="admin-spinner" /> : <Save size={16} />}<span>{saving ? 'Saving…' : 'Save changes'}</span></button>
         </div>}
@@ -328,7 +346,11 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
                     <label className="admin-field admin-field-wide" htmlFor="service-availability">Availability<select id="service-availability" value={selected.availability} onChange={event => updateProduct({ availability: event.target.value as Product['availability'] })}><option value="available">Available</option><option value="on-request">Check availability on request</option><option value="unavailable">Temporarily unavailable</option></select></label>
                   </div>
                 </div>
-                <PlanEditor key={`plans-${selected.id}-${saved?.revision}-${editorReset}`} plans={selected.plans ?? []} disabled={saving} onChange={plans => updateProduct({ plans })} />
+                {commerceEnabled && <div className="admin-form-section"><RequestedInformationEditor
+                  key={`fields-${selected.id}-${saved?.revision}-${editorReset}`} fields={selected.checkoutFields}
+                  disabled={saving} onChange={checkoutFields => updateProduct({ checkoutFields })}/></div>}
+                <PlanEditor key={`plans-${selected.id}-${saved?.revision}-${editorReset}`} plans={selected.plans ?? []} disabled={saving}
+                  checkoutFields={commerceEnabled ? selected.checkoutFields ?? [] : undefined} onChange={plans => updateProduct({ plans })} />
                 <div className="admin-form-section admin-publishing">
                   <h3>On your website</h3>
                   <label className="admin-toggle-row"><span><strong>Publish this service</strong><span>Show it in your public service catalog.</span></span><input type="checkbox" className="admin-switch" checked={selected.published} onChange={event => updateProduct({ published: event.target.checked })} /></label>
@@ -342,7 +364,12 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
               </fieldset></form>
             </> : <div className="admin-editor-empty"><LayoutGrid size={32} /><h2>Make your collection yours.</h2><p>Select a service to update its details, or add something new.</p><button type="button" className="admin-button admin-button-primary" onClick={addService} disabled={saving || draft.products.length >= 100}><Plus size={17} />Add a service</button><form id="admin-catalog-form" onSubmit={event => { event.preventDefault(); void saveCatalog(); }} /></div>}
           </section>
-        </div> : <section className="admin-settings-panel"><div className="admin-settings-intro"><div className="admin-settings-icon"><Mail size={24} /></div><h2>A direct line to Digimium.</h2><p>These contact details appear on your website and in service enquiries.</p></div><form id="admin-catalog-form" noValidate onSubmit={event => { event.preventDefault(); void saveCatalog(); }}><fieldset disabled={saving}><div className="admin-form-section"><label className="admin-field" htmlFor="contact-telegram">Telegram order username
+        </div> : view === 'payments' ? <section className="admin-settings-panel">
+          <form id="admin-catalog-form" noValidate onSubmit={event => { event.preventDefault(); void saveCatalog(); }}>
+            <div className="admin-form-section"><PaymentSettings value={draft.settings.paymentMethods ?? []} disabled={saving}
+              onChange={paymentMethods => updateSettings({ paymentMethods })} onBusyChange={trackLogoUpload}/></div>
+          </form>
+        </section> : <section className="admin-settings-panel"><div className="admin-settings-intro"><div className="admin-settings-icon"><Mail size={24} /></div><h2>A direct line to Digimium.</h2><p>These contact details appear on your website and in service enquiries.</p></div><form id="admin-catalog-form" noValidate onSubmit={event => { event.preventDefault(); void saveCatalog(); }}><fieldset disabled={saving}><div className="admin-form-section"><label className="admin-field" htmlFor="contact-telegram">Telegram order username
               <input id="contact-telegram" required value={draft.settings.telegram ?? DEFAULT_TELEGRAM_CONTACT} maxLength={33} autoCapitalize="none" spellCheck={false} autoComplete="off" placeholder="@LynnIsHeree" onChange={event => updateSettings({ telegram: event.target.value })} />
               <small>{commerceEnabled ? 'Customers can contact this Telegram account with order questions.' : 'Checkout opens a direct conversation with this Telegram account.'}</small>
             </label><label className="admin-field" htmlFor="contact-email">Contact email<input id="contact-email" type="email" maxLength={254} required value={draft.settings.email} placeholder="hello@example.com" autoComplete="email" onChange={event => updateSettings({ email: event.target.value })} /></label><label className="admin-field" htmlFor="contact-viber">Viber phone number<input id="contact-viber" type="tel" maxLength={16} required value={draft.settings.viber} placeholder="+959123456789" autoComplete="tel" onChange={event => updateSettings({ viber: event.target.value })} /><small>Use your country code and digits, with no spaces. This opens your Viber chat.</small></label><label className="admin-field" htmlFor="contact-viber-label">Viber display number<input id="contact-viber-label" maxLength={80} required value={draft.settings.viberLabel} placeholder="+95 9 123 456 789" onChange={event => updateSettings({ viberLabel: event.target.value })} /><small>The readable number customers see on your website.</small></label></div><div className="admin-editor-footer"><p>Changes go live when you save.</p><a className="admin-text-button" href="/#contact" target="_blank" rel="noopener noreferrer">View contact section<ArrowUpRight size={16} /></a></div></fieldset></form></section>}

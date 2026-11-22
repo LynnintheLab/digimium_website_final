@@ -20,6 +20,8 @@
 .commerce-status { display: inline-flex; width: fit-content; border-radius: 5px; padding: 2px 8px; color: #754609; background: #fff0ce; font-size: 12px; font-weight: 650; }
 .commerce-status[data-status=approved] { color: #165b43; background: #def6ea; }
 .commerce-status[data-status=rejected] { color: var(--admin-ink); background: var(--soft); }
+.commerce-status[data-stage=processing] { color: #174d85; background: #e2efff; }
+.commerce-status[data-stage=payment_rejected] { color: #8d2630; background: #ffe8eb; }
 .commerce-empty { padding: 24px; color: var(--admin-muted); }
 .admin-commerce .commerce-fieldset { margin: 0; min-width: 0; border: 0; padding: 0; }
 .commerce-item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .9fr); gap: 12px 30px; align-items: center; padding: 22px 28px; }
@@ -186,4 +188,172 @@
   .commerce-create-price-grid { grid-template-columns: 1fr; }
   .commerce-create .commerce-save-actions { flex-direction: column-reverse; }
   .commerce-create .commerce-save-actions > button { width: 100%; }
+}
+
+.commerce-checkout-review,
+.commerce-customer-inputs {
+  display: grid;
+  justify-items: start;
+  gap: 18px;
+  padding: 22px 28px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.commerce-checkout-review > h3,
+.commerce-customer-inputs > h3 {
+  font-size: 17px;
+}
+
+.commerce-checkout-review p,
+.commerce-customer-inputs p {
+  max-width: 70ch;
+  color: var(--admin-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.commerce-payment-facts,
+.commerce-customer-input-unit dl {
+  display: grid;
+  width: 100%;
+  gap: 12px;
+  margin: 0;
+}
+
+.commerce-payment-facts > div,
+.commerce-customer-input-unit dl > div {
+  display: grid;
+  grid-template-columns: minmax(100px, 150px) minmax(0, 1fr);
+  align-items: start;
+  gap: 8px 18px;
+  font-size: 14px;
+}
+
+.commerce-payment-facts dt,
+.commerce-customer-input-unit dt {
+  color: var(--admin-muted);
+}
+
+.commerce-payment-facts dd,
+.commerce-customer-input-unit dd {
+  min-width: 0;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.commerce-customer-input-unit {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  padding-block: 14px;
+  border-top: 1px solid var(--admin-line);
+}
+
+.commerce-customer-input-unit dd {
+  display: flex;
+  align-items: start;
+  gap: 12px;
+}
+
+.commerce-customer-input-unit dd > span {
+  min-width: 0;
+  flex: 1;
+}
+
+.commerce-customer-input-unit dd > button {
+  flex: none;
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
+  margin-top: -10px;
+}
+
+.commerce-payment-proof {
+  display: grid;
+  gap: 10px;
+  max-width: 100%;
+  color: var(--admin-blue);
+}
+
+.commerce-payment-proof > img {
+  display: block;
+  width: min(360px, 100%);
+  height: auto;
+  max-height: 440px;
+  object-fit: contain;
+  background: var(--soft);
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+}
+
+.commerce-payment-proof > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.admin-commerce .commerce-payment-decision,
+.admin-commerce .commerce-quote-fields {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.commerce-payment-decision > legend,
+.commerce-quote-fields > legend {
+  margin-bottom: 14px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.commerce-payment-decision textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: var(--canvas);
+  color: var(--admin-ink);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.commerce-quote-fields > button {
+  width: fit-content;
+}
+
+.commerce-quote-total {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 18px;
+  width: 100%;
+}
+
+.commerce-quote-total strong {
+  color: var(--admin-ink);
+}
+
+.commerce-payment-note {
+  white-space: pre-wrap;
+}
+
+@media (max-width: 620px) {
+  .commerce-checkout-review,
+  .commerce-customer-inputs {
+    padding: 20px 16px;
+  }
+
+  .commerce-payment-facts > div,
+  .commerce-customer-input-unit dl > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
