@@ -11,10 +11,18 @@ import mysql from 'mysql2/promise';
 import { checkoutPaymentMethods } from '../lib/demo-payments.ts';
 
 const demoMode = process.env.TEST_CHECKOUT_DEMO === '1';
+const orderBotMode = process.env.TEST_CHECKOUT_ORDER_BOT === '1';
 const env = { ...process.env, ADMIN_EMAIL: 'owner@example.invalid', ADMIN_AUTH_SECRET: randomUUID(),
   ORDER_FULFILLMENT_SECRET: randomUUID(), RESEND_FROM_EMAIL: 'digimium@example.invalid', RESEND_API_KEY: 're_integration_fixture',
   GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', TELEGRAM_BOT_TOKEN: '', TELEGRAM_BOT_USERNAME: '', TELEGRAM_WEBHOOK_SECRET: '',
-  ADMIN_TELEGRAM_BOT_TOKEN: '', ADMIN_TELEGRAM_CHAT_ID: '' };
+  ADMIN_TELEGRAM_BOT_TOKEN: orderBotMode ? 'legacy_fixture_must_not_receive_order_alerts' : '',
+  ADMIN_TELEGRAM_CHAT_ID: orderBotMode ? '123456789' : '',
+  ORDER_ALERTS_TELEGRAM_BOT_TOKEN: orderBotMode ? '99990001:order_alerts_fixture_1234567890' : '',
+  ORDER_ALERTS_TELEGRAM_CHAT_ID: orderBotMode ? '987654321' : '',
+  ORDER_ALERTS_TELEGRAM_PAYMENT_TOPIC_ID: orderBotMode ? '11' : '',
+  ORDER_ALERTS_TELEGRAM_ORDERS_TOPIC_ID: orderBotMode ? '12' : '',
+  ORDER_ALERTS_TELEGRAM_REGISTRATION_TOPIC_ID: orderBotMode ? '13' : '',
+  NOTIFICATIONS_CRON_SECRET: randomUUID(), FIXTURE_ORDER_ALERT_FAILURE: '0' };
 const base = new URL(env.APP_ORIGIN || 'http://invalid');
 assert.ok(base.origin === env.APP_ORIGIN && base.protocol === 'http:' && base.hostname === '127.0.0.1' && base.port &&
   env.DB_HOST === '127.0.0.1' && /^digimium_test_[a-z0-9_]+$/.test(env.DB_NAME) && env.DB_USER && env.DB_PASSWORD,
@@ -68,6 +76,32 @@ const adminPath = id => '/api/admin/commerce/' + id;
 const proof = (id, revision, requestId, session, body = png, mime = 'image/png', origin = applicationOrigin) => request(
   orderPath(id) + '/proof?revision=' + revision + '&requestId=' + requestId,
   { method: 'POST', headers: { Cookie: session, Origin: origin, 'Content-Type': mime }, body });
+const orderAlerts = () => messages.filter(message => message.type === 'order-alert');
+const alertsFor = (thread, id) => orderAlerts().filter(message => message.fields.message_thread_id === thread &&
+  message.fields.text.includes(id.replaceAll('-', '').slice(0, 8).toUpperCase()));
+async function alertMode(mode) {
+  const id = randomUUID();
+  await new Promise((resolve, reject) => {
+    const received = message => {
+      if (message.type !== 'order-alert-control' || message.id !== id) return;
+      clearTimeout(deadline);
+      server.off('message', received);
+      resolve();
+    };
+    const deadline = setTimeout(() => {
+      server.off('message', received);
+      reject(new Error('The notification fixture did not acknowledge its mode.'));
+    }, 5000);
+    server.on('message', received);
+    server.send({ type: 'order-alert-control', id, mode });
+  });
+}
+async function expectAlerts(thread, id, count) {
+  for (let attempt = 0; attempt < 100 && alertsFor(thread, id).length < count; attempt++) await delay(10);
+  assert.equal(alertsFor(thread, id).length, count);
+}
+const runNotificationJob = () => request('/api/internal/notifications/run', { method: 'POST',
+  headers: { Authorization: 'Bearer ' + env.NOTIFICATIONS_CRON_SECRET } }).then(response => json(response));
 
 try {
   assert.equal((await db.query('SHOW TABLES'))[0].length, 0, 'Refusing to mutate an initialized database.');
@@ -86,7 +120,7 @@ try {
     productName: 'Earlier guest order', planName: null, duration: '1 month', price: '1000 MMK', quantity: 1 }], totalMmk: 1000 });
   await db.execute(`INSERT INTO digimium_orders (id, customer_id, guest_key, request_id, request_hash, created_at, snapshot)
     VALUES (?, NULL, ?, ?, ?, ?, ?)`, [guestId, randomBytes(32), randomUUID(), randomBytes(32), new Date().toISOString(), oldSnapshot]);
-  server = spawn(process.execPath, ['--import', new URL('tests/fixtures/resend-fetch.mjs', root).href,
+  server = spawn(process.execPath, ['--import', new URL(orderBotMode ? 'tests/fixtures/order-alerts-fetch.mjs' : 'tests/fixtures/resend-fetch.mjs', root).href,
     fileURLToPath(new URL('.next/standalone/server.js', root))], {
     cwd: fileURLToPath(root), env: { ...env, FIXTURE_MAIL_FAILURE: '0', NODE_ENV: 'production', HOSTNAME: base.hostname, PORT: base.port },
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
@@ -108,6 +142,24 @@ try {
   const legacy = await json(await get(adminPath(guestId), owner));
   assert.equal(legacy.order.checkout, undefined);
   assert.deepEqual(legacy.customerInputs, []);
+  const legacyAlertId = randomUUID();
+  if (orderBotMode) {
+    const legacyPayload = { kind: 'customer-created', dedupeKey: 'legacy-fixture:' + legacyAlertId,
+      entityId: alice.id, customerName: 'Private legacy fixture' };
+    await db.execute(`INSERT INTO digimium_notification_outbox (id, dedupe_key, kind, entity_id, payload, created_at, next_attempt_at)
+      VALUES (?, ?, 'customer-created', ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+    [legacyAlertId, legacyPayload.dedupeKey, alice.id, JSON.stringify(legacyPayload)]);
+    const registration = { action: 'register', name: 'Private Registration Fixture',
+      email: 'private-registration@example.invalid', password: 'private-registration-fixture-password' };
+    const registered = await json(await mutate('/api/customer/session', 'POST', registration), 201);
+    await expectAlerts(13, registered.customer.id, 1);
+    await json(await mutate('/api/customer/session', 'POST', { ...registration, action: 'login' }));
+    assert.equal(alertsFor(13, registered.customer.id).length, 1, 'Signing in does not create another registration alert');
+    const [[registrationOutbox]] = await db.execute('SELECT kind, sent_at FROM digimium_notification_outbox WHERE dedupe_key = ?',
+      ['customer-created:' + registered.customer.id]);
+    assert.equal(registrationOutbox.kind, 'bot:customer-created');
+    assert.ok(registrationOutbox.sent_at);
+  }
   const original = await json(await get('/api/admin/catalog', owner));
   const fields = [{ id: 'email', label: 'Service email', type: 'email', required: true },
     { id: 'password', label: 'Service password', type: 'password', required: true }];
@@ -164,6 +216,10 @@ try {
     }
     const exampleProof = Buffer.from(await (await get(demoOrder.checkout.payment.method.qrPath)).arrayBuffer());
     demoOrder = (await json(await proof(demoOrder.id, demoOrder.revision, randomUUID(), alice.cookie, exampleProof))).order;
+    if (orderBotMode) {
+      await expectAlerts(11, demoOrder.id, 1);
+      assert.match(alertsFor(11, demoOrder.id)[0].fields.text, /^Demo payment proof/);
+    }
     demoOrder = (await json(await mutate(adminPath(demoOrder.id), 'PATCH',
       { action: 'payment-approve', revision: demoOrder.revision }, owner))).order;
     demoOrder = (await json(await mutate(adminPath(demoOrder.id), 'PATCH', { revision: demoOrder.revision,
@@ -241,6 +297,7 @@ try {
   assert.deepEqual(concurrent.map(response => response.status).sort(), [200, 201]);
   const saved = await Promise.all(concurrent.map(response => json(response, response.status)));
   let order = saved[0].order;
+  if (orderBotMode) await expectAlerts(12, order.id, 1);
   assert.equal(saved[1].order.id, order.id);
   assert.equal(order.totalMmk, 2468);
   assert.equal(order.checkout.stage, 'awaiting_payment');
@@ -265,6 +322,7 @@ try {
   await json(await create({ ...input, items: [{ ...input.items[0], quantity: 1, inputs: [input.items[0].inputs[0]] }] }), 409);
   catalog = await json(await save([{ ...product, name: 'Changed catalog name' }, inquiry, free], settings, catalog.revision));
   assert.equal(JSON.stringify((await json(await create())).order.lines), snapshotAtCreation, 'Exact retry recovers the old snapshot after catalog edits');
+  if (orderBotMode) await expectAlerts(12, order.id, 1);
   assert.equal((await json(await get('/api/customer/checkout?requestId=' + input.requestId, alice.cookie))).order.id, order.id);
   await json(await get('/api/customer/checkout?requestId=' + input.requestId, bob.cookie), 404);
   const fulfill = revision => ({ revision, lines: order.lines.map(line => ({ id: line.id, startDate: '2028-01-01', endDate: '2028-02-01',
@@ -296,6 +354,17 @@ try {
   assert.deepEqual(uploaded[0], uploaded[1]);
   order = uploaded[0].order;
   assert.equal(order.checkout.stage, 'payment_review');
+  if (orderBotMode) {
+    await expectAlerts(11, order.id, 1);
+    const [outboxProof] = await db.execute('SELECT kind, payload, sent_at FROM digimium_notification_outbox WHERE dedupe_key = ?',
+      ['payment-proof-submitted:' + order.id + ':' + firstProofId]);
+    assert.equal(outboxProof.length, 1, 'Concurrent retries queue one payment review event');
+    assert.equal(outboxProof[0].kind, 'bot:payment-proof-submitted');
+    assert.ok(outboxProof[0].sent_at);
+    assert.deepEqual(Object.keys(JSON.parse(outboxProof[0].payload)).sort(), [
+      'dedupeKey', 'demo', 'entityId', 'kind', 'orderReference', 'paymentAmount', 'paymentCurrency', 'paymentMethod', 'proofRequestId',
+    ].sort());
+  }
   await json(await proof(order.id, uploadRevision, firstProofId, alice.cookie, anotherPng), 409);
   await json(await proof(order.id, order.revision, randomUUID(), alice.cookie), 409);
   await json(await get(order.checkout.payment.proofUrl), 401);
@@ -317,8 +386,10 @@ try {
   const replacementId = randomUUID();
   order = (await json(await proof(order.id, order.revision, replacementId, alice.cookie, anotherPng))).order;
   assert.equal(order.checkout.stage, 'payment_review');
+  if (orderBotMode) await expectAlerts(11, order.id, 2);
   assert.equal((await json(await proof(order.id, uploadRevision, firstProofId, alice.cookie))).order.revision, order.revision,
     'An old upload retry never replaces the newer proof');
+  if (orderBotMode) await expectAlerts(11, order.id, 2);
   order = (await json(await mutate(adminPath(order.id), 'PATCH', { action: 'payment-approve', revision: order.revision, note: 'Payment checked.' }, owner))).order;
   assert.equal(order.checkout.stage, 'processing');
   assert.equal(order.status, 'pending');
@@ -395,12 +466,94 @@ try {
       await json(removed);
     }
   }
+  if (orderBotMode) {
+    let retryOrder = (await json(await create({ requestId: randomUUID(), expectedCatalogRevision: catalog.revision,
+      items: [{ productId: product.id, planId: 'provided', quantity: 1 }] }), 201)).order;
+    retryOrder = (await json(await mutate(orderPath(retryOrder.id) + '/payment', 'PATCH',
+      { revision: retryOrder.revision, methodId: 'kpay' }, alice.cookie))).order;
+    const retryProofId = randomUUID();
+    const retryRevision = retryOrder.revision;
+    const retryKey = 'payment-proof-submitted:' + retryOrder.id + ':' + retryProofId;
+    await alertMode('http-error');
+    retryOrder = (await json(await proof(retryOrder.id, retryRevision, retryProofId, alice.cookie))).order;
+    assert.equal(retryOrder.checkout.stage, 'payment_review', 'A provider failure cannot discard saved payment proof');
+    await expectAlerts(11, retryOrder.id, 1);
+    assert.equal(alertsFor(11, retryOrder.id)[0].delivery, 'http-error');
+    let [[retryRow]] = await db.execute('SELECT attempts, sent_at, last_error FROM digimium_notification_outbox WHERE dedupe_key = ?', [retryKey]);
+    assert.equal(retryRow.attempts, 1);
+    assert.equal(retryRow.sent_at, null);
+    assert.equal(retryRow.last_error, 'delivery-failed');
+    await json(await proof(retryOrder.id, retryRevision, retryProofId, alice.cookie));
+    await expectAlerts(11, retryOrder.id, 1);
+    await alertMode('success');
+    await db.execute('UPDATE digimium_notification_outbox SET next_attempt_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 SECOND) WHERE dedupe_key = ?', [retryKey]);
+    assert.equal((await runNotificationJob()).alerts.sent, 1);
+    await expectAlerts(11, retryOrder.id, 2);
+    [[retryRow]] = await db.execute('SELECT attempts, sent_at, last_error FROM digimium_notification_outbox WHERE dedupe_key = ?', [retryKey]);
+    assert.equal(retryRow.attempts, 2);
+    assert.ok(retryRow.sent_at);
+    assert.equal(retryRow.last_error, null);
+
+    retryOrder = (await json(await mutate(adminPath(retryOrder.id), 'PATCH',
+      { action: 'payment-reject', revision: retryOrder.revision, note: 'Private retry review note.' }, owner))).order;
+    const staleProofId = randomUUID();
+    const staleKey = 'payment-proof-submitted:' + retryOrder.id + ':' + staleProofId;
+    await alertMode('ok-false');
+    retryOrder = (await json(await proof(retryOrder.id, retryOrder.revision, staleProofId, alice.cookie))).order;
+    await expectAlerts(11, retryOrder.id, 3);
+    const [[falseResponse]] = await db.execute('SELECT sent_at, last_error FROM digimium_notification_outbox WHERE dedupe_key = ?', [staleKey]);
+    assert.equal(falseResponse.sent_at, null, 'HTTP 200 with Telegram ok:false remains a failed delivery');
+    assert.equal(falseResponse.last_error, 'delivery-failed');
+    retryOrder = (await json(await mutate(adminPath(retryOrder.id), 'PATCH',
+      { action: 'payment-approve', revision: retryOrder.revision }, owner))).order;
+    assert.equal(retryOrder.checkout.stage, 'processing');
+    await alertMode('success');
+    await db.execute('UPDATE digimium_notification_outbox SET next_attempt_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 SECOND) WHERE dedupe_key = ?', [staleKey]);
+    await db.query("UPDATE digimium_notification_jobs SET last_run_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 31 SECOND) WHERE name = 'runner'");
+    const callsBeforeCancellation = orderAlerts().length;
+    assert.equal((await runNotificationJob()).alerts.sent, 0);
+    assert.equal(orderAlerts().length, callsBeforeCancellation, 'Already-reviewed proof does not produce a delayed review alert');
+    const [[cancelled]] = await db.execute('SELECT cancelled_at, payload, last_error FROM digimium_notification_outbox WHERE dedupe_key = ?', [staleKey]);
+    assert.ok(cancelled.cancelled_at);
+    assert.equal(cancelled.payload, '{}');
+    assert.equal(cancelled.last_error, 'proof-superseded');
+
+    const [[legacyAlert]] = await db.execute('SELECT attempts, sent_at FROM digimium_notification_outbox WHERE id = ?', [legacyAlertId]);
+    assert.equal(legacyAlert.attempts, 0, 'Dedicated routing never drains the legacy bot queue');
+    assert.equal(legacyAlert.sent_at, null);
+    const privateValues = [...secrets, '@example.invalid', 'CheckoutFixture', 'CheckoutRace', 'PaymentCascadeFixture',
+      'bounded-fixture-secret', 'constructor-fixture', 'Private Registration Fixture', 'private-registration@example.invalid',
+      'private-registration-fixture-password', 'delivered@example.invalid', 'delivered-fixture-secret',
+      'demo-delivery@example.invalid', 'demo-delivery-fixture', 'Please upload a clear receipt.', 'Payment checked.',
+      'Private retry review note.', firstProofId, replacementId, ...methods.map(method => method.accountNumber)];
+    for (const alert of orderAlerts()) {
+      const payload = JSON.stringify(alert.fields);
+      for (const value of privateValues) assert.ok(!payload.includes(value), 'Provider alerts contain no customer details, credentials, receipt reference or review notes');
+      assert.ok(!payload.includes('/proof') && !payload.includes('proofUrl'));
+      if (demoMode) {
+        const button = alert.fields.reply_markup?.inline_keyboard?.[0]?.[0];
+        assert.ok(button);
+        const target = new URL(button.url);
+        assert.equal(target.origin, applicationOrigin);
+        assert.equal(target.pathname, '/admin');
+        if (alert.fields.message_thread_id === 13) assert.equal(target.search, '?section=customers');
+        else {
+          assert.match(target.searchParams.get('order'), /^[a-f0-9-]{36}$/);
+          assert.deepEqual([...target.searchParams.keys()], ['order']);
+        }
+      } else assert.equal(alert.fields.reply_markup, undefined, 'An HTTP fixture never emits an Admin link');
+    }
+    assert.ok(orderAlerts().some(alert => alert.fields.message_thread_id === 11));
+    assert.ok(orderAlerts().some(alert => alert.fields.message_thread_id === 12));
+    assert.equal(orderAlerts().filter(alert => alert.fields.message_thread_id === 13).length, 1);
+  }
   const [[guest]] = await db.execute('SELECT snapshot, fulfillment, checkout_state, customer_inputs FROM digimium_orders WHERE id = ?', [guestId]);
   assert.equal(guest.snapshot, oldSnapshot);
   assert.equal(guest.fulfillment, null);
   assert.equal(guest.checkout_state, null);
   assert.equal(guest.customer_inputs, null);
-  assert.deepEqual(messages.map(message => message.type), ['otp-mail']);
+  assert.deepEqual(messages.filter(message => !['order-alert', 'order-alert-control'].includes(message.type)).map(message => message.type), ['otp-mail']);
+  if (!orderBotMode) assert.equal(orderAlerts().length, 0);
   console.log('Website checkout integration passed: old schema/catalog, per-product/plan and unit fields, encryption/redaction, strict auth/origin, retries, quotes, four methods/USDT rate snapshots, private bounded proofs, reject/resubmit/review, fulfillment and deletion cascade.');
 } finally {
   if (server && server.exitCode === null && !server.signalCode) {

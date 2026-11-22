@@ -48,6 +48,8 @@ The owner chose the existing bot and the owner's personal chat. Do not put an ac
 
 Configure the real owner chat only on the intended production app. Leave the testing app's owner-chat setting empty so tests or staging account creation cannot alert the owner. Local integrations must use synthetic data and fake Telegram delivery.
 
+The testing app uses a separate [order alert bot](ORDER-ALERT-BOT.md) with private topics for payment review, new orders and registrations. Its `ORDER_ALERTS_TELEGRAM_*` settings target that bot and its topics. Testing events await this separate configuration. Local verification intercepts Telegram calls.
+
 Missing/invalid Telegram alert configuration leaves the outbox pending and reports `configured: false`; it does not fail an otherwise valid registration/order or disable customer website messages. After adding the configuration and restarting the app, the scheduled worker can drain queued alerts. Back up the database independently of Git.
 
 ## Schedule every five minutes

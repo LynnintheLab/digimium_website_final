@@ -147,17 +147,31 @@ export async function sendCustomerNotification(id: string, body: unknown) {
   finally { connection.release(); }
 }
 
-export type NotificationAlertInput = {
-  kind: 'order-created' | 'customer-created'; dedupeKey: string; entityId: string;
-  customerName?: string; authProvider?: 'email' | 'google' | 'telegram'; orderReference?: string;
-  productSummary?: string; totalMmk?: number | null;
-};
-const alertSchema = z.object({
+const creationAlert = z.object({
   kind: z.enum(['order-created', 'customer-created']), dedupeKey: z.string().min(1).max(200).regex(/^[a-zA-Z0-9:_-]+$/), entityId: uuid,
   customerName: z.string().max(200).optional(), authProvider: z.enum(['email', 'google', 'telegram']).optional(),
   orderReference: z.string().max(40).optional(), productSummary: z.string().max(350).optional(),
   totalMmk: z.number().int().nonnegative().safe().nullable().optional(),
 }).strict();
+const proofAlert = z.object({
+  kind: z.literal('payment-proof-submitted'), dedupeKey: creationAlert.shape.dedupeKey, entityId: uuid,
+  orderReference: z.string().max(40), proofRequestId: uuid, demo: z.boolean(),
+  paymentMethod: z.enum(['kpay', 'aya', 'wave', 'binance']), paymentAmount: z.string().max(32).regex(/^\d+(?:\.\d{2})?$/),
+  paymentCurrency: z.enum(['MMK', 'USDT']),
+}).strict();
+const alertSchema = z.discriminatedUnion('kind', [creationAlert, proofAlert]);
+export type NotificationAlertInput = z.infer<typeof alertSchema>;
+
+const topicKeys = {
+  'payment-proof-submitted': 'ORDER_ALERTS_TELEGRAM_PAYMENT_TOPIC_ID',
+  'order-created': 'ORDER_ALERTS_TELEGRAM_ORDERS_TOPIC_ID',
+  'customer-created': 'ORDER_ALERTS_TELEGRAM_REGISTRATION_TOPIC_ID',
+} as const;
+const orderBotKeys = ['ORDER_ALERTS_TELEGRAM_BOT_TOKEN', 'ORDER_ALERTS_TELEGRAM_CHAT_ID', ...Object.values(topicKeys)];
+function orderBotRoutingEnabled() {
+  return /^https:\/\/test\.buywith-digimium\.store\/?$/.test(process.env.APP_ORIGIN ?? '') ||
+    orderBotKeys.some(key => Boolean(process.env[key]?.trim()));
+}
 
 /** Transactional insert only: missing Telegram configuration never affects this operation. */
 export async function enqueueNotificationAlert(connection: PoolConnection, candidate: NotificationAlertInput): Promise<void> {
@@ -165,14 +179,31 @@ export async function enqueueNotificationAlert(connection: PoolConnection, candi
   await connection.execute(`INSERT IGNORE INTO digimium_notification_outbox
     (id, dedupe_key, kind, entity_id, payload, created_at, next_attempt_at)
     VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
-  [randomUUID(), payload.dedupeKey, payload.kind, payload.entityId, JSON.stringify(payload)]);
+  [randomUUID(), payload.dedupeKey, payload.kind === 'payment-proof-submitted' || orderBotRoutingEnabled() ? 'bot:' + payload.kind : payload.kind,
+    payload.entityId, JSON.stringify(payload)]);
 }
 
-function telegramConfiguration() {
+function privateId(value: string | undefined) {
+  const id = value?.trim();
+  return id && /^[1-9]\d{0,15}$/.test(id) && Number(id) <= 2 ** 52 - 1 ? id : null;
+}
+
+type AlertConfig = { token: string; chat: string; topics?: Record<NotificationAlertInput['kind'], number> };
+
+function telegramConfiguration(): AlertConfig | null {
+  if (orderBotRoutingEnabled()) {
+    const token = process.env.ORDER_ALERTS_TELEGRAM_BOT_TOKEN?.trim();
+    const chat = privateId(process.env.ORDER_ALERTS_TELEGRAM_CHAT_ID);
+    const topics = Object.fromEntries(Object.entries(topicKeys).map(([kind, key]) => [kind, Number(privateId(process.env[key]))])) as NonNullable<AlertConfig['topics']>;
+    const topicIds = Object.values(topics);
+    if (!token || !/^\d{1,16}:[A-Za-z0-9_-]{20,200}$/.test(token) || !chat ||
+      token === process.env.TELEGRAM_BOT_TOKEN?.trim() || token === process.env.ADMIN_TELEGRAM_BOT_TOKEN?.trim() ||
+      topicIds.some(id => id < 2 || id > 0x7fffffff) || new Set(topicIds).size !== topicIds.length) return null;
+    return { token, chat, topics };
+  }
   const token = process.env.ADMIN_TELEGRAM_BOT_TOKEN?.trim() || process.env.TELEGRAM_BOT_TOKEN?.trim();
-  const chat = process.env.ADMIN_TELEGRAM_CHAT_ID?.trim();
-  return token && token.length <= 256 && chat && /^[1-9]\d{0,15}$/.test(chat)
-    && Number.isSafeInteger(Number(chat)) && Number(chat) <= 2 ** 52 - 1 ? { token, chat } : null;
+  const chat = privateId(process.env.ADMIN_TELEGRAM_CHAT_ID);
+  return token && token.length <= 256 && chat ? { token, chat } : null;
 }
 function cleanAlert(value: string | undefined, maximum: number) {
   const clean = (value ?? '').replace(/[\p{Cc}\u202a-\u202e\u2066-\u2069]/gu, ' ')
@@ -181,18 +212,50 @@ function cleanAlert(value: string | undefined, maximum: number) {
   for (const point of clean) { if (result.length + point.length > maximum) break; result += point; }
   return result.trim();
 }
-function alertText(payload: NotificationAlertInput) {
+function alertText(payload: NotificationAlertInput, dedicated: boolean) {
+  if (payload.kind === 'payment-proof-submitted') {
+    const methods = { kpay: 'KPay', aya: 'AYA Pay', wave: 'Wave Pay', binance: 'Binance Pay' };
+    return [payload.demo ? 'Demo payment proof — review required' : 'Payment proof — review required',
+      'Order #' + cleanAlert(payload.orderReference, 40),
+      `${methods[payload.paymentMethod]} · ${payload.paymentAmount} ${payload.paymentCurrency}`].join('\n');
+  }
   const rows = [payload.kind === 'order-created' ? 'New Digimium order' : 'New Digimium customer',
     payload.kind === 'order-created' ? 'Order #' + cleanAlert(payload.orderReference || payload.entityId.slice(0, 8).toUpperCase(), 40) : 'Account #' + payload.entityId.slice(0, 8).toUpperCase()];
-  if (payload.customerName) rows.push('Name: ' + cleanAlert(payload.customerName, 100));
+  if (!dedicated && payload.customerName) rows.push('Name: ' + cleanAlert(payload.customerName, 100));
   if (payload.authProvider) rows.push('Sign-in: ' + payload.authProvider);
   if (payload.productSummary) rows.push('Items: ' + cleanAlert(payload.productSummary, 350));
   if (payload.kind === 'order-created') rows.push('Total: ' + (payload.totalMmk === null || payload.totalMmk === undefined ? 'Price on request' : payload.totalMmk.toLocaleString('en-US') + ' MMK'));
   return rows.join('\n');
 }
 
+function adminAlertLink(payload: NotificationAlertInput) {
+  let url: URL;
+  try { url = new URL(process.env.APP_ORIGIN ?? ''); } catch { return; }
+  if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) return;
+  url.pathname = '/admin';
+  if (payload.kind === 'customer-created') url.searchParams.set('section', 'customers');
+  else url.searchParams.set('order', payload.entityId);
+  return { inline_keyboard: [[{ text: payload.kind === 'payment-proof-submitted' ? 'Review in Admin' : 'Open Admin', url: url.href }]] };
+}
+
+async function alertCancellation(payload: NotificationAlertInput) {
+  if (payload.kind !== 'payment-proof-submitted') {
+    const [rows] = await getPool().execute<RowDataPacket[]>(payload.kind === 'customer-created'
+      ? 'SELECT id FROM digimium_customers WHERE id = ?' : 'SELECT id FROM digimium_orders WHERE id = ?', [payload.entityId]);
+    return rows.length ? null : 'entity-removed';
+  }
+  const [rows] = await getPool().execute<(RowDataPacket & { checkout_state: string | null; rejected_at: string | null; approved_at: string | null })[]>(
+    'SELECT checkout_state, rejected_at, approved_at FROM digimium_orders WHERE id = ?', [payload.entityId]);
+  if (!rows.length) return 'entity-removed';
+  const row = rows[0];
+  const checkout = row.checkout_state ? JSON.parse(row.checkout_state) : null;
+  return row.rejected_at || row.approved_at || checkout?.stage !== 'payment_review' ||
+    checkout.payment?.proofUrl !== `/api/customer/orders/${payload.entityId}/proof?version=${payload.proofRequestId}`
+    ? 'proof-superseded' : null;
+}
+
 /** Bounded, leased outbox delivery; invoke only after the creation transaction has committed. */
-export async function drainAdminNotificationAlerts(options: { limit?: number; budgetMs?: number } = {}) {
+export async function drainAdminNotificationAlerts(options: { limit?: number; budgetMs?: number; dedupeKey?: string } = {}) {
   const config = telegramConfiguration();
   if (!config) return { sent: 0, failed: 0, configured: false };
   await ensureNotifications();
@@ -207,8 +270,11 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
       await connection.beginTransaction();
       const [rows] = await connection.execute<(RowDataPacket & { id: string; payload: string; attempts: number })[]>(
         `SELECT id, payload, attempts FROM digimium_notification_outbox WHERE sent_at IS NULL AND cancelled_at IS NULL AND attempts < 5
+         AND ${config.topics ? "kind LIKE 'bot:%'" : "kind IN ('order-created', 'customer-created')"}
+         ${options.dedupeKey ? 'AND dedupe_key = ?' : ''}
          AND next_attempt_at <= UTC_TIMESTAMP(3) AND (lease_until IS NULL OR lease_until < UTC_TIMESTAMP(3))
          ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED`,
+        options.dedupeKey ? [options.dedupeKey] : [],
       );
       row = rows[0];
       if (row) await connection.execute(`UPDATE digimium_notification_outbox SET lease_token = ?,
@@ -220,17 +286,17 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
     let ok = false;
     try {
       const payload = alertSchema.parse(JSON.parse(row.payload));
-      const [entities] = await getPool().execute<RowDataPacket[]>(payload.kind === 'customer-created'
-        ? 'SELECT id FROM digimium_customers WHERE id = ?' : 'SELECT id FROM digimium_orders WHERE id = ?', [payload.entityId]);
-      if (!entities.length) {
+      const cancellation = await alertCancellation(payload);
+      if (cancellation) {
         // Erased entities must not cause a delayed alert or retain their copied display data.
         await getPool().execute(`UPDATE digimium_notification_outbox SET cancelled_at = UTC_TIMESTAMP(3), payload = '{}',
-          lease_token = NULL, lease_until = NULL, last_error = 'entity-removed' WHERE id = ? AND lease_token = ?`, [row.id, lease]);
+          lease_token = NULL, lease_until = NULL, last_error = ? WHERE id = ? AND lease_token = ?`, [cancellation, row.id, lease]);
         continue;
       }
       const response = await fetch('https://api.telegram.org/bot' + config.token + '/sendMessage', {
         method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: config.chat, text: alertText(payload), link_preview_options: { is_disabled: true } }),
+        body: JSON.stringify({ chat_id: config.chat, text: alertText(payload, Boolean(config.topics)), link_preview_options: { is_disabled: true },
+          ...(config.topics ? { message_thread_id: config.topics[payload.kind], protect_content: true, reply_markup: adminAlertLink(payload) } : {}) }),
         signal: AbortSignal.timeout(Math.max(1, Math.min(2000, deadline - Date.now()))),
       });
       // Telegram can return HTTP 200 with ok:false. Bound the response before parsing.

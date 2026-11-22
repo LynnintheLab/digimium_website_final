@@ -2,6 +2,8 @@
 
 ## Current status
 
+22 November 2026: The testing order-alert release routes new payment proofs, orders and registrations to separate topics in the owner's dedicated Telegram bot chat. Payment alerts identify the order, method, amount and demo status and link to protected Admin review. A proof remains in the website. The testing queues await the distinct bot owner/chat/topic settings. [Bot setup](docs/ORDER-ALERT-BOT.md)
+
 22 November 2026: The testing storefront uses four demo payment methods when its catalog has no saved payment settings. KPay, AYA Pay, Wave Pay and Binance Pay each show a labeled QR that decodes to a plain test message. Customers can download it and upload it as sample proof. Admin can approve the sample and complete delivery using test details. Binance Pay uses 4,000 MMK per USDT as a sample rate. The preset reads the configured testing origin and stays out of saved catalog settings.
 
 22 November 2026: Website checkout is scoped to the `testing` release. Signed-in customers can submit product and plan-specific service information, choose a configured KPay, AYA Pay, Wave Pay or Binance Pay destination, upload a screenshot, and track payment review and service delivery in Order history. Admin can quote unpriced orders, review payment separately from fulfillment, and deliver account details in the owning customer’s approved history. Guest orders use Telegram. New payment methods require receiver details in Admin → Payments. Binance Pay uses the owner’s MMK-per-USDT rate, rounded to two USDT decimal places when a method is selected.
@@ -91,6 +93,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Implemented transactional payment-proof alerts with exact retry deduplication, stale-proof cancellation and category routing. Clean build, strict lint, 103 units, and disposable dedicated-bot, legacy notification and unconfigured checkout integrations passed. The dedicated integration intercepted Telegram and checked redaction, retries and Admin links. Bot topic provisioning passed separately with mocked Telegram responses.
 
 Verified that all four demo QR images decode to the intended test messages. Clean standalone build and strict lint passed. Disposable checkout integrations passed with and without the testing preset, including all four QR downloads, sample image upload, approval, sample delivery, and precedence for custom payment settings.
 
@@ -243,6 +247,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+- Complete Threaded mode and Start in `@DigimiumTestingOrdersBot`, provision the three private topics, and configure the testing environment. Check a new authorized event in its topic after activation. Keep production on its existing release.
 
 - Use synthetic details for checkout and fulfillment on testing. The demo preset is active while there are no saved payment settings. Save receiver details in Admin Payments when ready to replace the demo choices. Keep production on its existing release until the owner explicitly requests promotion.
 

@@ -13,9 +13,10 @@ import './commerce.css';
 type CommerceData = { customers: CommerceCustomer[]; orders: CommerceOrder[] };
 const dateFormat = new Intl.DateTimeFormat('en-GB', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Yangon' });
 
-export default function AdminCommerce({ view, customerId, telegramContact, onDirtyChange, clearCustomer, showCustomerOrders }: {
+export default function AdminCommerce({ view, customerId, initialOrderId = null, telegramContact, onDirtyChange, clearCustomer, showCustomerOrders }: {
   view: 'orders' | 'customers';
   customerId: string | null;
+  initialOrderId?: string | null;
   telegramContact: string | null;
   onDirtyChange: (dirty: boolean) => void;
   clearCustomer: () => void;
@@ -23,7 +24,7 @@ export default function AdminCommerce({ view, customerId, telegramContact, onDir
 }) {
   const [data, setData] = useState<CommerceData | null>(null);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | CommerceOrder['status']>(customerId ? 'all' : 'pending');
+  const [filter, setFilter] = useState<'all' | CommerceOrder['status']>(customerId || initialOrderId ? 'all' : 'pending');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<{ id: string; deleting: boolean } | null>(null);
   const [creatingOrder, setCreatingOrder] = useState<{ customerId: string | null; fromCustomerEditor: boolean } | null>(null);
@@ -37,6 +38,7 @@ export default function AdminCommerce({ view, customerId, telegramContact, onDir
   const orderTrigger = useRef<HTMLButtonElement | null>(null);
   const createTrigger = useRef<HTMLButtonElement | null>(null);
   const listHeading = useRef<HTMLLabelElement>(null);
+  const linkedOrder = useRef(initialOrderId);
 
   function invalidateRefresh() {
     activeRequest.current?.abort();
@@ -69,6 +71,14 @@ export default function AdminCommerce({ view, customerId, telegramContact, onDir
       // Recheck inside queued state updates as well: a successful local mutation
       // can invalidate this response before React applies an already queued update.
       setData(current => isCurrent() ? result : current);
+      if (linkedOrder.current) {
+        const id = linkedOrder.current;
+        linkedOrder.current = null;
+        if (result.orders.some(order => order.id === id)) {
+          setSelectedId(current => isCurrent() ? id : current);
+          requestAnimationFrame(() => document.getElementById('commerce-order-title')?.focus());
+        } else setError(current => isCurrent() ? 'The linked order is not in the loaded list. Refresh or select an order below.' : current);
+      }
       return true;
     } catch {
       if (isCurrent()) setError(current => isCurrent() ? 'Could not load the latest records. Check your connection and try again.' : current);

@@ -92,6 +92,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
   const [showServiceEditor, setShowServiceEditor] = useState(false);
   const [view, setView] = useState<'services' | 'settings' | 'payments' | 'orders' | 'customers' | 'giveaway'>('services');
   const [orderCustomerId, setOrderCustomerId] = useState<string | null>(null);
+  const [linkedOrderId, setLinkedOrderId] = useState<string | null>(null);
   const [orderDirty, setOrderDirty] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
@@ -139,6 +140,18 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
     queueMicrotask(() => { if (!controller.signal.aborted) void loadCatalog(); });
     return () => controller.abort();
   }, [loadCatalog]);
+  useEffect(() => {
+    if (!commerceEnabled) return;
+    const query = new URL(window.location.href).searchParams;
+    const orderId = query.get('order');
+    const frame = requestAnimationFrame(() => {
+      if (orderId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId)) {
+        setLinkedOrderId(orderId.toLowerCase());
+        setView('orders');
+      } else if (query.get('section') === 'customers') setView('customers');
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
   useEffect(() => {
     if (!dirty && !uploadingLogo && !orderDirty) return;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
@@ -248,6 +261,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
     if (orderDirty && view !== next && !window.confirm('Leave this page and discard your edits?')) return;
     if (view !== next) setOrderDirty(false);
     setOrderCustomerId(customerId);
+    setLinkedOrderId(null);
     setView(next);
     if (next === 'services') setShowServiceEditor(false);
   }
@@ -296,7 +310,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
         </div>}
       </header>
 
-      {commerceView ? <AdminCommerce key={commerceView} view={commerceView} customerId={orderCustomerId}
+      {commerceView ? <AdminCommerce key={commerceView} view={commerceView} customerId={orderCustomerId} initialOrderId={linkedOrderId}
         telegramContact={saved ? resolveTelegramContact(saved.settings) : null}
         onDirtyChange={setOrderDirty} clearCustomer={() => setOrderCustomerId(null)}
         showCustomerOrders={id => navigate('orders', id)} /> : view === 'giveaway' ? <AdminGiveaway onDirtyChange={setOrderDirty} /> : <>

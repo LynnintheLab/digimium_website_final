@@ -612,6 +612,7 @@ export async function selectOrderPayment(customerId: string, id: string, body: u
 export async function submitOrderProof(customerId: string, id: string, body: unknown, bytes: Uint8Array<ArrayBuffer>, declaredMime: string) {
   const parsed = proofRequestSchema.safeParse(body);
   if (!parsed.success || !z.string().uuid().safeParse(id).success) throw new CommerceError(400, 'Refresh the order before uploading payment proof.');
+  const alertKey = 'payment-proof-submitted:' + id + ':' + parsed.data.requestId;
   if (!bytes.length || bytes.length > 5 * 1024 * 1024) throw new CommerceError(413, 'Choose an image smaller than 5 MB.');
   try {
     if (identifyLogo(bytes).mime !== declaredMime) throw new CommerceError(415, 'The image type does not match its contents.');
@@ -622,6 +623,7 @@ export async function submitOrderProof(customerId: string, id: string, body: unk
   const hash = createHash('sha256').update(declaredMime).update(bytes).digest();
   await ensureOrders();
   const connection = await getPool().getConnection();
+  let submittedOrder: CommerceOrder;
   try {
     await connection.beginTransaction();
     const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ? AND customer_id = ? FOR UPDATE', [id, customerId]);
@@ -652,12 +654,25 @@ export async function submitOrderProof(customerId: string, id: string, body: unk
     row.checkout_state = JSON.stringify(checkout);
     row.revision++;
     await connection.execute('UPDATE digimium_orders SET checkout_state = ?, revision = ? WHERE id = ?', [row.checkout_state, row.revision, id]);
+    await enqueueNotificationAlert(connection, {
+      kind: 'payment-proof-submitted',
+      dedupeKey: alertKey,
+      entityId: id,
+      orderReference: id.replaceAll('-', '').slice(0, 8).toUpperCase(),
+      paymentMethod: checkout.payment.method.id,
+      paymentAmount: checkout.payment.amount,
+      paymentCurrency: checkout.payment.currency,
+      demo: checkout.payment.method.demo === true,
+      proofRequestId: parsed.data.requestId,
+    });
+    submittedOrder = presentCheckout(row);
     await connection.commit();
-    return { order: present(row) };
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally { connection.release(); }
+  await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: alertKey }).catch(() => {});
+  return { order: submittedOrder };
 }
 
 export async function orderProof(id: string, customerId?: string, version?: string | null) {
