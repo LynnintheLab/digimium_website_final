@@ -13,6 +13,7 @@ import { effectivePrice, parseMmk } from '../lib/pricing';
 import { resolveTelegramContact } from '../lib/telegram-contact';
 import { priceOnEnquiry } from '../lib/shop-language';
 import { checkoutFieldsFor, MAX_CUSTOMER_INPUT_UNITS, type CustomerOrderInput, type WebsiteCheckout } from '../lib/payment';
+import { checkoutPaymentMethods } from '../lib/demo-payments';
 import { paymentDecisionSchema, proofRequestSchema, quoteOrderSchema, selectPaymentSchema, websiteCheckoutSchema } from '../lib/payment-validation';
 import { identifyLogo, LogoInputError } from '../lib/logo-storage';
 import type { CatalogSnapshot } from '../lib/storage-types';
@@ -591,7 +592,7 @@ export async function selectOrderPayment(customerId: string, id: string, body: u
     const [catalogRows] = await connection.execute<(CatalogSnapshot & RowDataPacket)[]>(
       "SELECT payload, revision, updated_at AS updatedAt FROM digimium_catalog WHERE id = 'main' LOCK IN SHARE MODE");
     const catalog = catalogRows.length ? decodeSnapshot(catalogRows[0]) : initialCatalog();
-    const method = catalog.settings.paymentMethods?.find(method => method.id === parsed.data.methodId && method.enabled);
+    const method = checkoutPaymentMethods(catalog.settings.paymentMethods)?.find(method => method.id === parsed.data.methodId && method.enabled);
     if (!method || !method.accountName || !method.accountNumber) throw new CommerceError(409, 'This payment method is unavailable. Choose another method.');
     const amount = method.id === 'binance' ? usdtAmount(snapshot.totalMmk, method.mmkPerUsdt) : String(snapshot.totalMmk);
     checkout.stage = 'awaiting_payment';

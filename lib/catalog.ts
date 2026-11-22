@@ -6,4 +6,4 @@ export const markKeys=['chatgpt','canva','spotify','gemini','adobe','netflix','c
 export type ProductPlan={id:string;name:string;price:string;discountPrice?:string;duration:string;bestSeller?:boolean;published:boolean;checkoutFields?:CustomerField[]};
 export type Product={id:string;name:string;category:number;mark:string;logoPath?:string;plans?:ProductPlan[];description:string;mm?:string;price:string;discountPrice?:string;duration:string;availability:'available'|'on-request'|'unavailable';featured:boolean;bestSeller?:boolean;published:boolean;checkoutFields?:CustomerField[]};
 export type CatalogSettings={email:string;viber:string;viberLabel:string;telegram?:string;hideShortDescriptions?:boolean;paymentMethods?:PaymentMethod[]};
-export type Catalog={revision:number;updatedAt:string|null;products:Product[];settings:CatalogSettings;paymentMethodIds?:PaymentMethodId[]};
+export type Catalog={revision:number;updatedAt:string|null;products:Product[];settings:CatalogSettings;paymentMethodIds?:PaymentMethodId[];demoPayments?:true};

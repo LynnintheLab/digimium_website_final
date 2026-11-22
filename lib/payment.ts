@@ -26,11 +26,13 @@ export type PaymentMethod = {
   mmkPerUsdt?: number;
 };
 
+export type CheckoutPaymentMethod = PaymentMethod & { demo?: true };
+
 export type WebsiteCheckout = {
   stage: 'quote_required' | 'awaiting_payment' | 'payment_review' | 'payment_rejected' | 'processing' | 'completed';
   quotedAt?: string;
   payment?: {
-    method: PaymentMethod;
+    method: CheckoutPaymentMethod;
     amount: string;
     currency: 'MMK' | 'USDT';
     submittedAt: string | null;

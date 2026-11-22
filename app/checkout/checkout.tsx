@@ -238,6 +238,7 @@ export default function Checkout({ lang }: { lang: ShopLanguage }) {
     </header>
     <div className="checkout-main">
       <h1 ref={heading} tabIndex={-1}>{order ? t('Your order', 'သင့်အော်ဒါ') : t('Checkout', 'အော်ဒါတင်ရန်')}</h1>
+      {!order && catalog?.demoPayments && <div className="checkout-demo-note" role="note"><strong>{t('Testing checkout', 'အော်ဒါတင်ခြင်း စမ်းသပ်ရန်')}</strong><p>{t('Use sample service emails and passwords only. Try the demo payment steps without sending money.', 'နမူနာ service email နှင့် password များသာ ဖြည့်ပါ။ Demo ငွေပေးချေမှု အဆင့်များကို စမ်းနိုင်ပါတယ်။ ငွေမလွှဲပါနှင့်။')}</p></div>}
       {loading && <p role="status">{t('Loading checkout…', 'အော်ဒါ ဖော်ပြနေသည်…')}</p>}
       {error && <div className="checkout-error" role="alert"><p>{error}</p>
         {!busy && !uncertain && (!catalog || !customer) && <button type="button" className="customer-refresh" onClick={() => { setLoading(true); setReload(value => value + 1); }}><RefreshCw size={16} />{t('Retry', 'ပြန်ကြိုးစားရန်')}</button>}

@@ -43,6 +43,7 @@ export function CustomerPayment({ order, methods, lang, onUpdated, showTotal = t
   const methodAttempt = useRef<{ revision: number; methodId: PaymentMethodId } | null>(null);
   const checkout = order.checkout;
   const payment = checkout?.payment;
+  const demo = payment?.method.demo === true;
   const canPay = order.status === 'pending' && (checkout?.stage === 'awaiting_payment' || checkout?.stage === 'payment_rejected');
   const currentStep = checkout?.stage === 'completed' ? 3 : checkout?.stage === 'processing' ? 2 : 1;
   const availableMethods = PAYMENT_METHODS.filter(method => methods.includes(method.id));
@@ -176,7 +177,7 @@ export function CustomerPayment({ order, methods, lang, onUpdated, showTotal = t
   }
 
   async function copyRecipient() {
-    if (!payment || methodUncertain) return;
+    if (!payment || demo || methodUncertain) return;
     try { await navigator.clipboard.writeText(payment.method.accountNumber); setCopied(true); }
     catch { setError(t('Select and copy the payment account shown below.', 'အောက်မှာပြထားတဲ့ ငွေလက်ခံအကောင့်ကို ရွေးပြီး ကူးယူပါ။')); }
   }
@@ -187,15 +188,16 @@ export function CustomerPayment({ order, methods, lang, onUpdated, showTotal = t
     <div className="customer-payment-heading"><h4>{order.status === 'rejected' ? t('Order rejected', 'အော်ဒါ ငြင်းပယ်ထားသည်') : checkoutStageText(checkout.stage, lang)}</h4>
       <button type="button" className="payment-text-button" disabled={busy} onClick={() => void refresh()}><RefreshCw size={15} />{t('Refresh', 'ပြန်ကြည့်ရန်')}</button>
     </div>
+    {demo && <div className="payment-demo-note" role="note"><strong>{t('Demo payment — do not send money', 'ငွေပေးချေမှု စမ်းသပ်ရန်သာ — ငွေမလွှဲပါနှင့်')}</strong><p>{canPay ? t('Use the demo image below to try uploading and Admin review. This QR contains a test message.', 'ပုံတင်ခြင်းနှင့် Admin စစ်ဆေးခြင်းကို စမ်းရန် အောက်က နမူနာပုံ သုံးပါ။ ဒီ QR ထဲမှာ စမ်းသပ်စာသား ပါဝင်ပါတယ်။') : t('This order used demo payment.', 'ဒီအော်ဒါမှာ demo ငွေပေးချေမှုကို သုံးထားပါတယ်။')}</p></div>}
     {order.status !== 'rejected' && <ol className="payment-progress" aria-label={t('Order steps', 'အော်ဒါ အဆင့်များ')}>
       {[t('Order saved', 'အော်ဒါသိမ်းပြီး'), t('Payment', 'ငွေပေးချေမှု'), t('Preparing', 'ပြင်ဆင်နေသည်'), t('Delivered', 'ပေးပြီး')].map((label, index) =>
         <li key={index} data-complete={index < currentStep || checkout.stage === 'completed' || undefined} aria-current={index === currentStep ? 'step' : undefined}><span aria-hidden="true">{index < currentStep || checkout.stage === 'completed' ? <Check size={13} /> : index + 1}</span>{label}</li>)}
     </ol>}
-    {showTotal && order.totalMmk !== null && <div className="payment-order-total"><span>{t('Order total', 'စုစုပေါင်း')}</span><strong>{priceText(`${order.totalMmk.toLocaleString('en-US')} MMK`, lang)}</strong></div>}
+    {showTotal && order.totalMmk !== null && <div className="payment-order-total"><span>{demo ? t('Sample order total', 'နမူနာ စုစုပေါင်း') : t('Order total', 'စုစုပေါင်း')}</span><strong>{priceText(`${order.totalMmk.toLocaleString('en-US')} MMK`, lang)}</strong></div>}
     {checkout.stage === 'quote_required' && order.status === 'pending' && <p className="payment-guidance">{t('Digimium will confirm the total here. You can pay after the price is ready.', 'Digimium က စုစုပေါင်းဈေးနှုန်းကို ဒီမှာ အတည်ပြုပေးပါမယ်။ ဈေးနှုန်းရပြီးမှ ငွေချေနိုင်ပါတယ်။')}</p>}
-    {order.status !== 'rejected' && checkout.stage === 'payment_review' && <p className="payment-guidance">{t('Your screenshot is submitted. Digimium is checking the payment.', 'Screenshot တင်ပြီးပါပြီ။ Digimium က ငွေပေးချေမှုကို စစ်ဆေးနေပါတယ်။')}</p>}
-    {order.status !== 'rejected' && checkout.stage === 'processing' && <p className="payment-guidance">{t('Digimium is preparing your service. Delivered account details will appear in your order history.', 'Digimium က ဝန်ဆောင်မှု ပြင်ဆင်ပေးနေပါတယ်။ ပေးအပ်ပြီးသော အကောင့်အချက်အလက်ကို အော်ဒါမှတ်တမ်းမှာ ကြည့်နိုင်ပါမယ်။')}</p>}
-    {order.status !== 'rejected' && checkout.stage === 'completed' && <p className="payment-guidance">{t('Your service is ready. Open the purchased account details in order history.', 'ဝန်ဆောင်မှု ရပါပြီ။ အော်ဒါမှတ်တမ်းထဲက ဝယ်ယူထားသော အကောင့်အချက်အလက်ကို ဖွင့်ကြည့်ပါ။')}</p>}
+    {order.status !== 'rejected' && checkout.stage === 'payment_review' && <p className="payment-guidance">{demo ? t('Your sample image is submitted. Admin can review this demo payment.', 'နမူနာပုံ တင်ပြီးပါပြီ။ Admin က ဒီ demo ငွေပေးချေမှုကို စစ်ဆေးနိုင်ပါပြီ။') : t('Your screenshot is submitted. Digimium is checking the payment.', 'Screenshot တင်ပြီးပါပြီ။ Digimium က ငွေပေးချေမှုကို စစ်ဆေးနေပါတယ်။')}</p>}
+    {order.status !== 'rejected' && checkout.stage === 'processing' && <p className="payment-guidance">{demo ? t('The sample payment is approved. Demo delivery is in progress.', 'နမူနာငွေပေးချေမှု အတည်ပြုပြီးပါပြီ။ Demo ဝန်ဆောင်မှု ပေးအပ်ရန် ပြင်ဆင်နေပါတယ်။') : t('Digimium is preparing your service. Delivered account details will appear in your order history.', 'Digimium က ဝန်ဆောင်မှု ပြင်ဆင်ပေးနေပါတယ်။ ပေးအပ်ပြီးသော အကောင့်အချက်အလက်ကို အော်ဒါမှတ်တမ်းမှာ ကြည့်နိုင်ပါမယ်။')}</p>}
+    {order.status !== 'rejected' && checkout.stage === 'completed' && <p className="payment-guidance">{demo ? t('Open Order history to view the sample account details.', 'နမူနာအကောင့်အချက်အလက် ကြည့်ရန် အော်ဒါမှတ်တမ်းကို ဖွင့်ပါ။') : t('Your service is ready. Open the purchased account details in order history.', 'ဝန်ဆောင်မှု ရပါပြီ။ အော်ဒါမှတ်တမ်းထဲက ဝယ်ယူထားသော အကောင့်အချက်အလက်ကို ဖွင့်ကြည့်ပါ။')}</p>}
     {canPay && checkout.stage === 'payment_rejected' && <p className="payment-guidance">{t('Review the payment note and upload a corrected receipt for Digimium to check.', 'ငွေပေးချေမှု စစ်ဆေးချက်ကို ဖတ်ပြီး မှန်ကန်သော ငွေလွှဲ screenshot ပြန်တင်ပါ။')}</p>}
     {payment?.note && <div className="payment-review-note"><strong>{t('Payment review note', 'ငွေပေးချေမှု စစ်ဆေးချက်')}</strong><p dir="auto">{payment.note}</p></div>}
     {methodUncertain && <p className="payment-guidance" role="status">{t('Confirm the selected payment method with Refresh before making a payment.', 'ငွေမချေမီ “ပြန်ကြည့်ရန်” ကို နှိပ်ပြီး ရွေးထားသော ငွေချေနည်း အတည်ပြုပါ။')}</p>}
@@ -209,24 +211,27 @@ export function CustomerPayment({ order, methods, lang, onUpdated, showTotal = t
       {!availableMethods.length && !payment && <p className="payment-guidance">{t('Payment instructions are being prepared. Check back here or contact Digimium for help.', 'ငွေပေးချေရန် အချက်အလက် ပြင်ဆင်နေပါတယ်။ ဒီမှာ ပြန်ကြည့်ပါ သို့မဟုတ် Digimium ကို ဆက်သွယ်ပါ။')}</p>}
     </fieldset>}
     {payment && !methodUncertain && <div className="payment-destination">
-      <div className="payment-destination-heading"><strong>{methodName}</strong><strong>{payment.amount} {payment.currency}</strong></div>
+      <div className="payment-destination-heading"><strong>{methodName}</strong><strong>{demo && <span>{t('Sample', 'နမူနာ')} </span>}{payment.amount} {payment.currency}</strong></div>
       {canPay && <>
-      {checkout.stage !== 'payment_rejected' && <p className="payment-guidance">{t(`Open ${methodName}, transfer ${payment.amount} ${payment.currency} using this account or QR, then upload the payment screenshot below.`, `${methodName} ကိုဖွင့်ပြီး ဒီအကောင့် သို့မဟုတ် QR မှတစ်ဆင့် ${payment.amount} ${payment.currency} လွှဲပါ။ ပြီးရင် အောက်မှာ ငွေလွှဲ screenshot တင်ပါ။`)}</p>}
+      {!demo && checkout.stage !== 'payment_rejected' && <p className="payment-guidance">{t(`Open ${methodName}, transfer ${payment.amount} ${payment.currency} using this account or QR, then upload the payment screenshot below.`, `${methodName} ကိုဖွင့်ပြီး ဒီအကောင့် သို့မဟုတ် QR မှတစ်ဆင့် ${payment.amount} ${payment.currency} လွှဲပါ။ ပြီးရင် အောက်မှာ ငွေလွှဲ screenshot တင်ပါ။`)}</p>}
+      {!demo && <>
       <dl><div><dt>{t('Account name', 'အကောင့်အမည်')}</dt><dd dir="auto">{payment.method.accountName}</dd></div><div><dt>{payment.method.id === 'binance' ? 'Binance Pay ID / UID' : t('Account number', 'အကောင့်နံပါတ်')}</dt><dd><bdi>{payment.method.accountNumber}</bdi><button type="button" className="payment-text-button" onClick={() => void copyRecipient()} aria-label={t('Copy payment account', 'ငွေလက်ခံအကောင့် ကူးယူရန်')}><Copy size={15} /></button></dd></div></dl>
       {copied && <p className="payment-guidance" role="status">{t('Payment account copied.', 'ငွေလက်ခံအကောင့် ကူးယူပြီးပါပြီ။')}</p>}
+      </>}
       {payment.method.id === 'binance' && payment.method.mmkPerUsdt && <p className="payment-guidance">1 USDT = {payment.method.mmkPerUsdt.toLocaleString('en-US')} MMK</p>}
-      {canPay && payment.method.qrPath && <Image className="payment-qr" src={payment.method.qrPath} alt={t(`${methodName} payment QR`, `${methodName} ငွေပေးချေရန် QR`)} width={220} height={220} unoptimized />}
+      {canPay && payment.method.qrPath && <Image className="payment-qr" src={payment.method.qrPath} alt={demo ? t(`${methodName} demo QR with a test message`, `${methodName} စမ်းသပ်စာသားပါသော နမူနာ QR`) : t(`${methodName} payment QR`, `${methodName} ငွေပေးချေရန် QR`)} width={220} height={220} unoptimized />}
+      {demo && payment.method.qrPath && <a className="payment-demo-download" href={payment.method.qrPath} download={`${payment.method.id}-demo-payment.png`}>{t('Download demo image to upload as a sample', 'နမူနာပုံ ပြန်တင်ရန် ဒီပုံကို ဒေါင်းလုဒ်လုပ်ပါ')}</a>}
       {payment.method.instructions && <p className="payment-instructions" dir="auto">{payment.method.instructions}</p>}
       </>}
     </div>}
     {canPay && payment && !methodUncertain && <form className="payment-proof-form" onSubmit={submitProof}>
-      <label>{t('Payment screenshot', 'ငွေလွှဲ screenshot')}<input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" disabled={busy || uncertain} onChange={event => chooseFile(event.target.files?.[0] || null)} /></label>
+      <label>{demo ? t('Sample payment image', 'ငွေပေးချေမှု နမူနာပုံ') : t('Payment screenshot', 'ငွေလွှဲ screenshot')}<input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" disabled={busy || uncertain} onChange={event => chooseFile(event.target.files?.[0] || null)} /></label>
       <small>{t('PNG, JPG or WebP, up to 5 MB.', '5 MB အထိ PNG၊ JPG သို့မဟုတ် WebP။')}</small>
-      {preview && <Image className="payment-proof-preview" src={preview} alt={t('Selected payment screenshot', 'ရွေးထားသော ငွေလွှဲ screenshot')} width={300} height={220} unoptimized />}
+      {preview && <Image className="payment-proof-preview" src={preview} alt={demo ? t('Selected demo payment image', 'ရွေးထားသော demo ငွေပေးချေမှု နမူနာပုံ') : t('Selected payment screenshot', 'ရွေးထားသော ငွေလွှဲ screenshot')} width={300} height={220} unoptimized />}
       {uncertain && <p className="payment-guidance" role="status">{t('Retrying sends the same screenshot once.', 'ပြန်တင်လျှင် မူလ screenshot ကိုပဲ ပြန်စစ်ပေးပါမယ်။')}</p>}
-      <button className="customer-primary" type="submit" disabled={busy || !file}><Upload size={16} />{busy ? t('Submitting…', 'တင်နေသည်…') : uncertain ? t('Retry screenshot', 'Screenshot ပြန်တင်ရန်') : t('Submit for payment review', 'ငွေပေးချေမှု စစ်ဆေးရန် တင်မယ်')}</button>
+      <button className="customer-primary" type="submit" disabled={busy || !file}><Upload size={16} />{busy ? t('Submitting…', 'တင်နေသည်…') : uncertain ? t('Retry screenshot', 'Screenshot ပြန်တင်ရန်') : demo ? t('Submit sample for review', 'နမူနာပုံ စစ်ဆေးရန် တင်မယ်') : t('Submit for payment review', 'ငွေပေးချေမှု စစ်ဆေးရန် တင်မယ်')}</button>
     </form>}
-    {payment?.proofUrl && <details className="payment-saved-proof"><summary>{t('View submitted screenshot', 'တင်ထားသော screenshot ကြည့်ရန်')}<ChevronDown size={16} /></summary><Image src={payment.proofUrl} alt={t('Your submitted payment screenshot', 'သင်တင်ထားသော ငွေလွှဲ screenshot')} width={360} height={400} unoptimized /></details>}
+    {payment?.proofUrl && <details className="payment-saved-proof"><summary>{demo ? t('View submitted sample', 'တင်ထားသော နမူနာပုံ ကြည့်ရန်') : t('View submitted screenshot', 'တင်ထားသော screenshot ကြည့်ရန်')}<ChevronDown size={16} /></summary><Image src={payment.proofUrl} alt={demo ? t('Your submitted demo payment image', 'သင်တင်ထားသော demo ငွေပေးချေမှု နမူနာပုံ') : t('Your submitted payment screenshot', 'သင်တင်ထားသော ငွေလွှဲ screenshot')} width={360} height={400} unoptimized /></details>}
     {error && <p className="payment-error" role="alert">{error}</p>}
   </section>;
 }

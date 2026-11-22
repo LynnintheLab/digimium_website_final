@@ -79,6 +79,8 @@ The website prepares and copies an order; it does not send the customer's messag
 
 Request service credentials only when needed to fulfill a plan. Customer-supplied values and payment screenshots are encrypted. Open the specific order to view them. Passwords are masked by default.
 
+On the testing site, all four demo methods are available while the catalog has no saved payment settings. Each demo QR encodes a plain test message. Use the download under the selected QR as sample proof, then approve it in Admin and enter sample delivery details to test Order history. Binance Pay uses a sample rate of 4,000 MMK per USDT. Saving custom payment settings replaces the demo methods.
+
 ## Review and complete website orders
 
 1. In **Orders**, open the customer’s order. If the status is **Quote required**, enter the actual MMK unit price for each line and save the quote.

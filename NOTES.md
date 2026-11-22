@@ -2,6 +2,8 @@
 
 ## Current status
 
+22 November 2026: The testing storefront uses four demo payment methods when its catalog has no saved payment settings. KPay, AYA Pay, Wave Pay and Binance Pay each show a labeled QR that decodes to a plain test message. Customers can download it and upload it as sample proof. Admin can approve the sample and complete delivery using test details. Binance Pay uses 4,000 MMK per USDT as a sample rate. The preset reads the configured testing origin and stays out of saved catalog settings.
+
 22 November 2026: Website checkout is scoped to the `testing` release. Signed-in customers can submit product and plan-specific service information, choose a configured KPay, AYA Pay, Wave Pay or Binance Pay destination, upload a screenshot, and track payment review and service delivery in Order history. Admin can quote unpriced orders, review payment separately from fulfillment, and deliver account details in the owning customer’s approved history. Guest orders use Telegram. New payment methods require receiver details in Admin → Payments. Binance Pay uses the owner’s MMK-per-USDT rate, rounded to two USDT decimal places when a method is selected.
 
 A full website continuation handoff was refreshed on 17 November 2026 in HANDOFF.md, with a paste-ready docs/NEXT-CHAT-PROMPT.md. It covers current features, file/routes/data map, provider and notification/cron boundaries, postponed giveaway and separate OTP Link, protected live data, environment names only, release/test limits and cross-machine recovery. Sixteen fresh public GET checks pass: production51 products and hidden giveaway, staging54 and its separate draft; Google enabled on both, Telegram only production, private reads401. Repository metadata is PUBLIC/default production. Documentation fixes remove stale Account preview/circle/linking descriptions. This is documentation-only work on testing; production runtime remains6248c3f and no live data/settings/provider messages were changed.
@@ -89,6 +91,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Verified that all four demo QR images decode to the intended test messages. Clean standalone build and strict lint passed. Disposable checkout integrations passed with and without the testing preset, including all four QR downloads, sample image upload, approval, sample delivery, and precedence for custom payment settings.
 
 Implemented the website checkout and Admin payment workflow. The clean Node 24 build, strict lint, typecheck, 103 unit tests, and four disposable MySQL integration suites passed for checkout, commerce, manual orders and customer administration. The checkout suite exercised additive migration of the prior schema, per-plan fields, session ownership, encrypted inputs and screenshots, retry recovery, payment approval and rejection, quotes, USDT conversion, delivery and deletion cascades. Twelve local Chrome checks at 1440, 390 and 320 px covered the guest and signed-in cart routes, method selection, screenshot recovery, Admin review, completed order history, Myanmar and dark appearance. Browser runs used synthetic accounts, mocked owner sign-in and blocked external provider and analytics requests. [Admin checkout setup](docs/ADMIN.md#configure-website-checkout)
 
@@ -240,7 +244,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Configure the intended receiver details and enable each method in the testing Admin Payments tab. Review the service field defaults and plan overrides before testing with any real customer details. Keep production on its existing release until the owner explicitly requests promotion.
+- Use synthetic details for checkout and fulfillment on testing. The demo preset is active while there are no saved payment settings. Save receiver details in Admin Payments when ready to replace the demo choices. Keep production on its existing release until the owner explicitly requests promotion.
 
 - For another chat, start with HANDOFF.md and docs/NEXT-CHAT-PROMPT.md plus repository access. Report actual current Git/host state, then take the owner’s next concrete request. Earlier feature tasks are complete; retain hidden giveaway, Kosai Namti/live data, existing provider/job configuration and unrelated local artifacts.
 

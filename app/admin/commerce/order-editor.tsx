@@ -203,7 +203,7 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
         </a>}
         {checkout.stage === 'payment_review' && !rejected ? <fieldset className="commerce-payment-decision" disabled={busy || failureStatus === 409}>
           <legend>Review payment</legend>
-          <p>Check the payment in the receiving account, then approve it or ask the customer to submit corrected proof.</p>
+          <p>{payment.method.demo ? 'This is a testing payment. Review the sample image, then approve or reject it to test order progress.' : 'Check the payment in the receiving account, then approve it or ask the customer to submit corrected proof.'}</p>
           <label className="admin-field">Payment review note <span className="admin-optional">Optional</span>
             <textarea rows={3} maxLength={1000} value={paymentNote} onChange={event => {
               setPaymentNote(event.target.value); setPaymentDirty(true); onDirtyChange(true);

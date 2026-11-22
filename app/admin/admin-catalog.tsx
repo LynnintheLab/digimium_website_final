@@ -366,7 +366,9 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
           </section>
         </div> : view === 'payments' ? <section className="admin-settings-panel">
           <form id="admin-catalog-form" noValidate onSubmit={event => { event.preventDefault(); void saveCatalog(); }}>
-            <div className="admin-form-section"><PaymentSettings value={draft.settings.paymentMethods ?? []} disabled={saving}
+            <div className="admin-form-section">
+              {saved?.demoPayments && <p role="status">Four demo methods are active in testing checkout. Saving custom payment settings replaces the demo choices.</p>}
+              <PaymentSettings value={draft.settings.paymentMethods ?? []} disabled={saving}
               onChange={paymentMethods => updateSettings({ paymentMethods })} onBusyChange={trackLogoUpload}/></div>
           </form>
         </section> : <section className="admin-settings-panel"><div className="admin-settings-intro"><div className="admin-settings-icon"><Mail size={24} /></div><h2>A direct line to Digimium.</h2><p>These contact details appear on your website and in service enquiries.</p></div><form id="admin-catalog-form" noValidate onSubmit={event => { event.preventDefault(); void saveCatalog(); }}><fieldset disabled={saving}><div className="admin-form-section"><label className="admin-field" htmlFor="contact-telegram">Telegram order username

@@ -3,6 +3,7 @@ import type { CatalogSnapshot } from "./storage-types";
 import type { Catalog } from "./catalog";
 import { initialCatalog } from "./initial-catalog";
 import { catalogPayloadSchema, saveCatalogSchema, type SaveCatalogInput } from "./catalog-validation";
+import { checkoutPaymentMethods } from './demo-payments';
 
 export class CatalogUnavailableError extends Error {
   constructor(cause: unknown) {
@@ -26,13 +27,18 @@ export function decodeSnapshot(row: CatalogSnapshot): Catalog {
   return { ...payload, revision: row.revision, updatedAt: row.updatedAt };
 }
 
+function withDemoPaymentState(catalog: Catalog): Catalog {
+  return checkoutPaymentMethods(catalog.settings.paymentMethods)?.some(method => method.demo)
+    ? { ...catalog, demoPayments: true }
+    : catalog;
+}
+
 export async function getCatalog(): Promise<Catalog> {
   try {
     const row = await readSnapshot();
     // A successful empty query is the only situation that uses the seed.
     // Reads never create a record, and storage failures must stay visible.
-    if (!row) return initialCatalog();
-    return decodeSnapshot(row);
+    return withDemoPaymentState(row ? decodeSnapshot(row) : initialCatalog());
   } catch (error) {
     throw new CatalogUnavailableError(error);
   }
@@ -41,7 +47,8 @@ export async function getCatalog(): Promise<Catalog> {
 export async function getPublicCatalog(): Promise<Catalog> {
   const catalog = await getCatalog();
   const { paymentMethods, ...settings } = catalog.settings;
-  return { ...catalog, settings, ...(paymentMethods ? { paymentMethodIds: paymentMethods.filter(method => method.enabled).map(method => method.id) } : {}),
+  const methods = checkoutPaymentMethods(paymentMethods);
+  return { ...catalog, settings, ...(methods ? { paymentMethodIds: methods.filter(method => method.enabled).map(method => method.id) } : {}),
     products: catalog.products.filter((product) => product.published).map((product) => ({
     ...product,
     ...(settings.hideShortDescriptions ? { description: "", mm: undefined } : {}),
@@ -57,7 +64,7 @@ export async function saveCatalog(input: SaveCatalogInput): Promise<Catalog> {
   try {
     const snapshot = { payload, updatedAt, revision: expectedRevision + 1 };
     if (!await writeSnapshot(snapshot, expectedRevision)) throw new CatalogConflictError();
-    return { products, settings, updatedAt, revision: snapshot.revision };
+    return withDemoPaymentState({ products, settings, updatedAt, revision: snapshot.revision });
   } catch (error) {
     if (error instanceof CatalogConflictError) throw error;
     throw new CatalogUnavailableError(error);

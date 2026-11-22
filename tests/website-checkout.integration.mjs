@@ -8,7 +8,9 @@ import { createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import mysql from 'mysql2/promise';
+import { checkoutPaymentMethods } from '../lib/demo-payments.ts';
 
+const demoMode = process.env.TEST_CHECKOUT_DEMO === '1';
 const env = { ...process.env, ADMIN_EMAIL: 'owner@example.invalid', ADMIN_AUTH_SECRET: randomUUID(),
   ORDER_FULFILLMENT_SECRET: randomUUID(), RESEND_FROM_EMAIL: 'digimium@example.invalid', RESEND_API_KEY: 're_integration_fixture',
   GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', TELEGRAM_BOT_TOKEN: '', TELEGRAM_BOT_USERNAME: '', TELEGRAM_WEBHOOK_SECRET: '',
@@ -17,14 +19,26 @@ const base = new URL(env.APP_ORIGIN || 'http://invalid');
 assert.ok(base.origin === env.APP_ORIGIN && base.protocol === 'http:' && base.hostname === '127.0.0.1' && base.port &&
   env.DB_HOST === '127.0.0.1' && /^digimium_test_[a-z0-9_]+$/.test(env.DB_NAME) && env.DB_USER && env.DB_PASSWORD,
   'Use an empty disposable loopback digimium_test_* database and unused HTTP port.');
+// The opt-in changes server configuration and request headers only. Transport stays loopback.
+const applicationOrigin = demoMode ? 'https://test.buywith-digimium.store' : base.origin;
+assert.equal(checkoutPaymentMethods(undefined, 'https://buywith-digimium.store'), undefined);
+assert.equal(checkoutPaymentMethods(undefined, 'https://test.buywith-digimium.store.example.invalid'), undefined);
+const cookiePrefix = demoMode ? '__Host-digimium_' : 'digimium_local_';
+env.APP_ORIGIN = applicationOrigin;
 const root = new URL('../', import.meta.url);
 const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT || 3306), user: env.DB_USER,
   password: env.DB_PASSWORD, database: env.DB_NAME, multipleStatements: true });
 let server;
 const messages = [];
-const request = (path, options = {}) => fetch(new URL(path, base), { ...options, redirect: 'manual', signal: AbortSignal.timeout(15000) });
+const request = (path, options = {}) => {
+  const target = new URL(path, base);
+  assert.equal(target.origin, base.origin, 'Every fixture request must stay on the loopback server.');
+  return fetch(target, { ...options,
+    headers: { Host: new URL(applicationOrigin).host, ...options.headers },
+    redirect: 'manual', signal: AbortSignal.timeout(15000) });
+};
 const get = (path, session = '') => request(path, { headers: { Cookie: session } });
-const mutate = (path, method, body, session = '', origin = base.origin) => request(path, {
+const mutate = (path, method, body, session = '', origin = applicationOrigin) => request(path, {
   method, headers: { Origin: origin, Cookie: session, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
 async function json(response, status = 200) {
@@ -36,6 +50,7 @@ async function json(response, status = 200) {
 function cookie(response, name) {
   const raw = response.headers.getSetCookie().find(value => value.startsWith(name + '='));
   assert.match(raw ?? '', /httponly/i);
+  if (demoMode) assert.match(raw, /; secure(?:;|$)/i);
   return raw.split(';')[0];
 }
 async function addCustomer(name) {
@@ -44,13 +59,13 @@ async function addCustomer(name) {
     [id, name, name.toLowerCase() + '@example.invalid', 'fixture-password-' + randomUUID()]);
   await db.execute('INSERT INTO digimium_customer_sessions (token_hash, customer_id, expires_at) VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 HOUR))',
     [createHash('sha256').update(token).digest(), id]);
-  return { id, cookie: 'digimium_local_customer=' + token };
+  return { id, cookie: cookiePrefix + 'customer=' + token };
 }
 const png = await readFile(new URL('public/assets/symbol-blue.png', root));
 const anotherPng = await readFile(new URL('public/assets/logo.png', root));
 const orderPath = id => '/api/customer/orders/' + id;
 const adminPath = id => '/api/admin/commerce/' + id;
-const proof = (id, revision, requestId, session, body = png, mime = 'image/png', origin = base.origin) => request(
+const proof = (id, revision, requestId, session, body = png, mime = 'image/png', origin = applicationOrigin) => request(
   orderPath(id) + '/proof?revision=' + revision + '&requestId=' + requestId,
   { method: 'POST', headers: { Cookie: session, Origin: origin, 'Content-Type': mime }, body });
 
@@ -86,10 +101,10 @@ try {
   }
   const mail = once(server, 'message', { signal: AbortSignal.timeout(10000) });
   const login = (fields, session = '') => request('/admin/session', { method: 'POST',
-    headers: { Origin: base.origin, Cookie: session }, body: new URLSearchParams(fields) });
+    headers: { Origin: applicationOrigin, Cookie: session }, body: new URLSearchParams(fields) });
   const challenge = await login({ action: 'request', email: env.ADMIN_EMAIL });
   const [message] = await mail;
-  const owner = cookie(await login({ action: 'verify', code: message.code }, cookie(challenge, 'digimium_local_challenge')), 'digimium_local_admin');
+  const owner = cookie(await login({ action: 'verify', code: message.code }, cookie(challenge, cookiePrefix + 'challenge')), cookiePrefix + 'admin');
   const legacy = await json(await get(adminPath(guestId), owner));
   assert.equal(legacy.order.checkout, undefined);
   assert.deepEqual(legacy.customerInputs, []);
@@ -115,6 +130,63 @@ try {
   const products = [product, inquiry, free];
   const save = (nextProducts, nextSettings, revision) => mutate('/api/admin/catalog', 'PUT',
     { products: nextProducts, settings: nextSettings, expectedRevision: revision }, owner);
+  let baselineRevision = original.revision;
+  if (demoMode) {
+    const noPaymentSettings = { ...original.settings };
+    delete noPaymentSettings.paymentMethods;
+    const demoCatalog = await json(await save(products, noPaymentSettings, baselineRevision));
+    const [[beforeDemoReads]] = await db.query("SELECT payload, revision FROM digimium_catalog WHERE id = 'main'");
+    const demoPublic = await (await get('/api/catalog')).json();
+    assert.deepEqual(demoPublic.paymentMethodIds, ['kpay', 'aya', 'wave', 'binance']);
+    assert.equal(demoPublic.demoPayments, true);
+    assert.equal(demoPublic.settings.paymentMethods, undefined);
+    assert.equal((await json(await get('/api/admin/catalog', owner))).settings.paymentMethods, undefined);
+    let demoOrder = (await json(await mutate('/api/customer/checkout', 'POST', {
+      requestId: randomUUID(), expectedCustomerId: alice.id, expectedCatalogRevision: demoCatalog.revision,
+      items: [{ productId: product.id, planId: 'provided', quantity: 1 }],
+    }, alice.cookie), 201)).order;
+    for (const methodId of ['kpay', 'aya', 'wave', 'binance']) {
+      demoOrder = (await json(await mutate(orderPath(demoOrder.id) + '/payment', 'PATCH',
+        { revision: demoOrder.revision, methodId }, alice.cookie))).order;
+      const payment = demoOrder.checkout.payment;
+      assert.equal(payment.method.demo, true);
+      assert.equal(payment.method.id, methodId);
+      assert.equal(payment.method.accountNumber, 'DEMO-' + methodId.toUpperCase() + '-NO-PAYMENT');
+      assert.equal(payment.method.qrPath, '/assets/demo-payments/' + methodId + '.png');
+      assert.equal(payment.amount, methodId === 'binance' ? '0.50' : '2000');
+      assert.equal(payment.currency, methodId === 'binance' ? 'USDT' : 'MMK');
+      const qr = await get(payment.method.qrPath);
+      assert.equal(qr.status, 200);
+      assert.match(qr.headers.get('content-type'), /image\/png/);
+      const qrBytes = Buffer.from(await qr.arrayBuffer());
+      assert.deepEqual(qrBytes.subarray(0, 8), Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+      assert.ok(qrBytes.length > 100);
+    }
+    const exampleProof = Buffer.from(await (await get(demoOrder.checkout.payment.method.qrPath)).arrayBuffer());
+    demoOrder = (await json(await proof(demoOrder.id, demoOrder.revision, randomUUID(), alice.cookie, exampleProof))).order;
+    demoOrder = (await json(await mutate(adminPath(demoOrder.id), 'PATCH',
+      { action: 'payment-approve', revision: demoOrder.revision }, owner))).order;
+    demoOrder = (await json(await mutate(adminPath(demoOrder.id), 'PATCH', { revision: demoOrder.revision,
+      lines: demoOrder.lines.map(line => ({ id: line.id, startDate: '2028-01-01', endDate: '2028-02-01',
+        accountDetails: { account: 'demo-delivery@example.invalid', password: 'demo-delivery-fixture', manager: '', username: '' } })),
+    }, owner))).order;
+    assert.equal(demoOrder.checkout.stage, 'completed');
+    assert.equal(demoOrder.checkout.payment.method.demo, true);
+    assert.equal((await json(await get(orderPath(demoOrder.id), alice.cookie))).order.lines[0].accountDetails.password, 'demo-delivery-fixture');
+    const [[afterDemoReads]] = await db.query("SELECT payload, revision FROM digimium_catalog WHERE id = 'main'");
+    assert.deepEqual(afterDemoReads, beforeDemoReads, 'Demo reads and checkout never persist demo configuration to the catalog');
+    const disabled = await json(await save(products, { ...noPaymentSettings, paymentMethods: [] }, demoCatalog.revision));
+    const disabledPublic = await (await get('/api/catalog')).json();
+    assert.deepEqual(disabledPublic.paymentMethodIds, []);
+    assert.notEqual(disabledPublic.demoPayments, true);
+    const disabledOrder = (await json(await mutate('/api/customer/checkout', 'POST', {
+      requestId: randomUUID(), expectedCustomerId: alice.id, expectedCatalogRevision: disabled.revision,
+      items: [{ productId: product.id, planId: 'provided', quantity: 1 }],
+    }, alice.cookie), 201)).order;
+    await json(await mutate(orderPath(disabledOrder.id) + '/payment', 'PATCH',
+      { revision: disabledOrder.revision, methodId: 'kpay' }, alice.cookie), 409);
+    baselineRevision = disabled.revision;
+  }
   for (const [offers, config] of [
     [[{ ...product, checkoutFields: [fields[0], fields[0]] }], settings],
     [products, { ...settings, paymentMethods: [methods[0], methods[0]] }],
@@ -123,20 +195,21 @@ try {
     [products, { ...settings, paymentMethods: [{ ...methods[3], mmkPerUsdt: -1 }] }],
     [products, { ...settings, paymentMethods: [{ ...methods[0], qrPath: 'https://untrusted.invalid/qr.png' }] }],
     [products, { ...settings, paymentMethods: [{ ...methods[0], qrPath: '/media/logos/' + randomUUID() + '.png' }] }],
-  ]) await json(await save(offers, config, original.revision), 400);
-  let catalog = await json(await save(products, settings, original.revision));
+  ]) await json(await save(offers, config, baselineRevision), 400);
+  let catalog = await json(await save(products, settings, baselineRevision));
   const publicResponse = await get('/api/catalog');
   assert.equal(publicResponse.status, 200);
   const publicCatalog = await publicResponse.json();
   assert.equal(publicCatalog.settings.paymentMethods, undefined);
   assert.deepEqual(publicCatalog.paymentMethodIds, ['kpay', 'aya', 'wave', 'binance']);
+  assert.notEqual(publicCatalog.demoPayments, true, 'Explicit saved recipient settings take precedence over demo defaults');
   assert.ok(!JSON.stringify(publicCatalog).includes('fixture-kpay'), 'Public catalog contains payment availability without recipient details');
   const input = { requestId: randomUUID(), expectedCustomerId: alice.id, expectedCatalogRevision: catalog.revision,
     items: [{ productId: product.id, planId: 'monthly', quantity: 2, inputs: [
       { unit: 0, values: { email: 'account-one@example.invalid', password: 'private-fixture-one' } },
       { unit: 1, values: { email: 'account-two@example.invalid', password: 'private-fixture-two' } },
     ] }] };
-  const create = (body = input, session = alice.cookie, origin = base.origin) => mutate('/api/customer/checkout', 'POST',
+  const create = (body = input, session = alice.cookie, origin = applicationOrigin) => mutate('/api/customer/checkout', 'POST',
     { expectedCustomerId: alice.id, ...body }, session, origin);
   await json(await create(input, ''), 401);
   await json(await create({ ...input, expectedCustomerId: undefined }), 400);

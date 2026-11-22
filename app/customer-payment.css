@@ -1,6 +1,9 @@
 .customer-payment { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--ink); }
 .customer-payment-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .customer-payment-heading h4 { margin: 0; font-size: .98rem; }
+.payment-demo-note { margin: 14px 0; padding: 13px 15px; border: 1px solid var(--blue); border-radius: 9px; background: var(--brand-selected); font-size: .86rem; line-height: 1.7; }
+.payment-demo-note p { margin-top: 5px; }
+.payment-demo-download { display: block; margin-top: 14px; color: var(--blue); font-size: .86rem; text-decoration: underline; text-underline-offset: 3px; }
 .customer-page .payment-text-button { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 4px; color: var(--blue); font-size: .82rem; }
 .payment-progress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 18px 0; padding: 0; list-style: none; }
 .payment-progress li { display: grid; justify-items: center; align-content: start; gap: 7px; text-align: center; font-size: .72rem; line-height: 1.6; color: var(--muted); }
