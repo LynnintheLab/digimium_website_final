@@ -5,9 +5,17 @@
 .payment-demo-note p { margin-top: 5px; }
 .payment-demo-download { display: block; margin-top: 14px; color: var(--blue); font-size: .86rem; text-decoration: underline; text-underline-offset: 3px; }
 .customer-page .payment-text-button { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 4px; color: var(--blue); font-size: .82rem; }
-.payment-progress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 18px 0; padding: 0; list-style: none; }
+.payment-progress { position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 18px 0; padding: 0; list-style: none; }
+.payment-progress::before, .payment-progress::after { content: ''; position: absolute; z-index: -1; top: 12px; left: calc(12.5% - 2.25px); right: calc(12.5% - 2.25px); height: 2px; background: var(--line); }
+.payment-progress::after { background: var(--brand-primary); transform: scaleX(var(--payment-progress)); transform-origin: left; transition: transform .42s cubic-bezier(.16, 1, .3, 1); animation: payment-progress-in .48s cubic-bezier(.16, 1, .3, 1); }
+.payment-progress:where([data-advancing])::after {
+  background-image: linear-gradient(90deg, var(--brand-primary) 45%, color-mix(in srgb, var(--brand-primary), #fff 48%) 50%, var(--brand-primary) 55%);
+  background-position: right;
+  background-size: 235% 100%;
+  animation: payment-progress-in .48s cubic-bezier(.16, 1, .3, 1), payment-progress-sweep 1.45s .5s ease-out 2;
+}
 .payment-progress li { display: grid; justify-items: center; align-content: start; gap: 7px; text-align: center; font-size: .72rem; line-height: 1.6; color: var(--muted); }
-.payment-progress li > span { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid var(--brand-line-strong); border-radius: 50%; font-size: .72rem; }
+.payment-progress li > span { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid var(--brand-line-strong); border-radius: 50%; background: var(--white); font-size: .72rem; }
 .payment-progress li[data-complete] > span { color: #fff; background: var(--brand-primary, #1f45b8); border-color: transparent; }
 .payment-progress li[aria-current] { color: var(--ink); font-weight: 650; }
 .payment-progress li[aria-current] > span { outline: 3px solid var(--brand-selected); border-color: var(--blue); }
@@ -32,12 +40,32 @@
 .payment-qr { width: min(100%, 200px); height: auto; max-height: 250px; object-fit: contain; margin: 16px auto 0; padding: 6px; background: #fff; border-radius: 8px; }
 .payment-instructions, .payment-review-note p { margin-top: 10px; font-size: .85rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .payment-review-note { margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: .85rem; background: var(--soft); }
-.payment-proof-form { display: grid; gap: 10px; margin-top: 18px; }
-.payment-proof-form label { display: grid; gap: 8px; font-size: .9rem; font-weight: 600; }
-.payment-proof-form input[type="file"] { width: 100%; max-width: 100%; font: inherit; font-size: .82rem; }
-.payment-proof-form small { color: var(--muted); font-size: .76rem; }
-.payment-proof-form .customer-primary { justify-self: start; }
-.payment-proof-preview { width: min(100%, 300px); height: 200px; object-fit: contain; border-radius: 8px; background: var(--canvas); }
+.payment-proof-form { display: grid; gap: 12px; margin-top: 24px; }
+.payment-proof-form h5 { margin: 0; font-size: .98rem; font-weight: 650; line-height: 1.7; }
+.payment-upload-zone { display: grid; justify-items: center; gap: 16px; min-width: 0; padding: 26px 20px 20px; border: 1px dashed var(--blue); border-radius: 12px; background: var(--brand-selected); text-align: center; transition: background .18s ease, border-color .18s ease; }
+.payment-upload-zone:focus-visible, .payment-upload-picker:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 4px; }
+.payment-upload-zone[data-dragging] { border-style: solid; background: var(--soft); outline: 3px solid var(--blue); outline-offset: 3px; }
+.payment-upload-zone[data-selected] { padding-top: 18px; }
+.payment-upload-prompt { display: grid; justify-items: center; gap: 8px; }
+.payment-upload-prompt > svg { margin-bottom: 4px; color: var(--blue); }
+.payment-upload-prompt strong { font-size: 1rem; font-weight: 650; line-height: 1.7; }
+.payment-upload-prompt p { margin: 0; font-size: .86rem; line-height: 1.8; color: var(--muted); }
+.payment-upload-actions { display: flex; justify-content: center; flex-wrap: wrap; align-items: center; gap: 8px 16px; width: 100%; }
+.payment-upload-picker { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; max-width: 100%; padding: 10px 18px; border: 1px solid var(--blue); border-radius: 6px; background: var(--white); color: var(--blue); font-size: .88rem; font-weight: 600; cursor: pointer; }
+.payment-upload-picker:hover { background: var(--soft); }
+.payment-upload-picker[data-disabled] { opacity: .5; cursor: not-allowed; }
+.payment-upload-picker input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: inherit; }
+.customer-page button.payment-upload-remove { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; padding: 8px 4px; font-size: .82rem; color: var(--muted); }
+.payment-upload-help { margin: 0; max-width: 45ch; color: var(--muted); font-size: .76rem; line-height: 1.9; }
+.payment-upload-help span { display: block; margin-top: 4px; }
+.payment-selected-file { display: flex; align-items: flex-start; justify-content: center; gap: 8px; max-width: 100%; text-align: left; }
+.payment-selected-file > svg { color: var(--blue); margin-top: 4px; }
+.payment-selected-file > div { display: grid; gap: 2px; min-width: 0; }
+.payment-selected-file strong { font-size: .88rem; font-weight: 600; }
+.payment-selected-file span { color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
+.payment-selected-file small { color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.payment-proof-form .customer-primary { justify-self: stretch; min-height: 48px; }
+.payment-proof-preview { width: min(100%, 300px); height: 220px; object-fit: contain; border-radius: 8px; background: var(--canvas); }
 .payment-saved-proof, .customer-submitted-details { margin-top: 16px; border-top: 1px solid var(--line); }
 .payment-saved-proof summary, .customer-submitted-details summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 46px; cursor: pointer; font-size: .86rem; font-weight: 600; }
 .payment-saved-proof summary::-webkit-details-marker, .customer-submitted-details summary::-webkit-details-marker { display: none; }
@@ -49,8 +77,18 @@
 .customer-submitted-unit h5 { font-size: .88rem; font-weight: 600; }
 .payment-error { margin-top: 12px; color: #a72e3e; font-size: .88rem; }
 html[data-shop-theme="dark"] .payment-error { color: #ffb6c2; }
+@keyframes payment-progress-in { from { transform: scaleX(0); } }
+@keyframes payment-progress-sweep { from { background-position: right; } to { background-position: left; } }
+@media (prefers-reduced-motion: reduce) {
+  .payment-progress::after { animation: none; transition: none; background-image: none; }
+  .payment-upload-zone { transition: none; }
+}
 @media (max-width: 400px) {
   .payment-method-choice > div { grid-template-columns: 1fr; }
   .payment-proof-form .customer-primary { width: 100%; }
   .payment-destination { padding: 12px; }
+  .payment-upload-zone { padding: 22px 14px 18px; }
+  .payment-upload-prompt strong { font-size: .94rem; }
+  .payment-upload-picker { width: 100%; }
+  .payment-upload-help { font-size: .75rem; }
 }

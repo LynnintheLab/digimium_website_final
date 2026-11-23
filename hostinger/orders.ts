@@ -1,13 +1,13 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
+import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { resolveOrder, totalMmk, type CartItem } from '../lib/cart-order';
 import { decodeSnapshot, getCatalog } from '../lib/catalog-store';
 import type { Catalog } from '../lib/catalog';
 import { CommerceError } from '../lib/commerce-http';
-import type { CommerceOrder, CommerceOrderLine, OrderFulfillment, TelegramOrder } from '../lib/commerce-types';
+import type { CommerceOrder, CommerceOrderLine, OrderDeliveryDraft, OrderFulfillment, TelegramOrder } from '../lib/commerce-types';
 import { initialCatalog } from '../lib/initial-catalog';
 import { effectivePrice, parseMmk } from '../lib/pricing';
 import { resolveTelegramContact } from '../lib/telegram-contact';
@@ -78,6 +78,21 @@ const fulfillmentSchema = z.object({
     accountInfo: z.string().max(4000).optional(), accountDetails: accountDetailsSchema.optional() })
     .strict().refine(line => line.endDate >= line.startDate)).min(1).max(MAX_ORDER_LINES),
 }).strict();
+const deliveryDraftSchema = fulfillmentSchema.extend({ action: z.literal('stage-delivery') });
+const adminActionSchema = z.object({
+  action: z.enum(['order-approve', 'payment-approve', 'order-send']),
+  revision: z.number().int().positive().max(0xfffffffe),
+  requestId: z.string().uuid(),
+  proofRequestId: z.string().uuid().optional(),
+  deliveryDraftId: z.string().uuid().optional(),
+}).strict().superRefine((input, context) => {
+  if ((input.action === 'payment-approve') !== Boolean(input.proofRequestId)) {
+    context.addIssue({ code: 'custom', path: ['proofRequestId'], message: 'Bind payment approval to the reviewed screenshot.' });
+  }
+  if ((input.action === 'order-send') !== Boolean(input.deliveryDraftId)) {
+    context.addIssue({ code: 'custom', path: ['deliveryDraftId'], message: 'Bind delivery to the prepared account details.' });
+  }
+});
 const orderDecisionSchema = z.union([
   z.object({ action: z.literal('reject'), revision: z.number().int().positive().max(0xfffffffe),
     customerNote: customerNoteSchema.optional() }).strict(),
@@ -105,6 +120,7 @@ interface OrderRow extends RowDataPacket {
   fulfillment: string | null;
   checkout_state: string | null;
   customer_inputs: string | null;
+  delivery_draft: string | null;
 }
 
 let schemaReady: Promise<void> | undefined;
@@ -138,6 +154,7 @@ async function bootstrap() {
   for (const [column, definition] of [
     ['rejected_at', 'CHAR(24) CHARACTER SET ascii NULL'], ['customer_note', 'TEXT NULL'],
     ['checkout_state', 'MEDIUMTEXT NULL'], ['customer_inputs', 'MEDIUMTEXT NULL'],
+    ['delivery_draft', 'MEDIUMTEXT NULL'],
   ]) {
     try {
       await pool.query(`SELECT ${column} FROM digimium_orders LIMIT 0`);
@@ -159,6 +176,15 @@ async function bootstrap() {
     created_at CHAR(24) CHARACTER SET ascii NOT NULL,
     PRIMARY KEY (order_id, request_id),
     CONSTRAINT order_proofs_order FOREIGN KEY (order_id) REFERENCES digimium_orders (id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS digimium_order_actions (
+    order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    request_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    request_hash BINARY(32) NOT NULL,
+    action VARCHAR(32) CHARACTER SET ascii NOT NULL,
+    created_at CHAR(24) CHARACTER SET ascii NOT NULL,
+    PRIMARY KEY (order_id, request_id),
+    CONSTRAINT order_actions_order FOREIGN KEY (order_id) REFERENCES digimium_orders (id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 }
 export function ensureOrders() {
@@ -414,13 +440,13 @@ export async function createAdminOrder(body: unknown): Promise<{ order: Commerce
   }
 }
 
-function checkoutKey(purpose: 'inputs' | 'proof' | 'request') {
+function checkoutKey(purpose: 'inputs' | 'proof' | 'request' | 'delivery-draft') {
   const secret = process.env.ORDER_FULFILLMENT_SECRET?.trim() || process.env.ADMIN_AUTH_SECRET?.trim();
   if (!secret || secret.length < 32) throw new Error('Missing order encryption key.');
   return createHmac('sha256', secret).update('digimium/website-checkout/v1/' + purpose).digest();
 }
 
-function encryptCheckoutData(id: string, customerId: string, purpose: 'inputs' | 'proof', data: Buffer) {
+function encryptCheckoutData(id: string, customerId: string, purpose: 'inputs' | 'proof' | 'delivery-draft', data: Buffer) {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', checkoutKey(purpose), iv);
   cipher.setAAD(Buffer.from(id + '/' + customerId));
@@ -428,7 +454,7 @@ function encryptCheckoutData(id: string, customerId: string, purpose: 'inputs' |
   return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]);
 }
 
-function decryptCheckoutData(id: string, customerId: string, purpose: 'inputs' | 'proof', data: Buffer) {
+function decryptCheckoutData(id: string, customerId: string, purpose: 'inputs' | 'proof' | 'delivery-draft', data: Buffer) {
   const decipher = createDecipheriv('aes-256-gcm', checkoutKey(purpose), data.subarray(0, 12));
   decipher.setAuthTag(data.subarray(12, 28));
   decipher.setAAD(Buffer.from(id + '/' + customerId));
@@ -513,7 +539,7 @@ export async function createWebsiteOrder(customerId: string, body: unknown): Pro
       (id, customer_id, request_id, request_hash, created_at, snapshot, checkout_state, customer_inputs)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [id, customerId, input.requestId, hash, new Date().toISOString(), JSON.stringify(snapshot), JSON.stringify(checkout), encrypted]);
     await enqueueNotificationAlert(connection, { kind: 'order-created', dedupeKey: 'order-created:' + id, entityId: id,
-      customerName: customers[0].name, orderReference: id.replaceAll('-', '').slice(0, 8).toUpperCase(),
+      websiteOrder: true, customerName: customers[0].name, orderReference: id.replaceAll('-', '').slice(0, 8).toUpperCase(),
       productSummary: snapshot.lines.slice(0, 6).map(line => line.productName + (line.planName ? ' · ' + line.planName : '') + ' × ' + line.quantity).join('\n').slice(0, 350),
       totalMmk: snapshot.totalMmk });
     const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ?', [id]);
@@ -541,13 +567,15 @@ export async function orderDetails(id: string, customerId?: string, includeInput
   if (!z.string().uuid().safeParse(id).success) throw new CommerceError(404, 'Order not found.');
   await ensureOrders();
   const [rows] = await getPool().execute<OrderRow[]>('SELECT ' + orderColumns + (includeInputs ? ', customer_inputs' : '') +
+    (includeInputs && !customerId ? ', delivery_draft' : '') +
     ' FROM digimium_orders WHERE id = ?' + (customerId ? ' AND customer_id = ?' : ''), customerId ? [id, customerId] : [id]);
   const row = rows[0];
   if (!row) throw new CommerceError(404, 'Order not found.');
   if (!includeInputs) return { order: presentCheckout(row) };
   const customerInputs: CustomerOrderInput[] = row.customer_inputs && row.customer_id
     ? JSON.parse(decryptCheckoutData(id, row.customer_id, 'inputs', Buffer.from(row.customer_inputs, 'base64')).toString('utf8')) : [];
-  return { order: present(row), customerInputs };
+  return { order: present(row), customerInputs,
+    ...(!customerId && row.delivery_draft ? { deliveryDraft: decryptDeliveryDraft(row) } : {}) };
 }
 
 function editableWebsiteOrder(row: OrderRow | undefined, revision: number): { row: OrderRow; checkout: WebsiteCheckout } {
@@ -688,14 +716,194 @@ export async function orderProof(id: string, customerId?: string, version?: stri
   return { contentType: row.content_type, bytes: decryptCheckoutData(id, row.customer_id, 'proof', row.image_bytes) };
 }
 
+function currentProofId(id: string, checkout: WebsiteCheckout) {
+  const prefix = '/api/customer/orders/' + id + '/proof?version=';
+  const path = checkout.payment?.proofUrl;
+  if (!path?.startsWith(prefix)) return;
+  const requestId = path.slice(prefix.length);
+  return z.string().uuid().safeParse(requestId).success ? requestId : undefined;
+}
+
+async function hasCurrentProof(connection: Pick<PoolConnection, 'execute'>, id: string, checkout: WebsiteCheckout, expected?: string) {
+  const requestId = currentProofId(id, checkout);
+  if (!requestId || (expected && expected !== requestId)) return false;
+  const [rows] = await connection.execute<RowDataPacket[]>(
+    'SELECT 1 FROM digimium_order_proofs WHERE order_id = ? AND request_id = ?', [id, requestId]);
+  return rows.length === 1;
+}
+
+async function paymentConfirmed(connection: Pick<PoolConnection, 'execute'>, row: OrderRow, checkout: WebsiteCheckout) {
+  const snapshot: OrderSnapshot = JSON.parse(row.snapshot);
+  return snapshot.totalMmk === 0 || (snapshot.totalMmk !== null && Boolean(checkout.payment?.approvedAt) &&
+    await hasCurrentProof(connection, row.id, checkout));
+}
+
+async function applyPaymentDecision(connection: PoolConnection, row: OrderRow, checkout: WebsiteCheckout,
+  input: { action: 'payment-approve' | 'payment-reject'; note?: string; proofRequestId?: string }) {
+  if (checkout.stage !== 'payment_review' || !checkout.payment ||
+    !await hasCurrentProof(connection, row.id, checkout, input.proofRequestId)) {
+    throw new CommerceError(409, 'The payment screenshot changed or is unavailable. Review the current payment first.');
+  }
+  if (input.action === 'payment-approve') {
+    checkout.stage = 'processing';
+    checkout.payment.approvedAt = new Date().toISOString();
+    checkout.payment.rejectedAt = null;
+  } else {
+    checkout.stage = 'payment_rejected';
+    checkout.payment.rejectedAt = new Date().toISOString();
+    checkout.payment.approvedAt = null;
+  }
+  checkout.payment.note = input.note ?? '';
+}
+
+function decryptDeliveryDraft(row: OrderRow): OrderDeliveryDraft {
+  if (!row.delivery_draft || !row.customer_id || !row.checkout_state) throw new CommerceError(409, 'Prepare delivery details in Admin first.');
+  const checkout: WebsiteCheckout = JSON.parse(row.checkout_state);
+  const stored = JSON.parse(decryptCheckoutData(row.id, row.customer_id, 'delivery-draft', Buffer.from(row.delivery_draft, 'base64')).toString('utf8'));
+  if (stored.id !== checkout.deliveryDraftId) throw new CommerceError(409, 'The prepared delivery changed. Review it in Admin.');
+  const parsed = fulfillmentSchema.safeParse({ revision: 1, lines: stored.lines, customerNote: stored.customerNote });
+  if (!parsed.success) throw new Error('Invalid prepared delivery.');
+  return { lines: parsed.data.lines.map(line => ({ ...line, accountInfo: line.accountInfo ?? '' })), customerNote: parsed.data.customerNote ?? '' };
+}
+
+function prepareFulfillment(row: OrderRow, input: z.infer<typeof fulfillmentSchema>, previousLines: OrderFulfillment[]) {
+  const snapshot: OrderSnapshot = JSON.parse(row.snapshot);
+  const grants = new Set(input.lines.map(line => line.id));
+  if (snapshot.lines.length !== input.lines.length || !snapshot.lines.every(line => grants.has(line.id))) {
+    throw new CommerceError(400, 'Include the dates for every purchased item exactly once.');
+  }
+  const previous = new Map(previousLines.map(line => [line.id, line]));
+  return input.lines.map(({ id, startDate, endDate, accountInfo, accountDetails }) => {
+    const saved = previous.get(id)?.accountInfo || '';
+    if (accountInfo && accountInfo !== saved) throw new CommerceError(400, 'Use the optional Account, Password, Manager and Username fields.');
+    const details = accountDetails ?? previous.get(id)?.accountDetails;
+    const hasDetails = details && Object.values(details).some(value => value.length > 0);
+    return { id, startDate, endDate, accountInfo: saved, ...(hasDetails ? { accountDetails: details } : {}) };
+  });
+}
+
+async function enqueueDeliveryReady(connection: PoolConnection, row: OrderRow, checkout: WebsiteCheckout) {
+  if (row.approved_at || row.rejected_at || !row.delivery_draft || !checkout.orderApprovedAt || !checkout.deliveryDraftId ||
+    !await paymentConfirmed(connection, row, checkout)) return;
+  const dedupeKey = 'order-delivery-ready:' + row.id + ':' + checkout.deliveryDraftId;
+  await enqueueNotificationAlert(connection, { kind: 'order-delivery-ready', dedupeKey, entityId: row.id,
+    orderReference: row.id.replaceAll('-', '').slice(0, 8).toUpperCase(), deliveryDraftId: checkout.deliveryDraftId });
+  return dedupeKey;
+}
+
+export async function readAdminOrderActionRevision(id: string) {
+  if (!z.string().uuid().safeParse(id).success) throw new CommerceError(404, 'Order not found.');
+  await ensureOrders();
+  const [rows] = await getPool().execute<(RowDataPacket & { revision: number })[]>(
+    `SELECT revision FROM digimium_orders
+      WHERE id = ? AND customer_id IS NOT NULL AND guest_key IS NULL AND checkout_state IS NOT NULL`, [id]);
+  if (!rows[0]) throw new CommerceError(404, 'Website order not found.');
+  return rows[0].revision;
+}
+
+async function stageOrderDelivery(id: string, body: unknown) {
+  if (!z.string().uuid().safeParse(id).success) throw new CommerceError(404, 'Order not found.');
+  enforceCollectionLimit(body, 'lines');
+  const parsed = deliveryDraftSchema.safeParse(body);
+  if (!parsed.success) throw new CommerceError(400, 'Check the prepared delivery dates, account details and note.');
+  await ensureOrders();
+  const connection = await getPool().getConnection();
+  let order: CommerceOrder;
+  let readyKey: string | undefined;
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ', delivery_draft FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
+    const { row, checkout } = editableWebsiteOrder(rows[0], parsed.data.revision);
+    const previous = row.delivery_draft ? decryptDeliveryDraft(row) : undefined;
+    const lines = prepareFulfillment(row, parsed.data, previous?.lines ?? []);
+    const draft: OrderDeliveryDraft = { lines, customerNote: parsed.data.customerNote ?? previous?.customerNote ?? row.customer_note ?? '' };
+    checkout.deliveryDraftId = randomUUID();
+    checkout.deliveryReady = true;
+    row.delivery_draft = encryptCheckoutData(id, row.customer_id!, 'delivery-draft',
+      Buffer.from(JSON.stringify({ id: checkout.deliveryDraftId, ...draft }))).toString('base64');
+    row.checkout_state = JSON.stringify(checkout);
+    row.revision++;
+    await connection.execute('UPDATE digimium_orders SET delivery_draft = ?, checkout_state = ?, revision = ? WHERE id = ?',
+      [row.delivery_draft, row.checkout_state, row.revision, id]);
+    readyKey = await enqueueDeliveryReady(connection, row, checkout);
+    order = presentCheckout(row);
+    await connection.commit();
+  } catch (error) { await connection.rollback(); throw error; }
+  finally { connection.release(); }
+  if (readyKey) await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: readyKey }).catch(() => {});
+  return order;
+}
+
+/** The caller must authenticate Admin before applying these server-only actions. */
+export async function applyAdminOrderAction(id: string, body: unknown): Promise<{ order: CommerceOrder; applied: boolean }> {
+  const parsed = adminActionSchema.safeParse(body);
+  if (!parsed.success || !z.string().uuid().safeParse(id).success) throw new CommerceError(400, 'Review the order and use its current action.');
+  const input = parsed.data;
+  const hash = createHash('sha256').update(JSON.stringify([id, input.action, input.proofRequestId ?? null, input.deliveryDraftId ?? null])).digest();
+  await ensureOrders();
+  const connection = await getPool().getConnection();
+  let order: CommerceOrder;
+  let readyKey: string | undefined;
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ', delivery_draft FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
+    const row = rows[0];
+    if (!row) throw new CommerceError(404, 'Order not found.');
+    const [receipts] = await connection.execute<(RowDataPacket & { request_hash: Buffer })[]>(
+      'SELECT request_hash FROM digimium_order_actions WHERE order_id = ? AND request_id = ?', [id, input.requestId]);
+    if (receipts[0]) {
+      if (!hash.equals(receipts[0].request_hash)) throw new CommerceError(409, 'This action request was already used for a different decision.');
+      await connection.commit();
+      return { order: presentCheckout(row), applied: false };
+    }
+    const { checkout } = editableWebsiteOrder(row, input.revision);
+    if (input.action === 'order-approve') {
+      if (checkout.orderApprovedAt) throw new CommerceError(409, 'This order is already approved for processing.');
+      checkout.orderApprovedAt = new Date().toISOString();
+    } else if (input.action === 'payment-approve') {
+      await applyPaymentDecision(connection, row, checkout, { action: input.action, proofRequestId: input.proofRequestId });
+    } else {
+      if (!checkout.orderApprovedAt || !row.delivery_draft || checkout.deliveryDraftId !== input.deliveryDraftId) {
+        throw new CommerceError(409, 'Approve the order and review its latest prepared delivery first.');
+      }
+      if (!await paymentConfirmed(connection, row, checkout)) throw new CommerceError(409, 'Approve the current payment proof before sending the order.');
+      const draft = decryptDeliveryDraft(row);
+      const lines = prepareFulfillment(row, { revision: row.revision, ...draft }, []);
+      row.approved_at = new Date().toISOString();
+      row.fulfillment = encryptFulfillment(id, fulfillmentOwner(row), lines);
+      row.customer_note = draft.customerNote;
+      row.delivery_draft = null;
+      checkout.stage = 'completed';
+      delete checkout.deliveryDraftId;
+      delete checkout.deliveryReady;
+      await connection.execute("DELETE FROM digimium_notifications WHERE order_id = ? AND kind = 'expiry'", [id]);
+    }
+    row.checkout_state = JSON.stringify(checkout);
+    row.revision++;
+    await connection.execute(`UPDATE digimium_orders SET checkout_state = ?, approved_at = ?, fulfillment = ?,
+      delivery_draft = ?, customer_note = ?, revision = ? WHERE id = ?`,
+    [row.checkout_state, row.approved_at, row.fulfillment, row.delivery_draft, row.customer_note, row.revision, id]);
+    await connection.execute('INSERT INTO digimium_order_actions (order_id, request_id, request_hash, action, created_at) VALUES (?, ?, ?, ?, ?)',
+      [id, input.requestId, hash, input.action, new Date().toISOString()]);
+    readyKey = await enqueueDeliveryReady(connection, row, checkout);
+    order = presentCheckout(row);
+    await connection.commit();
+  } catch (error) { await connection.rollback(); throw error; }
+  finally { connection.release(); }
+  if (readyKey) await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: readyKey }).catch(() => {});
+  return { order, applied: true };
+}
+
 async function updateWebsiteOrder(id: string, body: unknown, action: unknown) {
   const parsed = action === 'quote' ? quoteOrderSchema.safeParse(body) : paymentDecisionSchema.safeParse(body);
   if (!parsed.success || !z.string().uuid().safeParse(id).success) throw new CommerceError(400, 'Enter a valid payment decision or quote and current revision.');
   await ensureOrders();
   const connection = await getPool().getConnection();
+  let order: CommerceOrder;
+  let readyKey: string | undefined;
   try {
     await connection.beginTransaction();
-    const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
+    const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ', delivery_draft FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
     const { row, checkout } = editableWebsiteOrder(rows[0], parsed.data.revision);
     const snapshot: OrderSnapshot = JSON.parse(row.snapshot);
     if (parsed.data.action === 'quote') {
@@ -717,29 +925,22 @@ async function updateWebsiteOrder(id: string, body: unknown, action: unknown) {
       checkout.quotedAt = new Date().toISOString();
       delete checkout.payment;
     } else {
-      if (checkout.stage !== 'payment_review' || !checkout.payment?.proofUrl) throw new CommerceError(409, 'Review a submitted payment screenshot first.');
-      if (parsed.data.action === 'payment-approve') {
-        checkout.stage = 'processing';
-        checkout.payment.approvedAt = new Date().toISOString();
-        checkout.payment.rejectedAt = null;
-      } else {
-        checkout.stage = 'payment_rejected';
-        checkout.payment.rejectedAt = new Date().toISOString();
-        checkout.payment.approvedAt = null;
-      }
-      checkout.payment.note = parsed.data.note ?? '';
+      await applyPaymentDecision(connection, row, checkout, parsed.data);
     }
     row.snapshot = JSON.stringify(snapshot);
     row.checkout_state = JSON.stringify(checkout);
     row.revision++;
     await connection.execute('UPDATE digimium_orders SET snapshot = ?, checkout_state = ?, revision = ? WHERE id = ?',
       [row.snapshot, row.checkout_state, row.revision, id]);
+    readyKey = await enqueueDeliveryReady(connection, row, checkout);
+    order = present(row);
     await connection.commit();
-    return present(row);
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally { connection.release(); }
+  if (readyKey) await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: readyKey }).catch(() => {});
+  return order;
 }
 
 export async function customerOrders(customerId: string) {
@@ -778,39 +979,29 @@ export async function saveFulfillment(id: string, body: unknown) {
     if (!row) throw new CommerceError(404, 'Order not found.');
     if (row.revision !== input.data.revision) throw new CommerceError(409, 'This order changed. Refresh before saving.');
     if (row.rejected_at) throw new CommerceError(409, 'A rejected order cannot be approved. Edit its customer note instead.');
-    const snapshot: OrderSnapshot = JSON.parse(row.snapshot);
     const checkout: WebsiteCheckout | undefined = row.checkout_state ? JSON.parse(row.checkout_state) : undefined;
-    if (checkout && snapshot.totalMmk !== 0 && !checkout.payment?.approvedAt) {
+    if (checkout && !await paymentConfirmed(connection, row, checkout)) {
       throw new CommerceError(409, 'Approve the payment before completing this order.');
     }
-    const grants = new Set(input.data.lines.map(line => line.id));
-    if (snapshot.lines.length !== input.data.lines.length || !snapshot.lines.every(line => grants.has(line.id))) {
-      throw new CommerceError(400, 'Include the dates for every purchased item exactly once.');
-    }
-    const previous = new Map(decryptFulfillment(row).map(line => [line.id, line]));
-    const lines = input.data.lines.map(({ id, startDate, endDate, accountInfo, accountDetails }) => {
-      const saved = previous.get(id)?.accountInfo || '';
-      if (accountInfo && accountInfo !== saved) {
-        throw new CommerceError(400, 'Use the optional Account, Password, Manager and Username fields.');
-      }
-      // Omission means a date-only edit; an explicit empty object clears these fields.
-      const details = accountDetails ?? previous.get(id)?.accountDetails;
-      const hasDetails = details && Object.values(details).some(value => value.length > 0);
-      return { id, startDate, endDate, accountInfo: saved, ...(hasDetails ? { accountDetails: details } : {}) };
-    });
+    const previousLines = decryptFulfillment(row);
+    const previous = new Map(previousLines.map(line => [line.id, line]));
+    const lines = prepareFulfillment(row, input.data, previousLines);
     if (lines.some(line => previous.get(line.id)?.startDate !== line.startDate || previous.get(line.id)?.endDate !== line.endDate)) {
       await connection.execute("DELETE FROM digimium_notifications WHERE order_id = ? AND kind = 'expiry'", [id]);
     }
     row.approved_at ??= new Date().toISOString();
     if (checkout) {
       checkout.stage = 'completed';
+      checkout.orderApprovedAt ??= row.approved_at;
+      delete checkout.deliveryDraftId;
+      delete checkout.deliveryReady;
       row.checkout_state = JSON.stringify(checkout);
     }
     row.fulfillment = encryptFulfillment(id, fulfillmentOwner(row), lines);
     if (input.data.customerNote !== undefined) row.customer_note = input.data.customerNote;
     row.revision++;
     const order = present(row);
-    await connection.execute('UPDATE digimium_orders SET approved_at = ?, fulfillment = ?, customer_note = ?, revision = ?, checkout_state = ? WHERE id = ?',
+    await connection.execute('UPDATE digimium_orders SET approved_at = ?, fulfillment = ?, customer_note = ?, revision = ?, checkout_state = ?, delivery_draft = NULL WHERE id = ?',
       [row.approved_at, row.fulfillment, row.customer_note, row.revision, row.checkout_state ?? null, id]);
     await connection.commit();
     return order;
@@ -857,6 +1048,11 @@ async function saveOrderDecision(id: string, body: unknown) {
 /** Older callers still send fulfillment without an action; decisions are explicit new variants. */
 export async function updateOrder(id: string, body: unknown) {
   const action = body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>).action : undefined;
+  if (action === 'stage-delivery') return stageOrderDelivery(id, body);
+  if (action === 'order-approve' || action === 'order-send' ||
+    (action === 'payment-approve' && body && typeof body === 'object' && Object.hasOwn(body, 'requestId'))) {
+    return (await applyAdminOrderAction(id, body)).order;
+  }
   if (action === 'quote' || action === 'payment-approve' || action === 'payment-reject') return updateWebsiteOrder(id, body, action);
   return action === 'reject' || action === 'note' ? saveOrderDecision(id, body) : saveFulfillment(id, body);
 }

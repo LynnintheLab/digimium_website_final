@@ -1,8 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { Check, ChevronDown, Copy, Eye, EyeOff, RefreshCw, Upload } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Check, ChevronDown, Copy, Eye, EyeOff, ImagePlus, RefreshCw, Upload, X } from 'lucide-react';
+import { useEffect, useId, useRef, useState, type ClipboardEvent, type CSSProperties, type DragEvent, type FormEvent } from 'react';
 import type { CommerceOrder } from '@/lib/commerce-types';
 import { PAYMENT_METHODS, type CustomerOrderInput, type PaymentMethodId, type WebsiteCheckout } from '@/lib/payment';
 import { priceText, type ShopLanguage } from '@/lib/shop-language';
@@ -37,7 +37,10 @@ export function CustomerPayment({ order, methods, lang, onUpdated, showTotal = t
   const [preview, setPreview] = useState('');
   const [uncertain, setUncertain] = useState(false);
   const [methodUncertain, setMethodUncertain] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const proofId = useId();
   const inFlight = useRef(false);
+  const dragDepth = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const upload = useRef<{ requestId: string; revision: number; file: File } | null>(null);
   const methodAttempt = useRef<{ revision: number; methodId: PaymentMethodId } | null>(null);
@@ -132,16 +135,46 @@ export function CustomerPayment({ order, methods, lang, onUpdated, showTotal = t
   }
 
   function chooseFile(next: File | null) {
+    if (inFlight.current || uncertain || methodUncertain || !canPay) return;
     setError('');
-    if (!next) { setFile(null); setPreview(''); return; }
+    if (!next) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(next.type) || next.size > MAX_PROOF_SIZE || !next.size) {
       setError(t('Choose a PNG, JPG or WebP image up to 5 MB.', '5 MB အထိ PNG၊ JPG သို့မဟုတ် WebP ပုံ ရွေးပါ။'));
       if (fileInput.current) fileInput.current.value = '';
-      setFile(null); setPreview('');
       return;
     }
     upload.current = null;
     setPreview(''); setFile(next);
+  }
+
+  function removeFile() {
+    if (inFlight.current || uncertain || methodUncertain || !canPay) return;
+    setError(''); setFile(null); setPreview(''); upload.current = null;
+    if (fileInput.current) fileInput.current.value = '';
+    fileInput.current?.focus();
+  }
+
+  function dropFile(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    dragDepth.current = 0; setDragging(false);
+    if (inFlight.current || uncertain || methodUncertain || !canPay) return;
+    if (event.dataTransfer.files.length !== 1) {
+      setError(t('Add one payment screenshot at a time.', 'ငွေလွှဲ screenshot တစ်ပုံစီ ထည့်ပါ။'));
+      return;
+    }
+    chooseFile(event.dataTransfer.files[0]);
+  }
+
+  function pasteFile(event: ClipboardEvent<HTMLDivElement>) {
+    const images = Array.from(event.clipboardData.items).filter(item => item.kind === 'file');
+    if (!images.length) return;
+    event.preventDefault();
+    if (inFlight.current || uncertain || methodUncertain || !canPay) return;
+    if (images.length !== 1) {
+      setError(t('Paste one payment screenshot at a time.', 'ငွေလွှဲ screenshot တစ်ပုံစီ paste လုပ်ပါ။'));
+      return;
+    }
+    chooseFile(images[0].getAsFile());
   }
 
   async function submitProof(event: FormEvent<HTMLFormElement>) {
@@ -189,7 +222,9 @@ export function CustomerPayment({ order, methods, lang, onUpdated, showTotal = t
       <button type="button" className="payment-text-button" disabled={busy} onClick={() => void refresh()}><RefreshCw size={15} />{t('Refresh', 'ပြန်ကြည့်ရန်')}</button>
     </div>
     {demo && <div className="payment-demo-note" role="note"><strong>{t('Demo payment — do not send money', 'ငွေပေးချေမှု စမ်းသပ်ရန်သာ — ငွေမလွှဲပါနှင့်')}</strong><p>{canPay ? t('Use the demo image below to try uploading and Admin review. This QR contains a test message.', 'ပုံတင်ခြင်းနှင့် Admin စစ်ဆေးခြင်းကို စမ်းရန် အောက်က နမူနာပုံ သုံးပါ။ ဒီ QR ထဲမှာ စမ်းသပ်စာသား ပါဝင်ပါတယ်။') : t('This order used demo payment.', 'ဒီအော်ဒါမှာ demo ငွေပေးချေမှုကို သုံးထားပါတယ်။')}</p></div>}
-    {order.status !== 'rejected' && <ol className="payment-progress" aria-label={t('Order steps', 'အော်ဒါ အဆင့်များ')}>
+    {order.status !== 'rejected' && <ol className="payment-progress"
+      data-advancing={checkout.stage === 'payment_review' || checkout.stage === 'processing' || undefined}
+      style={{ '--payment-progress': currentStep / 3 } as CSSProperties} aria-label={t('Order steps', 'အော်ဒါ အဆင့်များ')}>
       {[t('Order saved', 'အော်ဒါသိမ်းပြီး'), t('Payment', 'ငွေပေးချေမှု'), t('Preparing', 'ပြင်ဆင်နေသည်'), t('Delivered', 'ပေးပြီး')].map((label, index) =>
         <li key={index} data-complete={index < currentStep || checkout.stage === 'completed' || undefined} aria-current={index === currentStep ? 'step' : undefined}><span aria-hidden="true">{index < currentStep || checkout.stage === 'completed' ? <Check size={13} /> : index + 1}</span>{label}</li>)}
     </ol>}
@@ -225,9 +260,23 @@ export function CustomerPayment({ order, methods, lang, onUpdated, showTotal = t
       </>}
     </div>}
     {canPay && payment && !methodUncertain && <form className="payment-proof-form" onSubmit={submitProof}>
-      <label>{demo ? t('Sample payment image', 'ငွေပေးချေမှု နမူနာပုံ') : t('Payment screenshot', 'ငွေလွှဲ screenshot')}<input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" disabled={busy || uncertain} onChange={event => chooseFile(event.target.files?.[0] || null)} /></label>
-      <small>{t('PNG, JPG or WebP, up to 5 MB.', '5 MB အထိ PNG၊ JPG သို့မဟုတ် WebP။')}</small>
-      {preview && <Image className="payment-proof-preview" src={preview} alt={demo ? t('Selected demo payment image', 'ရွေးထားသော demo ငွေပေးချေမှု နမူနာပုံ') : t('Selected payment screenshot', 'ရွေးထားသော ငွေလွှဲ screenshot')} width={300} height={220} unoptimized />}
+      <h5 id={`${proofId}-title`}>{demo ? t('Upload a sample payment image', 'ငွေပေးချေမှု နမူနာပုံ တင်ပါ') : t('Upload your payment screenshot', 'ငွေလွှဲ screenshot တင်ပါ')}</h5>
+      <div className="payment-upload-zone" role="group" aria-labelledby={`${proofId}-title`} aria-describedby={`${proofId}-help`} aria-disabled={busy || uncertain} tabIndex={busy || uncertain ? -1 : 0} data-dragging={dragging || undefined} data-selected={!!file || undefined}
+        onPaste={pasteFile}
+        onDragEnter={event => { event.preventDefault(); if (!inFlight.current && !uncertain && event.dataTransfer.types.includes('Files')) { dragDepth.current += 1; setDragging(true); } }}
+        onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = busy || uncertain ? 'none' : 'copy'; }}
+        onDragLeave={event => { event.preventDefault(); dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); }}
+        onDrop={dropFile}>
+        {file ? <>
+          {preview && <Image className="payment-proof-preview" src={preview} alt={demo ? t('Selected demo payment image', 'ရွေးထားသော demo ငွေပေးချေမှု နမူနာပုံ') : t('Selected payment screenshot', 'ရွေးထားသော ငွေလွှဲ screenshot')} width={300} height={220} unoptimized />}
+          <div className="payment-selected-file" role="status"><Check size={17} aria-hidden="true" /><div><strong>{t('Image selected', 'ပုံရွေးပြီးပါပြီ')}</strong><span dir="auto">{file.name}</span><small>{file.size >= 1024 * 1024 ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.ceil(file.size / 1024))} KB`}</small></div></div>
+        </> : <div className="payment-upload-prompt"><ImagePlus size={34} strokeWidth={1.5} aria-hidden="true" /><strong>{t('Add your screenshot here', 'Screenshot ပုံ ဒီမှာထည့်ပါ')}</strong><p>{t('Choose an image or drag and drop it here.', 'ပုံရွေးပါ သို့မဟုတ် ဒီနေရာသို့ ဆွဲထည့်ပါ။')}</p></div>}
+        <div className="payment-upload-actions">
+          <label className="payment-upload-picker" data-disabled={busy || uncertain || undefined}><ImagePlus size={17} aria-hidden="true" />{file ? t('Change image', 'ပုံပြောင်းရန်') : t('Choose image', 'ပုံရွေးရန်')}<input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" aria-label={file ? t('Change payment screenshot', 'ငွေလွှဲ screenshot ပြောင်းရန်') : t('Choose payment screenshot', 'ငွေလွှဲ screenshot ရွေးရန်')} aria-describedby={`${proofId}-help`} disabled={busy || uncertain} onChange={event => chooseFile(event.target.files?.[0] || null)} /></label>
+          {file && <button className="payment-upload-remove" type="button" disabled={busy || uncertain} onClick={removeFile}><X size={16} aria-hidden="true" />{t('Remove', 'ဖယ်ရန်')}</button>}
+        </div>
+        <p className="payment-upload-help" id={`${proofId}-help`}>{t('PNG, JPG or WebP · up to 5 MB', 'PNG၊ JPG သို့မဟုတ် WebP · 5 MB အထိ')}<span>{t('You can also click this area and paste a copied image (Ctrl / ⌘ + V).', 'ဒီနေရာကို နှိပ်ပြီး ကူးထားသောပုံကို paste လုပ်နိုင်ပါတယ် (Ctrl / ⌘ + V)။')}</span></p>
+      </div>
       {uncertain && <p className="payment-guidance" role="status">{t('Retrying sends the same screenshot once.', 'ပြန်တင်လျှင် မူလ screenshot ကိုပဲ ပြန်စစ်ပေးပါမယ်။')}</p>}
       <button className="customer-primary" type="submit" disabled={busy || !file}><Upload size={16} />{busy ? t('Submitting…', 'တင်နေသည်…') : uncertain ? t('Retry screenshot', 'Screenshot ပြန်တင်ရန်') : demo ? t('Submit sample for review', 'နမူနာပုံ စစ်ဆေးရန် တင်မယ်') : t('Submit for payment review', 'ငွေပေးချေမှု စစ်ဆေးရန် တင်မယ်')}</button>
     </form>}

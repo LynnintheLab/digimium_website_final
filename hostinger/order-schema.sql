@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS digimium_orders (
   fulfillment MEDIUMTEXT NULL,
   checkout_state MEDIUMTEXT NULL,
   customer_inputs MEDIUMTEXT NULL,
+  delivery_draft MEDIUMTEXT NULL,
   UNIQUE KEY orders_customer_request (customer_id, request_id),
   UNIQUE KEY orders_guest_request (guest_key, request_id),
   INDEX orders_customer_created (customer_id, created_at),

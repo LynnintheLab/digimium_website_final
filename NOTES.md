@@ -2,6 +2,8 @@
 
 ## Current status
 
+The testing checkout has a distinct receipt upload surface with file selection, drop, paste, preview and replacement, plus an animated connector for order progress. The dedicated testing Telegram bot has separate **Orders**, **Payment approval**, **Order send** and **Registration** topics. Admin can save an encrypted delivery draft before payment review finishes. Sending publishes that draft in the customer’s website Order History. [Testing bot setup](docs/ORDER-ALERT-BOT.md)
+
 23 November 2026: The dedicated testing bot `@DigimiumTestingOrdersBot` has private topics for **Payment approval**, **Orders** and **Registration**. Its five runtime settings were applied on the testing Hostinger app. Payment alerts identify new proofs by order reference, method, amount and demo status with a link to protected Admin review. Proof images remain on the website. [Bot setup](docs/ORDER-ALERT-BOT.md)
 
 22 November 2026: The testing storefront uses four demo payment methods when its catalog has no saved payment settings. KPay, AYA Pay, Wave Pay and Binance Pay each show a labeled QR that decodes to a plain test message. Customers can download it and upload it as sample proof. Admin can approve the sample and complete delivery using test details. Binance Pay uses 4,000 MMK per USDT as a sample rate. The preset reads the configured testing origin and stays out of saved catalog settings.
@@ -93,6 +95,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Added owner- and topic-bound Telegram buttons for order approval, payment approval and delivery. The server verifies the current proof or draft before writing and records action receipts for replay safety. Provisioned the Order send topic and added the private webhook settings to Hostinger testing. Clean Node 24 builds, typecheck, strict lint, 103 unit tests and disposable checkout integrations passed, including the three callbacks, mismatched credentials and topic, button tampering, stale proof/draft and replay.
 
 Verified the testing bot and owner private chat against Telegram, enabled private threads and provisioned all three topics. Applied the private route settings in testing Hostinger. The dedicated-bot, legacy notification and unconfigured checkout suites passed with intercepted Telegram, including proof deduplication, stale-proof cancellation, retry, protected Admin links and payload redaction. Live setup verified topics and hosting configuration.
 
@@ -248,7 +252,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Verify the next authorized testing payment proof, order and registration in their Telegram topics. Promote website changes only after the owner explicitly approves production.
+- Verify the next authorized testing order, proof, delivery draft and registration in their Telegram topics. Buttons appear on new alerts. Continue to use the website Admin to review previously sent alerts. Promote website changes only after the owner explicitly approves production.
 
 - Use synthetic details for checkout and fulfillment on testing. The demo preset is active while there are no saved payment settings. Save receiver details in Admin Payments when ready to replace the demo choices. Keep production on its existing release until the owner explicitly requests promotion.
 

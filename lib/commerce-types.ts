@@ -61,6 +61,11 @@ export type OrderFulfillment = {
   accountDetails?: CommerceAccountDetails;
 };
 
+export type OrderDeliveryDraft = {
+  lines: OrderFulfillment[];
+  customerNote: string;
+};
+
 export type TelegramOrder = Pick<CommerceOrder, 'id' | 'totalMmk'> & {
   lines: Pick<CommerceOrderLine, 'productName' | 'planName' | 'duration' | 'price' | 'quantity'>[];
 };

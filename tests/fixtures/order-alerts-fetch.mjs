@@ -24,14 +24,14 @@ globalThis.fetch = async function orderAlertFixtureFetch(input, options) {
   assert.deepEqual(Object.keys(fields).sort(), ['chat_id', 'text', 'message_thread_id', 'protect_content', 'link_preview_options',
     ...(fields.reply_markup ? ['reply_markup'] : [])].sort());
   assert.equal(fields.chat_id, fakeChat);
-  assert.ok([11, 12, 13].includes(fields.message_thread_id));
+  assert.ok([11, 12, 13, 14].includes(fields.message_thread_id));
   assert.equal(fields.protect_content, true);
   assert.deepEqual(fields.link_preview_options, { is_disabled: true });
   assert.equal(fields.parse_mode, undefined);
   assert.equal(typeof fields.text, 'string');
   assert.ok(fields.text.length <= 4096 && fields.text.isWellFormed());
   for (const secret of [fakeToken, process.env.ADMIN_AUTH_SECRET, process.env.ORDER_FULFILLMENT_SECRET,
-    process.env.NOTIFICATIONS_CRON_SECRET, process.env.ADMIN_TELEGRAM_BOT_TOKEN]) {
+    process.env.NOTIFICATIONS_CRON_SECRET, process.env.ADMIN_TELEGRAM_BOT_TOKEN, process.env.ORDER_ALERTS_TELEGRAM_WEBHOOK_SECRET]) {
     assert.ok(!secret || !JSON.stringify(fields).includes(secret), 'An alert must not disclose private configuration.');
   }
   const safeFields = { text: fields.text, message_thread_id: fields.message_thread_id,

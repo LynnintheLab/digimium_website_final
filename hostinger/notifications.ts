@@ -8,6 +8,7 @@ import type { CustomerNotification, CustomerNotificationPage } from '../lib/noti
 import { normalizeNotificationActionLabel, normalizeNotificationActionUrl } from '../lib/notification-action';
 import { getSubscriptionTerm, todayInMyanmar } from '../lib/subscription-term';
 import { getPool } from './mysql';
+import { orderBotActions, orderBotActionSettings, orderBotCallbackData, orderBotTestEnvironment, orderBotTopicKeys, privateTelegramId, type OrderBotActionKind } from './order-bot-actions';
 
 const uuid = z.string().uuid();
 const message = z.string().max(1000).transform(value => value.replace(/\r\n?/g, '\n').trim())
@@ -152,6 +153,7 @@ const creationAlert = z.object({
   customerName: z.string().max(200).optional(), authProvider: z.enum(['email', 'google', 'telegram']).optional(),
   orderReference: z.string().max(40).optional(), productSummary: z.string().max(350).optional(),
   totalMmk: z.number().int().nonnegative().safe().nullable().optional(),
+  websiteOrder: z.literal(true).optional(),
 }).strict();
 const proofAlert = z.object({
   kind: z.literal('payment-proof-submitted'), dedupeKey: creationAlert.shape.dedupeKey, entityId: uuid,
@@ -159,18 +161,16 @@ const proofAlert = z.object({
   paymentMethod: z.enum(['kpay', 'aya', 'wave', 'binance']), paymentAmount: z.string().max(32).regex(/^\d+(?:\.\d{2})?$/),
   paymentCurrency: z.enum(['MMK', 'USDT']),
 }).strict();
-const alertSchema = z.discriminatedUnion('kind', [creationAlert, proofAlert]);
+const deliveryAlert = z.object({
+  kind: z.literal('order-delivery-ready'), dedupeKey: creationAlert.shape.dedupeKey, entityId: uuid,
+  orderReference: z.string().max(40), deliveryDraftId: uuid,
+}).strict();
+const alertSchema = z.discriminatedUnion('kind', [creationAlert, proofAlert, deliveryAlert]);
 export type NotificationAlertInput = z.infer<typeof alertSchema>;
 
-const topicKeys = {
-  'payment-proof-submitted': 'ORDER_ALERTS_TELEGRAM_PAYMENT_TOPIC_ID',
-  'order-created': 'ORDER_ALERTS_TELEGRAM_ORDERS_TOPIC_ID',
-  'customer-created': 'ORDER_ALERTS_TELEGRAM_REGISTRATION_TOPIC_ID',
-} as const;
-const orderBotKeys = ['ORDER_ALERTS_TELEGRAM_BOT_TOKEN', 'ORDER_ALERTS_TELEGRAM_CHAT_ID', ...Object.values(topicKeys)];
+const orderBotKeys = ['ORDER_ALERTS_TELEGRAM_BOT_TOKEN', 'ORDER_ALERTS_TELEGRAM_CHAT_ID', ...Object.values(orderBotTopicKeys)];
 function orderBotRoutingEnabled() {
-  return /^https:\/\/test\.buywith-digimium\.store\/?$/.test(process.env.APP_ORIGIN ?? '') ||
-    orderBotKeys.some(key => Boolean(process.env[key]?.trim()));
+  return orderBotTestEnvironment() || orderBotKeys.some(key => Boolean(process.env[key]?.trim()));
 }
 
 /** Transactional insert only: missing Telegram configuration never affects this operation. */
@@ -179,30 +179,31 @@ export async function enqueueNotificationAlert(connection: PoolConnection, candi
   await connection.execute(`INSERT IGNORE INTO digimium_notification_outbox
     (id, dedupe_key, kind, entity_id, payload, created_at, next_attempt_at)
     VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
-  [randomUUID(), payload.dedupeKey, payload.kind === 'payment-proof-submitted' || orderBotRoutingEnabled() ? 'bot:' + payload.kind : payload.kind,
+  [randomUUID(), payload.dedupeKey, payload.kind === 'payment-proof-submitted' || payload.kind === 'order-delivery-ready' || orderBotRoutingEnabled() ? 'bot:' + payload.kind : payload.kind,
     payload.entityId, JSON.stringify(payload)]);
 }
 
-function privateId(value: string | undefined) {
-  const id = value?.trim();
-  return id && /^[1-9]\d{0,15}$/.test(id) && Number(id) <= 2 ** 52 - 1 ? id : null;
-}
-
-type AlertConfig = { token: string; chat: string; topics?: Record<NotificationAlertInput['kind'], number> };
+type AlertConfig = { token: string; chat: string; topics?: Partial<Record<NotificationAlertInput['kind'], number>>;
+  actions?: NonNullable<ReturnType<typeof orderBotActionSettings>> };
 
 function telegramConfiguration(): AlertConfig | null {
   if (orderBotRoutingEnabled()) {
     const token = process.env.ORDER_ALERTS_TELEGRAM_BOT_TOKEN?.trim();
-    const chat = privateId(process.env.ORDER_ALERTS_TELEGRAM_CHAT_ID);
-    const topics = Object.fromEntries(Object.entries(topicKeys).map(([kind, key]) => [kind, Number(privateId(process.env[key]))])) as NonNullable<AlertConfig['topics']>;
+    const chat = privateTelegramId(process.env.ORDER_ALERTS_TELEGRAM_CHAT_ID);
+    const topics = {
+      'payment-proof-submitted': Number(privateTelegramId(process.env[orderBotTopicKeys['payment-proof-submitted']])),
+      'order-created': Number(privateTelegramId(process.env[orderBotTopicKeys['order-created']])),
+      'customer-created': Number(privateTelegramId(process.env[orderBotTopicKeys['customer-created']])),
+    };
     const topicIds = Object.values(topics);
     if (!token || !/^\d{1,16}:[A-Za-z0-9_-]{20,200}$/.test(token) || !chat ||
       token === process.env.TELEGRAM_BOT_TOKEN?.trim() || token === process.env.ADMIN_TELEGRAM_BOT_TOKEN?.trim() ||
       topicIds.some(id => id < 2 || id > 0x7fffffff) || new Set(topicIds).size !== topicIds.length) return null;
-    return { token, chat, topics };
+    const actions = orderBotActionSettings();
+    return actions ? { token, chat, topics: actions.topics, actions } : { token, chat, topics };
   }
   const token = process.env.ADMIN_TELEGRAM_BOT_TOKEN?.trim() || process.env.TELEGRAM_BOT_TOKEN?.trim();
-  const chat = privateId(process.env.ADMIN_TELEGRAM_CHAT_ID);
+  const chat = privateTelegramId(process.env.ADMIN_TELEGRAM_CHAT_ID);
   return token && token.length <= 256 && chat ? { token, chat } : null;
 }
 function cleanAlert(value: string | undefined, maximum: number) {
@@ -219,6 +220,10 @@ function alertText(payload: NotificationAlertInput, dedicated: boolean) {
       'Order #' + cleanAlert(payload.orderReference, 40),
       `${methods[payload.paymentMethod]} · ${payload.paymentAmount} ${payload.paymentCurrency}`].join('\n');
   }
+  if (payload.kind === 'order-delivery-ready') {
+    return ['Order ready to send', 'Order #' + cleanAlert(payload.orderReference, 40),
+      'Send the saved delivery to the customer’s website account.'].join('\n');
+  }
   const rows = [payload.kind === 'order-created' ? 'New Digimium order' : 'New Digimium customer',
     payload.kind === 'order-created' ? 'Order #' + cleanAlert(payload.orderReference || payload.entityId.slice(0, 8).toUpperCase(), 40) : 'Account #' + payload.entityId.slice(0, 8).toUpperCase()];
   if (!dedicated && payload.customerName) rows.push('Name: ' + cleanAlert(payload.customerName, 100));
@@ -228,18 +233,24 @@ function alertText(payload: NotificationAlertInput, dedicated: boolean) {
   return rows.join('\n');
 }
 
-function adminAlertLink(payload: NotificationAlertInput) {
+function alertKeyboard(payload: NotificationAlertInput, config: AlertConfig, id: string) {
+  const rows: { text: string; url?: string; callback_data?: string }[][] = [];
   let url: URL;
   try { url = new URL(process.env.APP_ORIGIN ?? ''); } catch { return; }
   if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) return;
   url.pathname = '/admin';
   if (payload.kind === 'customer-created') url.searchParams.set('section', 'customers');
   else url.searchParams.set('order', payload.entityId);
-  return { inline_keyboard: [[{ text: payload.kind === 'payment-proof-submitted' ? 'Review in Admin' : 'Open Admin', url: url.href }]] };
+  rows.push([{ text: payload.kind === 'payment-proof-submitted' ? 'Review receipt in Admin' : 'Open Admin', url: url.href }]);
+  if (config.actions && payload.kind !== 'customer-created' && (payload.kind !== 'order-created' || payload.websiteOrder)) {
+    const kind: OrderBotActionKind = payload.kind;
+    rows.push([{ text: orderBotActions[kind].label, callback_data: orderBotCallbackData(config.actions.secret, kind, id) }]);
+  }
+  return { inline_keyboard: rows };
 }
 
 async function alertCancellation(payload: NotificationAlertInput) {
-  if (payload.kind !== 'payment-proof-submitted') {
+  if (payload.kind !== 'payment-proof-submitted' && payload.kind !== 'order-delivery-ready') {
     const [rows] = await getPool().execute<RowDataPacket[]>(payload.kind === 'customer-created'
       ? 'SELECT id FROM digimium_customers WHERE id = ?' : 'SELECT id FROM digimium_orders WHERE id = ?', [payload.entityId]);
     return rows.length ? null : 'entity-removed';
@@ -249,9 +260,25 @@ async function alertCancellation(payload: NotificationAlertInput) {
   if (!rows.length) return 'entity-removed';
   const row = rows[0];
   const checkout = row.checkout_state ? JSON.parse(row.checkout_state) : null;
+  if (payload.kind === 'order-delivery-ready') {
+    return row.rejected_at || row.approved_at || checkout?.stage !== 'processing' ||
+      checkout.deliveryDraftId !== payload.deliveryDraftId ? 'delivery-superseded' : null;
+  }
   return row.rejected_at || row.approved_at || checkout?.stage !== 'payment_review' ||
     checkout.payment?.proofUrl !== `/api/customer/orders/${payload.entityId}/proof?version=${payload.proofRequestId}`
     ? 'proof-superseded' : null;
+}
+
+export async function readOrderBotAlert(id: string, kind: OrderBotActionKind) {
+  await ensureNotifications();
+  const [rows] = await getPool().execute<(RowDataPacket & { payload: string })[]>(
+    'SELECT payload FROM digimium_notification_outbox WHERE id = ? AND kind = ? AND cancelled_at IS NULL',
+    [id, 'bot:' + kind],
+  );
+  if (!rows[0]) return null;
+  const parsed = alertSchema.safeParse(JSON.parse(rows[0].payload));
+  return parsed.success && parsed.data.kind === kind && (parsed.data.kind !== 'order-created' || parsed.data.websiteOrder)
+    ? parsed.data : null;
 }
 
 /** Bounded, leased outbox delivery; invoke only after the creation transaction has committed. */
@@ -270,7 +297,8 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
       await connection.beginTransaction();
       const [rows] = await connection.execute<(RowDataPacket & { id: string; payload: string; attempts: number })[]>(
         `SELECT id, payload, attempts FROM digimium_notification_outbox WHERE sent_at IS NULL AND cancelled_at IS NULL AND attempts < 5
-         AND ${config.topics ? "kind LIKE 'bot:%'" : "kind IN ('order-created', 'customer-created')"}
+         AND ${config.actions ? "kind LIKE 'bot:%'" : config.topics
+    ? "kind IN ('bot:order-created', 'bot:customer-created', 'bot:payment-proof-submitted')" : "kind IN ('order-created', 'customer-created')"}
          ${options.dedupeKey ? 'AND dedupe_key = ?' : ''}
          AND next_attempt_at <= UTC_TIMESTAMP(3) AND (lease_until IS NULL OR lease_until < UTC_TIMESTAMP(3))
          ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED`,
@@ -296,7 +324,7 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
       const response = await fetch('https://api.telegram.org/bot' + config.token + '/sendMessage', {
         method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: config.chat, text: alertText(payload, Boolean(config.topics)), link_preview_options: { is_disabled: true },
-          ...(config.topics ? { message_thread_id: config.topics[payload.kind], protect_content: true, reply_markup: adminAlertLink(payload) } : {}) }),
+          ...(config.topics ? { message_thread_id: config.topics[payload.kind], protect_content: true, reply_markup: alertKeyboard(payload, config, row.id) } : {}) }),
         signal: AbortSignal.timeout(Math.max(1, Math.min(2000, deadline - Date.now()))),
       });
       // Telegram can return HTTP 200 with ok:false. Bound the response before parsing.

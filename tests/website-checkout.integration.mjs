@@ -12,6 +12,7 @@ import { checkoutPaymentMethods } from '../lib/demo-payments.ts';
 
 const demoMode = process.env.TEST_CHECKOUT_DEMO === '1';
 const orderBotMode = process.env.TEST_CHECKOUT_ORDER_BOT === '1';
+const orderBotActionMode = demoMode && orderBotMode;
 const env = { ...process.env, ADMIN_EMAIL: 'owner@example.invalid', ADMIN_AUTH_SECRET: randomUUID(),
   ORDER_FULFILLMENT_SECRET: randomUUID(), RESEND_FROM_EMAIL: 'digimium@example.invalid', RESEND_API_KEY: 're_integration_fixture',
   GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', TELEGRAM_BOT_TOKEN: '', TELEGRAM_BOT_USERNAME: '', TELEGRAM_WEBHOOK_SECRET: '',
@@ -22,6 +23,8 @@ const env = { ...process.env, ADMIN_EMAIL: 'owner@example.invalid', ADMIN_AUTH_S
   ORDER_ALERTS_TELEGRAM_PAYMENT_TOPIC_ID: orderBotMode ? '11' : '',
   ORDER_ALERTS_TELEGRAM_ORDERS_TOPIC_ID: orderBotMode ? '12' : '',
   ORDER_ALERTS_TELEGRAM_REGISTRATION_TOPIC_ID: orderBotMode ? '13' : '',
+  ORDER_ALERTS_TELEGRAM_FULFILLMENT_TOPIC_ID: orderBotActionMode ? '14' : '',
+  ORDER_ALERTS_TELEGRAM_WEBHOOK_SECRET: orderBotActionMode ? randomBytes(32).toString('base64url') : '',
   NOTIFICATIONS_CRON_SECRET: randomUUID(), FIXTURE_ORDER_ALERT_FAILURE: '0' };
 const base = new URL(env.APP_ORIGIN || 'http://invalid');
 assert.ok(base.origin === env.APP_ORIGIN && base.protocol === 'http:' && base.hostname === '127.0.0.1' && base.port &&
@@ -79,6 +82,26 @@ const proof = (id, revision, requestId, session, body = png, mime = 'image/png',
 const orderAlerts = () => messages.filter(message => message.type === 'order-alert');
 const alertsFor = (thread, id) => orderAlerts().filter(message => message.fields.message_thread_id === thread &&
   message.fields.text.includes(id.replaceAll('-', '').slice(0, 8).toUpperCase()));
+const actionButton = (thread, orderId, label, index = 0) => {
+  const button = alertsFor(thread, orderId)[index].fields.reply_markup.inline_keyboard.flat().find(item => item.text === label);
+  assert.ok(button?.callback_data && Buffer.byteLength(button.callback_data) <= 64);
+  return button.callback_data;
+};
+function clickOrderButton(data, thread, { sender = 987654321, secret = env.ORDER_ALERTS_TELEGRAM_WEBHOOK_SECRET } = {}) {
+  return request('/api/internal/order-bot/webhook', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': secret },
+    body: JSON.stringify({ callback_query: { id: '921804481976302994', data, from: { id: sender, is_bot: false },
+      message: { date: 1795450000, message_id: 25, message_thread_id: thread,
+        chat: { id: 987654321, type: 'private' }, from: { id: 99990001, is_bot: true } } } }),
+  });
+}
+async function callbackReply(response, text, alert = false) {
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.method, 'answerCallbackQuery');
+  assert.match(payload.text, text);
+  assert.equal(payload.show_alert, alert);
+}
 async function alertMode(mode) {
   const id = randomUUID();
   await new Promise((resolve, reject) => {
@@ -113,7 +136,7 @@ try {
     await db.query(await readFile(new URL('hostinger/' + file, root), 'utf8'));
   }
   // Exercise the additive migration against the previous order schema.
-  await db.query('ALTER TABLE digimium_orders DROP COLUMN checkout_state, DROP COLUMN customer_inputs');
+  await db.query('ALTER TABLE digimium_orders DROP COLUMN checkout_state, DROP COLUMN customer_inputs, DROP COLUMN delivery_draft');
   const alice = await addCustomer('CheckoutFixture'), bob = await addCustomer('OtherFixture');
   const guestId = randomUUID();
   const oldSnapshot = JSON.stringify({ lines: [{ id: randomUUID(), productId: 'legacy', planId: null,
@@ -220,12 +243,46 @@ try {
       await expectAlerts(11, demoOrder.id, 1);
       assert.match(alertsFor(11, demoOrder.id)[0].fields.text, /^Demo payment proof/);
     }
-    demoOrder = (await json(await mutate(adminPath(demoOrder.id), 'PATCH',
-      { action: 'payment-approve', revision: demoOrder.revision }, owner))).order;
-    demoOrder = (await json(await mutate(adminPath(demoOrder.id), 'PATCH', { revision: demoOrder.revision,
+    const deliveryForm = { revision: demoOrder.revision,
       lines: demoOrder.lines.map(line => ({ id: line.id, startDate: '2028-01-01', endDate: '2028-02-01',
         accountDetails: { account: 'demo-delivery@example.invalid', password: 'demo-delivery-fixture', manager: '', username: '' } })),
-    }, owner))).order;
+    };
+    if (orderBotActionMode) {
+      await expectAlerts(12, demoOrder.id, 1);
+      const orderButton = actionButton(12, demoOrder.id, 'Approve order');
+      const paymentButton = actionButton(11, demoOrder.id, 'Approve payment');
+      assert.equal((await clickOrderButton(orderButton, 12, { secret: 'incorrect-secret' })).status, 403);
+      await callbackReply(await clickOrderButton(orderButton, 12, { sender: 987654322 }), /store owner/, true);
+      await callbackReply(await clickOrderButton(orderButton, 11), /unavailable/, true);
+      await callbackReply(await clickOrderButton(orderButton + 'x', 12), /unavailable/, true);
+      demoOrder = (await json(await mutate(adminPath(demoOrder.id), 'PATCH', { ...deliveryForm, action: 'stage-delivery' }, owner))).order;
+      assert.equal(alertsFor(14, demoOrder.id).length, 0);
+      await callbackReply(await clickOrderButton(orderButton, 12), /Order approved/);
+      await callbackReply(await clickOrderButton(orderButton, 12), /already recorded/);
+      assert.equal(alertsFor(14, demoOrder.id).length, 0);
+      const pending = await json(await get(orderPath(demoOrder.id), alice.cookie));
+      assert.equal(pending.order.checkout.stage, 'payment_review');
+      assert.ok(!JSON.stringify(pending).includes('demo-delivery-fixture'));
+      await callbackReply(await clickOrderButton(paymentButton, 11), /Payment approved/);
+      await expectAlerts(14, demoOrder.id, 1);
+      const previousSendButton = actionButton(14, demoOrder.id, 'Send order');
+      demoOrder = (await json(await get(adminPath(demoOrder.id) + '?view=status', owner))).order;
+      await json(await mutate(adminPath(demoOrder.id), 'PATCH', {
+        ...deliveryForm, revision: demoOrder.revision, action: 'stage-delivery', customerNote: 'Prepared again for the updated draft.',
+      }, owner));
+      await expectAlerts(14, demoOrder.id, 2);
+      await callbackReply(await clickOrderButton(previousSendButton, 14), /changed|out of date/, true);
+      const sendButton = actionButton(14, demoOrder.id, 'Send order', 1);
+      await callbackReply(await clickOrderButton(sendButton, 14), /Delivery sent/);
+      await callbackReply(await clickOrderButton(sendButton, 14), /already recorded/);
+      demoOrder = (await json(await get(orderPath(demoOrder.id) + '?view=status', alice.cookie))).order;
+      assert.equal(demoOrder.customerNote, 'Prepared again for the updated draft.');
+      assert.ok(!JSON.stringify(alertsFor(14, demoOrder.id)).includes('demo-delivery-fixture'));
+    } else {
+      demoOrder = (await json(await mutate(adminPath(demoOrder.id), 'PATCH',
+        { action: 'payment-approve', revision: demoOrder.revision }, owner))).order;
+      demoOrder = (await json(await mutate(adminPath(demoOrder.id), 'PATCH', { ...deliveryForm, revision: demoOrder.revision }, owner))).order;
+    }
     assert.equal(demoOrder.checkout.stage, 'completed');
     assert.equal(demoOrder.checkout.payment.method.demo, true);
     assert.equal((await json(await get(orderPath(demoOrder.id), alice.cookie))).order.lines[0].accountDetails.password, 'demo-delivery-fixture');
@@ -387,6 +444,7 @@ try {
   order = (await json(await proof(order.id, order.revision, replacementId, alice.cookie, anotherPng))).order;
   assert.equal(order.checkout.stage, 'payment_review');
   if (orderBotMode) await expectAlerts(11, order.id, 2);
+  if (orderBotActionMode) await callbackReply(await clickOrderButton(actionButton(11, order.id, 'Approve payment'), 11), /changed/, true);
   assert.equal((await json(await proof(order.id, uploadRevision, firstProofId, alice.cookie))).order.revision, order.revision,
     'An old upload retry never replaces the newer proof');
   if (orderBotMode) await expectAlerts(11, order.id, 2);

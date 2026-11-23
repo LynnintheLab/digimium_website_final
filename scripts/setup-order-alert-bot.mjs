@@ -9,7 +9,9 @@ const topics = [
   { key: 'payment', name: 'Payment approval', env: 'ORDER_ALERTS_TELEGRAM_PAYMENT_TOPIC_ID' },
   { key: 'orders', name: 'Orders', env: 'ORDER_ALERTS_TELEGRAM_ORDERS_TOPIC_ID' },
   { key: 'registration', name: 'Registration', env: 'ORDER_ALERTS_TELEGRAM_REGISTRATION_TOPIC_ID' },
+  { key: 'fulfillment', name: 'Order send', env: 'ORDER_ALERTS_TELEGRAM_FULFILLMENT_TOPIC_ID' },
 ];
+const topicKeys = topics.map(topic => topic.key).join('|');
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export class OrderAlertSetupError extends Error {
   constructor(message, confirmedRejection = false) {
@@ -60,7 +62,7 @@ export async function provisionOrderAlertTopics(env, { fetchImpl = fetch, state 
   const botId = Number(token.split(':')[0]);
   if (!positiveId(botId) || !positiveId(chatId)) throw new OrderAlertSetupError('Set a positive private owner ID in ORDER_ALERTS_TELEGRAM_CHAT_ID.');
   if (typeof persist !== 'function') throw new OrderAlertSetupError('Topic setup needs its private progress journal.');
-  if (retryPending && !topics.some(topic => topic.key === retryPending)) throw new OrderAlertSetupError('Choose payment, orders or registration for --retry-pending.');
+  if (retryPending && !topics.some(topic => topic.key === retryPending)) throw new OrderAlertSetupError(`Choose ${topicKeys} for --retry-pending.`);
   const journal = state ? structuredClone(state) : { version: 1, botId, chatId: Number(chatId), topics: {}, pending: null };
   if (journal.version !== 1 || journal.botId !== botId || journal.chatId !== Number(chatId) ||
       !journal.topics || typeof journal.topics !== 'object' || Array.isArray(journal.topics) ||
@@ -160,12 +162,12 @@ async function main() {
   try {
     const args = process.argv.slice(2);
     if (args.length === 1 && ['--help', '-h'].includes(args[0])) {
-      console.log('Node 24, from the repository root:\n  node scripts/setup-order-alert-bot.mjs --env-file=.env.order-alerts.testing.local\n\nCreates the three private-chat topics and saves their IDs in the ignored environment file.\nRecovery after checking Telegram: add the existing topic ID, or use --retry-pending=payment|orders|registration if creation did not happen.');
+      console.log(`Node 24, from the repository root:\n  node scripts/setup-order-alert-bot.mjs --env-file=.env.order-alerts.testing.local\n\nCreates the four private-chat topics and saves their IDs in the ignored environment file.\nRecovery after checking Telegram: add the existing topic ID, or use --retry-pending=${topicKeys} if creation did not happen.`);
       return;
     }
     const envArg = args.find(arg => arg.startsWith('--env-file='));
     const retryArg = args.find(arg => arg.startsWith('--retry-pending='));
-    if (!envArg || args.length !== 1 + Number(Boolean(retryArg))) throw new OrderAlertSetupError('Use --env-file=path/to/ignored.env and optionally --retry-pending=payment|orders|registration.');
+    if (!envArg || args.length !== 1 + Number(Boolean(retryArg))) throw new OrderAlertSetupError(`Use --env-file=path/to/ignored.env and optionally --retry-pending=${topicKeys}.`);
     const filename = await realpath(resolve(envArg.slice('--env-file='.length)));
     const repository = await realpath(root);
     const projectPath = relative(repository, filename);

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Image from 'next/image';
-import { ArrowLeft, ArrowUpRight, Check, Eye, EyeOff, LoaderCircle, Save, Trash2, X } from 'lucide-react';
-import type { CommerceCustomer, CommerceOrder, CommerceOrderLine } from '@/lib/commerce-types';
+import { ArrowLeft, ArrowUpRight, Check, Eye, EyeOff, LoaderCircle, Save, Send, Trash2, X } from 'lucide-react';
+import type { CommerceCustomer, CommerceOrder, CommerceOrderLine, OrderFulfillment } from '@/lib/commerce-types';
 import { PAYMENT_METHODS, type CustomerOrderInput } from '@/lib/payment';
 import { parseMmk } from '@/lib/pricing';
 import { customerContact } from '@/lib/customer-identity';
@@ -18,6 +18,7 @@ export function orderTotal(order: CommerceOrder) {
 export function orderStageLabel(order: CommerceOrder) {
   if (order.status === 'rejected') return 'Rejected';
   if (!order.checkout) return order.status === 'approved' ? 'Approved' : 'Pending';
+  if (order.checkout.stage === 'processing' && order.checkout.orderApprovedAt && order.checkout.deliveryReady) return 'Ready to send';
   const labels = {
     quote_required: 'Quote required', awaiting_payment: 'Awaiting payment', payment_review: 'Review payment',
     payment_rejected: 'Payment rejected', processing: 'Processing', completed: 'Completed',
@@ -33,11 +34,13 @@ function initialDetails(line: CommerceOrderLine) {
   };
 }
 type LineDetails = ReturnType<typeof initialDetails>;
+type DeliveryDraft = { lines: OrderFulfillment[]; customerNote?: string };
+export type OrderSaveAction = 'approve' | 'reject' | 'note' | 'quote' | 'payment-approve' | 'payment-reject' | 'order-approve' | 'stage-delivery' | 'order-send';
 
 export default function OrderEditor({ order, customer, onSaved, onBack, onReload, onDirtyChange, onRemove, backLabel = 'Back to orders' }: {
   order: CommerceOrder;
   customer?: CommerceCustomer;
-  onSaved: (order: CommerceOrder) => void;
+  onSaved: (order: CommerceOrder, action: OrderSaveAction) => void;
   onBack: () => void;
   onReload: () => Promise<void>;
   onDirtyChange: (dirty: boolean) => void;
@@ -46,12 +49,18 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
 }) {
   const pending = order.status === 'pending';
   const rejected = order.status === 'rejected';
-  const [original] = useState(() => rejected ? [] : order.lines.map(initialDetails));
+  const [original, setOriginal] = useState(() => rejected ? [] : order.lines.map(initialDetails));
   const [details, setDetails] = useState(original);
   const [customerNote, setCustomerNote] = useState(order.customerNote ?? '');
+  const [originalNote, setOriginalNote] = useState(order.customerNote ?? '');
   const [rejecting, setRejecting] = useState(false);
+  const [sending, setSending] = useState(false);
   const rejectTrigger = useRef<HTMLButtonElement>(null);
   const rejectHeading = useRef<HTMLHeadingElement>(null);
+  const sendTrigger = useRef<HTMLButtonElement>(null);
+  const sendHeading = useRef<HTMLHeadingElement>(null);
+  const errorFeedback = useRef<HTMLDivElement>(null);
+  const actionRequest = useRef<{ action: 'order-approve' | 'order-send'; revision: number; deliveryDraftId?: string; requestId: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [failureStatus, setFailureStatus] = useState(0);
@@ -63,11 +72,23 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
   const [quotePrices, setQuotePrices] = useState(() => order.lines.map(line => ({ id: line.id, value: parseMmk(line.price)?.toString() ?? '' })));
   const [paymentNote, setPaymentNote] = useState(order.checkout?.payment?.note ?? '');
   const [paymentDirty, setPaymentDirty] = useState(false);
-  const fulfillmentDirty = JSON.stringify(original) !== JSON.stringify(details) || customerNote !== (order.customerNote ?? '');
+  const fulfillmentDirty = JSON.stringify(original) !== JSON.stringify(details) || customerNote !== originalNote;
   const dirty = fulfillmentDirty || paymentDirty;
   const checkout = order.checkout;
   const payment = checkout?.payment;
+  const websitePending = pending && !!checkout;
+  const privateDetailsReady = customerInputs !== null && !inputError;
+  const blocked = busy || failureStatus === 409 || failureStatus === 401 || (websitePending && !privateDetailsReady);
   const canFulfill = !checkout || checkout.stage === 'processing' || checkout.stage === 'completed' || order.totalMmk === 0;
+  const canEditDelivery = websitePending || canFulfill;
+  const paymentReady = order.totalMmk === 0 || (checkout?.stage === 'processing' && !!payment?.approvedAt);
+  const sendRequirements = websitePending ? [
+    !checkout.orderApprovedAt && 'Approve the order',
+    !paymentReady && 'approve payment',
+    (!checkout.deliveryReady || !checkout.deliveryDraftId) && 'save a delivery draft',
+    fulfillmentDirty && 'save your delivery changes',
+  ].filter(Boolean) : [];
+  const canSend = websitePending && privateDetailsReady && !sendRequirements.length;
   const quotedTotal = quotePrices.reduce<number | null>((total, item, index) => {
     const price = parseMmk(item.value, true);
     if (total === null || price === undefined) return null;
@@ -82,7 +103,7 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
         const response = await fetch('/api/admin/commerce/' + encodeURIComponent(order.id), {
           credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
         });
-        const result = await response.json() as { order: CommerceOrder; customerInputs: CustomerOrderInput[]; error?: string };
+        const result = await response.json() as { order: CommerceOrder; customerInputs: CustomerOrderInput[]; deliveryDraft?: DeliveryDraft; error?: string };
         if (controller.signal.aborted) return;
         if (!response.ok) {
           setInputError(result.error || 'Customer details could not be loaded.');
@@ -94,6 +115,21 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
           setError('This order changed. Load the latest order before reviewing payment or saving.');
           return;
         }
+        if (order.status === 'pending' && order.checkout) {
+          const draft = result.deliveryDraft;
+          if ((result.order.checkout?.deliveryReady && !draft) || (draft &&
+              (draft.lines.length !== order.lines.length || new Set(draft.lines.map(line => line.id)).size !== order.lines.length ||
+                order.lines.some(line => !draft.lines.some(saved => saved.id === line.id))))) {
+            setInputError('The saved delivery draft could not be loaded. Try again before editing this order.');
+            return;
+          }
+          const loaded = order.lines.map(line => initialDetails({ ...line, ...draft?.lines.find(saved => saved.id === line.id) }));
+          const note = draft?.customerNote ?? order.customerNote ?? '';
+          setOriginal(loaded);
+          setDetails(loaded);
+          setOriginalNote(note);
+          setCustomerNote(note);
+        }
         setCustomerInputs(result.customerInputs);
         setInputError('');
       } catch {
@@ -102,25 +138,31 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
     }
     void loadDetails();
     return () => controller.abort();
-  }, [order.id, order.revision, inputReload]);
+  }, [order, inputReload]);
+
+  useEffect(() => { if (error) errorFeedback.current?.focus(); }, [error]);
 
   function updateLine(id: string, change: Partial<LineDetails>) {
     const next = details.map(item => item.id === id ? { ...item, ...change } : item);
     setDetails(next);
-    onDirtyChange(paymentDirty || JSON.stringify(next) !== JSON.stringify(original) || customerNote !== (order.customerNote ?? ''));
+    setSending(false);
+    onDirtyChange(paymentDirty || JSON.stringify(next) !== JSON.stringify(original) || customerNote !== originalNote);
     if (failureStatus !== 409) setError('');
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (rejecting || (!rejected && !canFulfill)) return;
-    await save(rejected ? 'note' : 'approve');
+    if (rejecting || sending || blocked || (!rejected && !canEditDelivery)) return;
+    await save(rejected ? 'note' : websitePending ? 'stage-delivery' : 'approve');
   }
 
-  async function save(action: 'approve' | 'reject' | 'note' | 'quote' | 'payment-approve' | 'payment-reject') {
-    if (busy || failureStatus === 409 || (action === 'reject' && (!pending || !rejecting))) return;
+  async function save(action: OrderSaveAction) {
+    if (blocked || (action === 'reject' && (!pending || !rejecting)) ||
+        (action === 'order-approve' && (!websitePending || checkout.orderApprovedAt)) ||
+        (action === 'order-send' && (!sending || !canSend))) return;
     const paymentAction = action === 'quote' || action === 'payment-approve' || action === 'payment-reject';
-    if (paymentAction && fulfillmentDirty && !window.confirm('Continue with this payment action and discard your unsaved subscription or customer-note edits?')) return;
+    if ((paymentAction || action === 'order-approve') && fulfillmentDirty && !window.confirm('Continue with this action and discard your unsaved delivery edits?')) return;
+    if ((action === 'stage-delivery' || action === 'order-approve') && paymentDirty && !window.confirm('Continue with this action and discard your unsaved quote or payment-review edits?')) return;
     if (action === 'quote' && quotedTotal === null) {
       setError('Enter a valid whole-MMK unit price for every item.');
       return;
@@ -131,11 +173,17 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
     setFailureStatus(0);
     let saved = false;
     try {
-      const body = action === 'quote' ? {
+      if (action === 'order-approve' || action === 'order-send') {
+        const draftId = action === 'order-send' ? checkout?.deliveryDraftId : undefined;
+        if (actionRequest.current?.action !== action || actionRequest.current.revision !== order.revision || actionRequest.current.deliveryDraftId !== draftId) {
+          actionRequest.current = { action, revision: order.revision, deliveryDraftId: draftId, requestId: crypto.randomUUID() };
+        }
+      }
+      const body = action === 'order-approve' || action === 'order-send' ? actionRequest.current : action === 'quote' ? {
         action, revision: order.revision, lines: quotePrices.map(item => ({ id: item.id, unitPriceMmk: parseMmk(item.value, true) })),
       } : action === 'payment-approve' || action === 'payment-reject' ? {
         action, revision: order.revision, note: paymentNote,
-      } : action === 'approve' ? { revision: order.revision, lines: details, customerNote }
+      } : action === 'approve' || action === 'stage-delivery' ? { ...(action === 'stage-delivery' ? { action } : {}), revision: order.revision, lines: details, customerNote }
         : { action, revision: order.revision, customerNote };
       const response = await fetch('/api/admin/commerce/' + encodeURIComponent(order.id), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
@@ -149,7 +197,7 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
       }
       saved = true;
       onDirtyChange(false);
-      onSaved(result.order);
+      onSaved(result.order, action);
     } catch {
       setError('Could not confirm the save. Check your connection and try again.');
     } finally { setBusy(false); if (!saved) onDirtyChange(dirty); }
@@ -170,13 +218,19 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
       {customer && <div className="commerce-customer"><strong>{customer.name}</strong><span>{customerContact(customer)}</span></div>}
       {order.customerId === null && <div className="commerce-customer"><strong>{order.guestName ?? 'Telegram guest'}</strong><span>Guest order</span></div>}
       {pending && <p>{checkout
-        ? canFulfill ? 'The order is ready for fulfillment. Enter the subscription dates and delivery details, then mark the order completed.' : 'Review the order and payment below. Approved payment moves the order to Processing.'
+        ? 'Review the order, check payment when required, and save delivery details before sending them to the customer.'
         : order.customerId === null ? 'Match the order reference with the Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.' : customer?.telegram ? 'Match the reference, name and Telegram ID with the customer’s message. Confirm payment and deliver access in that chat, then approve the dates here.' : 'Match the reference, name and email with the customer’s Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.'}</p>}
       {rejected && <p>This order was rejected. You can update the customer note; no subscription dates or account details are assigned.</p>}
     </div>
+    {websitePending && <section className="commerce-order-approval" aria-labelledby="order-approval-heading">
+      <h3 id="order-approval-heading">Order approval</h3>
+      {checkout.orderApprovedAt ? <p className="commerce-approval-saved"><Check size={17} aria-hidden="true"/>Approved {new Date(checkout.orderApprovedAt).toLocaleString('en-GB', { timeZone: 'Asia/Yangon' })} · Myanmar time</p>
+        : <><p>Confirm the services and information supplied by the customer. Payment review and delivery remain separate steps.</p>
+          <button type="button" className="admin-button admin-button-secondary" disabled={blocked || rejecting} onClick={() => void save('order-approve')}><Check size={16}/>Approve order</button></>}
+    </section>}
     {checkout && <section className="commerce-checkout-review" aria-labelledby="order-payment-heading">
       <h3 id="order-payment-heading">Payment</h3>
-      {checkout.stage === 'quote_required' && !rejected && <fieldset className="commerce-quote-fields" disabled={busy || failureStatus === 409}>
+      {checkout.stage === 'quote_required' && !rejected && <fieldset className="commerce-quote-fields" disabled={blocked}>
         <legend>Quote this order</legend>
         <p>Set the actual whole-MMK unit price for each item. The saved quote lets the customer continue to payment.</p>
         {order.lines.map((line, index) => <label className="admin-field" key={line.id}>{line.productName}{line.planName ? ' · ' + line.planName : ''} · Qty {line.quantity}
@@ -201,7 +255,7 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
           <Image src={payment.proofUrl} width={360} height={440} alt="Customer payment screenshot" unoptimized/>
           <span>Open payment screenshot<ArrowUpRight size={16}/></span>
         </a>}
-        {checkout.stage === 'payment_review' && !rejected ? <fieldset className="commerce-payment-decision" disabled={busy || failureStatus === 409}>
+        {checkout.stage === 'payment_review' && !rejected ? <fieldset className="commerce-payment-decision" disabled={blocked}>
           <legend>Review payment</legend>
           <p>{payment.method.demo ? 'This is a testing payment. Review the sample image, then approve or reject it to test order progress.' : 'Check the payment in the receiving account, then approve it or ask the customer to submit corrected proof.'}</p>
           <label className="admin-field">Payment review note <span className="admin-optional">Optional</span>
@@ -214,11 +268,12 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
             <button type="button" className="admin-button commerce-danger-outline" onClick={() => void save('payment-reject')}><X size={16}/>Reject payment</button>
           </div>
         </fieldset> : payment.note && <p className="commerce-payment-note">{payment.note}</p>}
-      </> : checkout.stage !== 'quote_required' && <p>The customer can choose a payment method in their order.</p>}
+      </> : checkout.stage !== 'quote_required' && <p>{order.totalMmk === 0 ? 'No payment is required for this order.' : 'The customer can choose a payment method in their order.'}</p>}
     </section>}
     <section className="commerce-customer-inputs" aria-labelledby="order-customer-input-heading">
       <h3 id="order-customer-input-heading">Information supplied by customer</h3>
-      {inputError ? <div role="alert"><p>{inputError}</p><button type="button" className="admin-text-button" onClick={() => { setInputError(''); setInputReload(value => value + 1); }}>Try again</button></div>
+      {inputError ? <div role="alert"><p>{inputError}</p>{failureStatus === 401 ? <a className="admin-text-button" href="/admin/login">Sign in again</a>
+        : <button type="button" className="admin-text-button" onClick={() => { setInputError(''); setInputReload(value => value + 1); }}>Try again</button>}</div>
         : customerInputs === null ? <p role="status">Loading customer information…</p>
         : customerInputs.length ? customerInputs.map(input => <div className="commerce-customer-input-unit" key={`${input.lineId}-${input.unit}`}>
           <h4>{order.lines.find(line => line.id === input.lineId)?.productName} · Account {input.unit + 1}</h4>
@@ -234,6 +289,13 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
     </section>
     <form onSubmit={submit}>
       <fieldset disabled={busy} className="commerce-fieldset">
+        {websitePending && <section className="commerce-delivery-intro" aria-labelledby="order-delivery-heading">
+          <h3 id="order-delivery-heading">Delivery draft</h3>
+          <p>Save the subscription dates and account details here. The customer can see them in website order history only after you send the order.</p>
+          <p id="order-delivery-state" role="status">{!privateDetailsReady ? 'Loading saved delivery details…' : checkout.deliveryReady
+            ? fulfillmentDirty ? 'Unsaved delivery changes. Save the draft before sending.' : 'Delivery draft saved.'
+            : 'No delivery draft saved yet.'}</p>
+        </section>}
         {order.lines.map((line, index) => {
           const item = details[index];
           return <section className="commerce-item" data-readonly={rejected || undefined} key={line.id} aria-labelledby={'order-item-' + line.id}>
@@ -242,22 +304,22 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
               {line.planName && <p className="commerce-plan-name">{line.planName}</p>}
               <p className="commerce-item-meta">{[line.duration, 'Qty ' + line.quantity, line.price ? line.price + ' each' : 'Price on request'].filter(Boolean).join(' · ')}</p>
             </div>
-            {!rejected && canFulfill && <><div className="commerce-dates">
+            {!rejected && canEditDelivery && <><div className="commerce-dates">
               <label className="admin-field">Start date
-                <input type="date" required max="9999-12-31" value={item.startDate} onChange={event => {
+                <input type="date" required disabled={websitePending && !privateDetailsReady} max="9999-12-31" value={item.startDate} onChange={event => {
                   const startDate = event.target.value;
                   const autoEnd = !item.endDate || item.endDate === suggestedEndDate(item.startDate, line.duration);
                   updateLine(item.id, autoEnd ? { startDate, endDate: suggestedEndDate(startDate, line.duration) } : { startDate });
                 }} />
               </label>
               <label className="admin-field">Expiry date
-                <input type="date" required min={item.startDate || undefined} max="9999-12-31" value={item.endDate}
+                <input type="date" required disabled={websitePending && !privateDetailsReady} min={item.startDate || undefined} max="9999-12-31" value={item.endDate}
                   onChange={event => updateLine(item.id, { endDate: event.target.value })} />
               </label>
             </div>
-            <fieldset className="commerce-account-fields">
+            <fieldset className="commerce-account-fields" disabled={websitePending && !privateDetailsReady}>
               <legend>Purchased account details <span>Optional</span></legend>
-              <p>Leave any field blank. You can approve the order without these details. Saved values appear in the customer’s purchased order history.</p>
+              <p>{websitePending ? 'Leave any field blank. Saved account details remain in the private draft until the order is sent.' : 'Leave any field blank. You can approve the order without these details. Saved values appear in the customer’s purchased order history.'}</p>
               <div className="commerce-account-grid">
                 <label className="admin-field">Account
                   <input type="text" autoComplete="off" maxLength={500} value={item.accountDetails.account}
@@ -291,15 +353,16 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
         })}
         <section className="commerce-customer-note">
           <label className="admin-field" htmlFor="order-customer-note"><span>Customer note <small>Optional</small></span>
-            <textarea id="order-customer-note" value={customerNote} maxLength={1000} rows={4} aria-describedby="order-customer-note-help"
+            <textarea id="order-customer-note" value={customerNote} disabled={websitePending && !privateDetailsReady} maxLength={1000} rows={4} aria-describedby="order-customer-note-help"
               onChange={event => {
                 const next = event.target.value;
                 setCustomerNote(next);
-                onDirtyChange(paymentDirty || JSON.stringify(details) !== JSON.stringify(original) || next !== (order.customerNote ?? ''));
+                setSending(false);
+                onDirtyChange(paymentDirty || JSON.stringify(details) !== JSON.stringify(original) || next !== originalNote);
                 if (failureStatus !== 409) setError('');
               }}/>
           </label>
-          <p id="order-customer-note-help">Visible to this customer in their website order history. Do not include passwords or private staff notes. For guest orders, it stays in this order record.</p>
+          <p id="order-customer-note-help">{websitePending ? 'Published with the delivery in this customer’s website order history. Keep passwords in the account fields above.' : 'Visible to this customer in their website order history. Do not include passwords or private staff notes. For guest orders, it stays in this order record.'}</p>
           <span className="commerce-note-length">{customerNote.length} / 1000</span>
         </section>
         {rejecting && <section className="commerce-reject-confirm" role="group" aria-labelledby="reject-order-title" aria-describedby="reject-order-description">
@@ -312,7 +375,17 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
             </button>
           </div>
         </section>}
-        {error && <div className="commerce-form-error" role="alert">
+        {sending && <section className="commerce-send-confirm" role="group" aria-labelledby="send-order-title" aria-describedby="send-order-description">
+          <h3 ref={sendHeading} id="send-order-title" tabIndex={-1}>Send order {orderReference(order.id)} to the customer?</h3>
+          <p id="send-order-description">The saved subscription dates, account details and customer note will become available in their website order history. Passwords stay on the website.</p>
+          <div className="commerce-customer-actions">
+            <button type="button" className="admin-button admin-button-secondary" onClick={() => { setSending(false); requestAnimationFrame(() => sendTrigger.current?.focus()); }}>Cancel</button>
+            <button type="button" className="admin-button admin-button-primary" disabled={blocked || !canSend} onClick={() => void save('order-send')}>
+              {busy ? <LoaderCircle size={16} className="admin-spinner"/> : <Send size={16}/>}Send to customer
+            </button>
+          </div>
+        </section>}
+        {error && <div ref={errorFeedback} tabIndex={-1} className="commerce-form-error" role="alert">
           <p>{error}</p>
           {failureStatus === 409 && <button type="button" className="admin-text-button" onClick={async () => {
             if (dirty && !window.confirm('Load the latest order and discard these edits?')) return;
@@ -321,11 +394,20 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
           }}>Load latest order</button>}
           {failureStatus === 401 && <a className="admin-text-button" href="/admin/login">Sign in again</a>}
         </div>}
-        <div className="commerce-save">
+        <div className="commerce-save" data-delivery={websitePending || undefined}>
           <div><span>Order total</span><strong>{orderTotal(order)}</strong></div>
+          {websitePending && privateDetailsReady && <p id="order-send-requirements" className="commerce-send-requirements">{sendRequirements.length
+            ? `Before sending: ${sendRequirements.join(', ')}.` : 'Ready to send the saved delivery.'}</p>}
           <div className="commerce-save-actions">
-          {pending && <button ref={rejectTrigger} type="button" className="admin-button commerce-danger-outline" disabled={busy || rejecting || failureStatus === 409} onClick={() => { setRejecting(true); requestAnimationFrame(() => rejectHeading.current?.focus()); }}><X size={16}/>Reject…</button>}
-          {(canFulfill || rejected) && <button type="submit" className="admin-button admin-button-primary" disabled={busy || rejecting || failureStatus === 409 || (!pending && !dirty)}>
+          {pending && <button ref={rejectTrigger} type="button" className="admin-button commerce-danger-outline" disabled={blocked || rejecting || sending} onClick={() => { setRejecting(true); requestAnimationFrame(() => rejectHeading.current?.focus()); }}><X size={16}/>Reject…</button>}
+          {websitePending ? <>
+            <button type="submit" className={'admin-button ' + (canSend ? 'admin-button-secondary' : 'admin-button-primary')}
+              disabled={blocked || rejecting || sending || (!!checkout.deliveryReady && !fulfillmentDirty)} aria-describedby="order-delivery-state">
+              {busy ? <LoaderCircle className="admin-spinner" size={16}/> : <Save size={16}/>}Save delivery draft
+            </button>
+            <button ref={sendTrigger} type="button" className={'admin-button ' + (canSend ? 'admin-button-primary' : 'admin-button-secondary')}
+              disabled={blocked || rejecting || sending || !canSend} aria-describedby="order-send-requirements" onClick={() => { setSending(true); requestAnimationFrame(() => sendHeading.current?.focus()); }}><Send size={16}/>Send to customer…</button>
+          </> : (canFulfill || rejected) && <button type="submit" className="admin-button admin-button-primary" disabled={blocked || rejecting || (!pending && !dirty)}>
             {busy ? <LoaderCircle className="admin-spinner" size={16} /> : pending ? <Check size={16} /> : <Save size={16} />}
             {busy ? 'Saving…' : pending ? checkout ? 'Mark completed' : 'Approve order' : rejected ? 'Save customer note' : 'Save changes'}
           </button>}

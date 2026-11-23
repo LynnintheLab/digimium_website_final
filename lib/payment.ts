@@ -29,6 +29,9 @@ export type PaymentMethod = {
 export type CheckoutPaymentMethod = PaymentMethod & { demo?: true };
 
 export type WebsiteCheckout = {
+  orderApprovedAt?: string;
+  deliveryDraftId?: string;
+  deliveryReady?: boolean;
   stage: 'quote_required' | 'awaiting_payment' | 'payment_review' | 'payment_rejected' | 'processing' | 'completed';
   quotedAt?: string;
   payment?: {
