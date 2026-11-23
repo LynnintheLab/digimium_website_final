@@ -96,7 +96,7 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
-Added owner- and topic-bound Telegram buttons for order approval, payment approval and delivery. The server verifies the current proof or draft before writing and records action receipts for replay safety. Provisioned the Order send topic and added the private webhook settings to Hostinger testing. Clean Node 24 builds, typecheck, strict lint, 103 unit tests and disposable checkout integrations passed, including the three callbacks, mismatched credentials and topic, button tampering, stale proof/draft and replay.
+Added owner- and topic-bound Telegram buttons for order approval, payment approval and delivery. The server verifies the current proof or draft before writing and records action receipts for replay safety. Provisioned the Order send topic and verified the registered Telegram webhook, including rejection of a request without the shared secret. Clean Node 24 builds, typecheck, strict lint, 103 unit tests and disposable checkout integrations passed, including the three callbacks, mismatched credentials and topic, button tampering, stale proof/draft and replay. The order progress connector uses the storefront theme’s blue for visibility in both appearances.
 
 Verified the testing bot and owner private chat against Telegram, enabled private threads and provisioned all three topics. Applied the private route settings in testing Hostinger. The dedicated-bot, legacy notification and unconfigured checkout suites passed with intercepted Telegram, including proof deduplication, stale-proof cancellation, retry, protected Admin links and payload redaction. Live setup verified topics and hosting configuration.
 
