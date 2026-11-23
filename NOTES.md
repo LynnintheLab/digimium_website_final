@@ -96,6 +96,8 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
+Hosted testing order `#DF0B4C5C` verifies the CapCut provided-account checkout, demo KPay receipt upload and protected Admin receipt readback. The dedicated bot received the matching Orders alert. A synthetic delivery draft was saved and verified private in the customer’s pending history. Native Mac automation could not activate Telegram’s inline buttons. Owner sign-in to Telegram Web is pending before testing Approve order, Approve payment and Send order for this same order.
+
 Added owner- and topic-bound Telegram buttons for order approval, payment approval and delivery. The server verifies the current proof or draft before writing and records action receipts for replay safety. Provisioned the Order send topic and verified the registered Telegram webhook, including rejection of a request without the shared secret. Clean Node 24 builds, typecheck, strict lint, 103 unit tests and disposable checkout integrations passed, including the three callbacks, mismatched credentials and topic, button tampering, stale proof/draft and replay. The order progress connector uses the storefront theme’s blue for visibility in both appearances.
 
 Verified the testing bot and owner private chat against Telegram, enabled private threads and provisioned all three topics. Applied the private route settings in testing Hostinger. The dedicated-bot, legacy notification and unconfigured checkout suites passed with intercepted Telegram, including proof deduplication, stale-proof cancellation, retry, protected Admin links and payload redaction. Live setup verified topics and hosting configuration.
@@ -251,6 +253,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+- Resume the hosted test on `#DF0B4C5C` after the owner signs in to Telegram Web. Use the matching inline buttons in Orders, Payment approval and Order send, then verify customer history shows the saved demo delivery. Reuse this order to avoid duplicate fixtures.
 
 - Verify the next authorized testing order, proof, delivery draft and registration in their Telegram topics. Buttons appear on new alerts. Continue to use the website Admin to review previously sent alerts. Promote website changes only after the owner explicitly approves production.
 
