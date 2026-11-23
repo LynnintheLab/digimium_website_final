@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { emailCodeLogin, requireAdminPage, signOutPath } from '@/lib/admin-auth';
+import { orderBotActionSettings } from '@/hostinger/order-bot-actions';
 import AdminCatalog from './admin-catalog';
 import './admin.css';
 
@@ -11,5 +12,6 @@ export const metadata: Metadata = {
 
 export default async function AdminPage() {
   const user = await requireAdminPage();
-  return <AdminCatalog identity={{ name: user.displayName, email: user.email }} signOutHref={signOutPath} postSignOut={emailCodeLogin} />;
+  return <AdminCatalog identity={{ name: user.displayName, email: user.email }} signOutHref={signOutPath} postSignOut={emailCodeLogin}
+    testingOrderAlerts={Boolean(orderBotActionSettings())} />;
 }

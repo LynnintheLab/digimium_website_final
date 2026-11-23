@@ -29,6 +29,7 @@ export type PaymentMethod = {
 export type CheckoutPaymentMethod = PaymentMethod & { demo?: true };
 
 export type WebsiteCheckout = {
+  /** Historical metadata only; payment approval now makes an order ready to send. */
   orderApprovedAt?: string;
   deliveryDraftId?: string;
   deliveryReady?: boolean;

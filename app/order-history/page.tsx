@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { commerceEnabled } from "@/lib/commerce-enabled";
 import { preferredShopLanguage } from "@/lib/shop-language";
+import { customerOrderBotLink } from "@/hostinger/customer-order-telegram";
 import { AccountContent } from "../account/account";
 import "../account/account.css";
 
@@ -15,5 +16,5 @@ export const metadata: Metadata = {
 export default async function OrderHistoryPage() {
   if (!commerceEnabled) notFound();
   const preferences = await cookies();
-  return <AccountContent lang={preferredShopLanguage(preferences.get("digimium-language")?.value)} history />;
+  return <AccountContent lang={preferredShopLanguage(preferences.get("digimium-language")?.value)} orderBotUrl={customerOrderBotLink()} history />;
 }

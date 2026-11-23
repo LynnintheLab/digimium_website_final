@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { commerceEnabled } from '@/lib/commerce-enabled';
 import { preferredShopLanguage } from '@/lib/shop-language';
+import { customerOrderBotLink } from '@/hostinger/customer-order-telegram';
 import Checkout from './checkout';
 import '../account/account.css';
 import './checkout.css';
@@ -16,5 +17,5 @@ export const metadata: Metadata = {
 export default async function CheckoutPage() {
   if (!commerceEnabled) notFound();
   const preferences = await cookies();
-  return <Checkout lang={preferredShopLanguage(preferences.get('digimium-language')?.value)} />;
+  return <Checkout lang={preferredShopLanguage(preferences.get('digimium-language')?.value)} orderBotUrl={customerOrderBotLink()} />;
 }

@@ -102,6 +102,21 @@ async function callbackReply(response, text, alert = false) {
   assert.match(payload.text, text);
   assert.equal(payload.show_alert, alert);
 }
+function askTelegramStatus(text, { sender = 987654330, chatId = sender, chatType = 'private', secret = env.ORDER_ALERTS_TELEGRAM_WEBHOOK_SECRET } = {}) {
+  return request('/api/internal/order-bot/webhook', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': secret },
+    body: JSON.stringify({ message: { text, from: { id: sender, is_bot: false }, chat: { id: chatId, type: chatType }, message_thread_id: 50 } }),
+  });
+}
+async function statusReply(response, recipient) {
+  assert.equal(response.status, 200);
+  const reply = await response.json();
+  assert.equal(reply.method, 'sendMessage');
+  assert.equal(reply.chat_id, recipient);
+  assert.equal(reply.message_thread_id, 50);
+  assert.equal(reply.protect_content, true);
+  return reply;
+}
 async function alertMode(mode) {
   const id = randomUUID();
   await new Promise((resolve, reject) => {
@@ -138,6 +153,8 @@ try {
   // Exercise the additive migration against the previous order schema.
   await db.query('ALTER TABLE digimium_orders DROP COLUMN checkout_state, DROP COLUMN customer_inputs, DROP COLUMN delivery_draft');
   const alice = await addCustomer('CheckoutFixture'), bob = await addCustomer('OtherFixture');
+  if (orderBotActionMode) await db.execute(`INSERT INTO digimium_telegram_identities (telegram_id, customer_id, created_at)
+    VALUES ('987654330', ?, UTC_TIMESTAMP(3)), ('987654331', ?, UTC_TIMESTAMP(3))`, [alice.id, bob.id]);
   const guestId = randomUUID();
   const oldSnapshot = JSON.stringify({ lines: [{ id: randomUUID(), productId: 'legacy', planId: null,
     productName: 'Earlier guest order', planName: null, duration: '1 month', price: '1000 MMK', quantity: 1 }], totalMmk: 1000 });
@@ -249,27 +266,46 @@ try {
     };
     if (orderBotActionMode) {
       await expectAlerts(12, demoOrder.id, 1);
-      const orderButton = actionButton(12, demoOrder.id, 'Approve order');
+      assert.ok(alertsFor(12, demoOrder.id)[0].fields.reply_markup.inline_keyboard.flat().every(button => !button.callback_data));
+      const originalReceipt = { hash: createHash('sha256').update(exampleProof).digest('hex'), mime: 'image/png' };
+      assert.deepEqual(alertsFor(11, demoOrder.id)[0].receipt, originalReceipt);
       const paymentButton = actionButton(11, demoOrder.id, 'Approve payment');
-      assert.equal((await clickOrderButton(orderButton, 12, { secret: 'incorrect-secret' })).status, 403);
-      await callbackReply(await clickOrderButton(orderButton, 12, { sender: 987654322 }), /store owner/, true);
-      await callbackReply(await clickOrderButton(orderButton, 11), /unavailable/, true);
-      await callbackReply(await clickOrderButton(orderButton + 'x', 12), /unavailable/, true);
-      demoOrder = (await json(await mutate(adminPath(demoOrder.id), 'PATCH', { ...deliveryForm, action: 'stage-delivery' }, owner))).order;
-      assert.equal(alertsFor(14, demoOrder.id).length, 0);
-      await callbackReply(await clickOrderButton(orderButton, 12), /Order approved/);
-      await callbackReply(await clickOrderButton(orderButton, 12), /already recorded/);
+      assert.equal((await clickOrderButton(paymentButton, 11, { secret: 'incorrect-secret' })).status, 403);
+      await callbackReply(await clickOrderButton(paymentButton, 11, { sender: 987654322 }), /store owner/, true);
+      await callbackReply(await clickOrderButton(paymentButton, 12), /unavailable/, true);
+      await callbackReply(await clickOrderButton(paymentButton + 'x', 11), /unavailable/, true);
+      await json(await mutate(adminPath(demoOrder.id), 'PATCH', {
+        action: 'order-approve', revision: demoOrder.revision, requestId: randomUUID(),
+      }, owner), 400);
+      const preview = { action: 'payment-proof-preview', revision: demoOrder.revision };
+      await json(await mutate(adminPath(demoOrder.id), 'PATCH', preview, alice.cookie), 401);
+      await json(await mutate(adminPath(demoOrder.id), 'PATCH', { ...preview, revision: demoOrder.revision - 1 }, owner), 409);
+      assert.equal((await json(await mutate(adminPath(demoOrder.id), 'PATCH', preview, owner))).order.revision, demoOrder.revision);
+      await expectAlerts(11, demoOrder.id, 2);
+      assert.deepEqual(alertsFor(11, demoOrder.id)[1].receipt, originalReceipt);
+      await json(await mutate(adminPath(demoOrder.id), 'PATCH', preview, owner));
+      await expectAlerts(11, demoOrder.id, 2);
       assert.equal(alertsFor(14, demoOrder.id).length, 0);
       const pending = await json(await get(orderPath(demoOrder.id), alice.cookie));
       assert.equal(pending.order.checkout.stage, 'payment_review');
-      assert.ok(!JSON.stringify(pending).includes('demo-delivery-fixture'));
+      const command = '/start order_' + demoOrder.id;
+      const reviewStatus = await statusReply(await askTelegramStatus(command), 987654330);
+      assert.match(reviewStatus.text, /ငွေပေးချေမှု စစ်ဆေးနေသည်/);
+      assert.ok(reviewStatus.reply_markup.inline_keyboard.flat().some(item => item.url.endsWith(demoOrder.id)));
+      assert.ok(!(await statusReply(await askTelegramStatus(command, { sender: 987654331 }), 987654331)).text.includes(demoOrder.id.slice(0, 8).toUpperCase()));
+      assert.equal(await (await askTelegramStatus(command, { chatId: 987654331 })).text(), '');
+      assert.equal(await (await askTelegramStatus(command, { chatType: 'group' })).text(), '');
+      assert.equal((await askTelegramStatus(command, { secret: 'incorrect-secret' })).status, 403);
       await callbackReply(await clickOrderButton(paymentButton, 11), /Payment approved/);
       await expectAlerts(14, demoOrder.id, 1);
       const previousSendButton = actionButton(14, demoOrder.id, 'Send order');
+      assert.match((await statusReply(await askTelegramStatus('/status'), 987654330)).text, /ဝန်ဆောင်မှု ပြင်ဆင်နေသည်/);
       demoOrder = (await json(await get(adminPath(demoOrder.id) + '?view=status', owner))).order;
       await json(await mutate(adminPath(demoOrder.id), 'PATCH', {
         ...deliveryForm, revision: demoOrder.revision, action: 'stage-delivery', customerNote: 'Prepared again for the updated draft.',
+        lines: deliveryForm.lines.map(line => ({ ...line, accountInfo: 'Optional product note for the customer.' })),
       }, owner));
+      assert.ok(!JSON.stringify(await json(await get(orderPath(demoOrder.id), alice.cookie))).includes('demo-delivery-fixture'));
       await expectAlerts(14, demoOrder.id, 2);
       await callbackReply(await clickOrderButton(previousSendButton, 14), /changed|out of date/, true);
       const sendButton = actionButton(14, demoOrder.id, 'Send order', 1);
@@ -277,7 +313,13 @@ try {
       await callbackReply(await clickOrderButton(sendButton, 14), /already recorded/);
       demoOrder = (await json(await get(orderPath(demoOrder.id) + '?view=status', alice.cookie))).order;
       assert.equal(demoOrder.customerNote, 'Prepared again for the updated draft.');
-      assert.ok(!JSON.stringify(alertsFor(14, demoOrder.id)).includes('demo-delivery-fixture'));
+      const deliveredOrder = (await json(await get(orderPath(demoOrder.id), alice.cookie))).order;
+      assert.equal(deliveredOrder.lines[0].accountInfo, 'Optional product note for the customer.');
+      const finalStatus = await statusReply(await askTelegramStatus(command), 987654330);
+      assert.match(finalStatus.text, /ဝန်ဆောင်မှု ပေးပြီး/);
+      for (const privateValue of ['demo-delivery-fixture', 'demo-delivery@example.invalid', 'Optional product note', demoOrder.customerNote]) {
+        assert.ok(!JSON.stringify({ alerts: alertsFor(14, demoOrder.id), finalStatus }).includes(privateValue));
+      }
     } else {
       demoOrder = (await json(await mutate(adminPath(demoOrder.id), 'PATCH',
         { action: 'payment-approve', revision: demoOrder.revision }, owner))).order;
@@ -493,7 +535,14 @@ try {
   const complimentary = (await json(await create({ requestId: randomUUID(), expectedCatalogRevision: catalog.revision,
     items: [{ productId: free.id, planId: null, quantity: 1 }] }), 201)).order;
   assert.equal(complimentary.checkout.stage, 'processing');
-  assert.equal((await json(await mutate(adminPath(complimentary.id), 'PATCH', { revision: complimentary.revision,
+  if (orderBotActionMode) {
+    await expectAlerts(14, complimentary.id, 1);
+    await callbackReply(await clickOrderButton(actionButton(14, complimentary.id, 'Send order'), 14), /Delivery sent/);
+    const sent = (await json(await get(orderPath(complimentary.id), alice.cookie))).order;
+    assert.equal(sent.status, 'approved');
+    assert.equal(sent.lines[0].accountDetails, undefined);
+    assert.match(sent.lines[0].startDate, /^\d{4}-\d{2}-\d{2}$/);
+  } else assert.equal((await json(await mutate(adminPath(complimentary.id), 'PATCH', { revision: complimentary.revision,
     lines: complimentary.lines.map(line => ({ id: line.id, startDate: '2028-01-01', endDate: '2028-02-01' })) }, owner))).order.status, 'approved');
   await json(await mutate(adminPath(order.id), 'DELETE', { revision: order.revision, confirmation: order.id }, owner));
   assert.equal((await db.execute('SELECT * FROM digimium_order_proofs WHERE order_id = ?', [order.id]))[0].length, 0);

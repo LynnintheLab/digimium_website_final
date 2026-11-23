@@ -13,11 +13,12 @@ import './commerce.css';
 type CommerceData = { customers: CommerceCustomer[]; orders: CommerceOrder[] };
 const dateFormat = new Intl.DateTimeFormat('en-GB', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Yangon' });
 
-export default function AdminCommerce({ view, customerId, initialOrderId = null, telegramContact, onDirtyChange, clearCustomer, showCustomerOrders }: {
+export default function AdminCommerce({ view, customerId, initialOrderId = null, telegramContact, testingOrderAlerts = false, onDirtyChange, clearCustomer, showCustomerOrders }: {
   view: 'orders' | 'customers';
   customerId: string | null;
   initialOrderId?: string | null;
   telegramContact: string | null;
+  testingOrderAlerts?: boolean;
   onDirtyChange: (dirty: boolean) => void;
   clearCustomer: () => void;
   showCustomerOrders: (id: string) => void;
@@ -179,6 +180,7 @@ export default function AdminCommerce({ view, customerId, initialOrderId = null,
         setEditingCustomer(null); if (customerId === id) clearCustomer(); setNotice('Customer and their associated records deleted.');
         requestAnimationFrame(() => listHeading.current?.focus());
     }} /> : selected ? <OrderEditor key={selected.id + '-' + selected.revision} order={selected} customer={selected.customerId ? customersById.get(selected.customerId) : undefined}
+      testingOrderAlerts={testingOrderAlerts}
       backLabel={view === 'customers' ? 'Back to customers' : 'Back to orders'}
       onDirtyChange={onDirtyChange} onBack={backToList} onRemove={(order, trigger) => { removeTrigger.current = trigger; setRemovingOrder(order); }}
       onReload={async () => { if (await refresh()) onDirtyChange(false); }}
@@ -186,20 +188,19 @@ export default function AdminCommerce({ view, customerId, initialOrderId = null,
         invalidateRefresh();
         setData(current => current ? { ...current, orders: current.orders.map(row => row.id === order.id ? order : row) } : current);
         setFilter(order.status);
-        if (action === 'order-approve' || action === 'stage-delivery') {
-          setNotice(action === 'order-approve' ? 'Order approved. Review payment and delivery before sending to the customer.'
-            : 'Delivery draft saved. The customer will receive these details when you send the order.');
+        if (action === 'stage-delivery') {
+          setNotice('Delivery draft saved. Send the order from Telegram or here when payment is approved.');
           requestAnimationFrame(() => document.getElementById('commerce-order-title')?.focus());
           return;
         }
         if (action === 'order-send') {
-          setNotice('Order sent. Saved delivery details are now available in the customer’s website order history.');
+          setNotice('Order sent and added to the customer’s website order history.');
           backToList();
           return;
         }
         if (order.checkout && order.status === 'pending') {
           setNotice(order.checkout.stage === 'processing' ? selected.checkout?.stage === 'quote_required'
-            ? 'Quote saved. No payment is required for this order.' : 'Payment approved. Review order approval and delivery before sending to the customer.'
+            ? 'Quote saved. No payment is required for this order.' : 'Payment approved. Send the order when ready; delivery details are optional.'
             : order.checkout.stage === 'payment_rejected' ? 'Payment rejected. The customer can review your note and submit new proof.'
               : 'Quote saved. The customer can continue to payment.');
           requestAnimationFrame(() => document.getElementById('commerce-order-title')?.focus());

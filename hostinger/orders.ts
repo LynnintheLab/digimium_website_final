@@ -12,6 +12,7 @@ import { initialCatalog } from '../lib/initial-catalog';
 import { effectivePrice, parseMmk } from '../lib/pricing';
 import { resolveTelegramContact } from '../lib/telegram-contact';
 import { priceOnEnquiry } from '../lib/shop-language';
+import { defaultDeliveryDates } from '../lib/order-dates';
 import { checkoutFieldsFor, MAX_CUSTOMER_INPUT_UNITS, type CustomerOrderInput, type WebsiteCheckout } from '../lib/payment';
 import { checkoutPaymentMethods } from '../lib/demo-payments';
 import { paymentDecisionSchema, proofRequestSchema, quoteOrderSchema, selectPaymentSchema, websiteCheckoutSchema } from '../lib/payment-validation';
@@ -21,6 +22,7 @@ import { ensureCustomerSchema, presentCustomer, type CustomerIdentityRow } from 
 import { limitGuestCheckout } from './guest-checkout';
 import { getPool } from './mysql';
 import { drainAdminNotificationAlerts, enqueueNotificationAlert } from './notifications';
+import { orderBotActionSettings, orderBotTestEnvironment } from './order-bot-actions';
 
 const MAX_ORDER_LINES = 3000;
 // Reject oversized collections before schema parsing as defense in depth.
@@ -79,17 +81,21 @@ const fulfillmentSchema = z.object({
     .strict().refine(line => line.endDate >= line.startDate)).min(1).max(MAX_ORDER_LINES),
 }).strict();
 const deliveryDraftSchema = fulfillmentSchema.extend({ action: z.literal('stage-delivery') });
+const paymentProofPreviewSchema = z.object({
+  action: z.literal('payment-proof-preview'),
+  revision: z.number().int().positive().max(0xfffffffe),
+}).strict();
 const adminActionSchema = z.object({
-  action: z.enum(['order-approve', 'payment-approve', 'order-send']),
+  action: z.enum(['payment-approve', 'order-send']),
   revision: z.number().int().positive().max(0xfffffffe),
   requestId: z.string().uuid(),
   proofRequestId: z.string().uuid().optional(),
-  deliveryDraftId: z.string().uuid().optional(),
+  deliveryDraftId: z.string().uuid().nullable().optional(),
 }).strict().superRefine((input, context) => {
   if ((input.action === 'payment-approve') !== Boolean(input.proofRequestId)) {
     context.addIssue({ code: 'custom', path: ['proofRequestId'], message: 'Bind payment approval to the reviewed screenshot.' });
   }
-  if ((input.action === 'order-send') !== Boolean(input.deliveryDraftId)) {
+  if (input.action !== 'order-send' && input.deliveryDraftId !== undefined) {
     context.addIssue({ code: 'custom', path: ['deliveryDraftId'], message: 'Bind delivery to the prepared account details.' });
   }
 });
@@ -514,6 +520,9 @@ export async function createWebsiteOrder(customerId: string, body: unknown): Pro
   const hash = createHmac('sha256', checkoutKey('request')).update(JSON.stringify(canonical)).digest();
   await ensureOrders();
   const connection = await getPool().getConnection();
+  let order: CommerceOrder;
+  let createdKey: string;
+  let readyKey: string | undefined;
   try {
     await connection.beginTransaction();
     const [customers] = await connection.execute<RowDataPacket[]>('SELECT id, name FROM digimium_customers WHERE id = ? FOR UPDATE', [customerId]);
@@ -538,20 +547,24 @@ export async function createWebsiteOrder(customerId: string, body: unknown): Pro
     await connection.execute(`INSERT INTO digimium_orders
       (id, customer_id, request_id, request_hash, created_at, snapshot, checkout_state, customer_inputs)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [id, customerId, input.requestId, hash, new Date().toISOString(), JSON.stringify(snapshot), JSON.stringify(checkout), encrypted]);
-    await enqueueNotificationAlert(connection, { kind: 'order-created', dedupeKey: 'order-created:' + id, entityId: id,
+    createdKey = 'order-created:' + id;
+    await enqueueNotificationAlert(connection, { kind: 'order-created', dedupeKey: createdKey, entityId: id,
       websiteOrder: true, customerName: customers[0].name, orderReference: id.replaceAll('-', '').slice(0, 8).toUpperCase(),
       productSummary: snapshot.lines.slice(0, 6).map(line => line.productName + (line.planName ? ' · ' + line.planName : '') + ' × ' + line.quantity).join('\n').slice(0, 350),
       totalMmk: snapshot.totalMmk });
     const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ?', [id]);
+    readyKey = await enqueueDeliveryReady(connection, rows[0], checkout);
+    order = presentCheckout(rows[0]);
     await connection.commit();
-    await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000 }).catch(() => {});
-    return { order: presentCheckout(rows[0]), created: true };
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally {
     connection.release();
   }
+  await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: createdKey }).catch(() => {});
+  if (readyKey) await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: readyKey }).catch(() => {});
+  return { order, created: true };
 }
 
 export async function recoverWebsiteOrder(customerId: string, requestId: string) {
@@ -699,7 +712,7 @@ export async function submitOrderProof(customerId: string, id: string, body: unk
     await connection.rollback();
     throw error;
   } finally { connection.release(); }
-  await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: alertKey }).catch(() => {});
+  await drainAdminNotificationAlerts({ limit: 1, budgetMs: 5000, dedupeKey: alertKey }).catch(() => {});
   return { order: submittedOrder };
 }
 
@@ -756,6 +769,40 @@ async function applyPaymentDecision(connection: PoolConnection, row: OrderRow, c
   checkout.payment.note = input.note ?? '';
 }
 
+/** Optional Admin recovery for a receipt whose original alert predates image previews. */
+async function queuePaymentProofPreview(id: string, body: unknown) {
+  if (!orderBotTestEnvironment()) throw new CommerceError(404, 'Payment previews are available on the testing website only.');
+  if (!orderBotActionSettings()) throw new CommerceError(503, 'The testing order bot is not configured. Try again after its setup is complete.');
+  const parsed = paymentProofPreviewSchema.safeParse(body);
+  if (!parsed.success || !z.string().uuid().safeParse(id).success) throw new CommerceError(400, 'Review the current order before requesting its payment preview.');
+  await ensureOrders();
+  const connection = await getPool().getConnection();
+  let order: CommerceOrder;
+  let alertKey: string;
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
+    const { row, checkout } = editableWebsiteOrder(rows[0], parsed.data.revision);
+    const proofRequestId = currentProofId(id, checkout);
+    if (checkout.stage !== 'payment_review' || !checkout.payment || !proofRequestId ||
+      !await hasCurrentProof(connection, id, checkout, proofRequestId)) {
+      throw new CommerceError(409, 'There is no current payment screenshot awaiting review.');
+    }
+    alertKey = 'payment-proof-preview:' + id + ':' + proofRequestId;
+    await enqueueNotificationAlert(connection, { kind: 'payment-proof-submitted', dedupeKey: alertKey, entityId: id,
+      orderReference: id.replaceAll('-', '').slice(0, 8).toUpperCase(), proofRequestId,
+      paymentMethod: checkout.payment.method.id, paymentAmount: checkout.payment.amount,
+      paymentCurrency: checkout.payment.currency, demo: checkout.payment.method.demo === true });
+    order = presentCheckout(row);
+    await connection.commit();
+  } catch (error) { await connection.rollback(); throw error; }
+  finally { connection.release(); }
+  const result = await drainAdminNotificationAlerts({ limit: 1, budgetMs: 5000, dedupeKey: alertKey });
+  if (!result.configured) throw new CommerceError(503, 'The testing order bot is unavailable. The payment preview is saved for retry.');
+  if (result.failed) throw new CommerceError(503, 'The payment preview is queued, but Telegram delivery did not complete. Try again later.');
+  return order;
+}
+
 function decryptDeliveryDraft(row: OrderRow): OrderDeliveryDraft {
   if (!row.delivery_draft || !row.customer_id || !row.checkout_state) throw new CommerceError(409, 'Prepare delivery details in Admin first.');
   const checkout: WebsiteCheckout = JSON.parse(row.checkout_state);
@@ -766,7 +813,7 @@ function decryptDeliveryDraft(row: OrderRow): OrderDeliveryDraft {
   return { lines: parsed.data.lines.map(line => ({ ...line, accountInfo: line.accountInfo ?? '' })), customerNote: parsed.data.customerNote ?? '' };
 }
 
-function prepareFulfillment(row: OrderRow, input: z.infer<typeof fulfillmentSchema>, previousLines: OrderFulfillment[]) {
+function prepareFulfillment(row: OrderRow, input: z.infer<typeof fulfillmentSchema>, previousLines: OrderFulfillment[], allowProductNote = false) {
   const snapshot: OrderSnapshot = JSON.parse(row.snapshot);
   const grants = new Set(input.lines.map(line => line.id));
   if (snapshot.lines.length !== input.lines.length || !snapshot.lines.every(line => grants.has(line.id))) {
@@ -775,19 +822,24 @@ function prepareFulfillment(row: OrderRow, input: z.infer<typeof fulfillmentSche
   const previous = new Map(previousLines.map(line => [line.id, line]));
   return input.lines.map(({ id, startDate, endDate, accountInfo, accountDetails }) => {
     const saved = previous.get(id)?.accountInfo || '';
-    if (accountInfo && accountInfo !== saved) throw new CommerceError(400, 'Use the optional Account, Password, Manager and Username fields.');
+    if (!allowProductNote && accountInfo && accountInfo !== saved) throw new CommerceError(400, 'Use the optional Account, Password, Manager and Username fields.');
+    const note = allowProductNote && accountInfo !== undefined ? accountInfo.replace(/\r\n?/g, '\n').trim() : saved;
+    if (allowProductNote && /[\p{Cc}\u202a-\u202e\u2066-\u2069]/u.test(note.replace(/\n/g, ''))) {
+      throw new CommerceError(400, 'Remove unsupported characters from the product note.');
+    }
     const details = accountDetails ?? previous.get(id)?.accountDetails;
     const hasDetails = details && Object.values(details).some(value => value.length > 0);
-    return { id, startDate, endDate, accountInfo: saved, ...(hasDetails ? { accountDetails: details } : {}) };
+    return { id, startDate, endDate, accountInfo: note, ...(hasDetails ? { accountDetails: details } : {}) };
   });
 }
 
 async function enqueueDeliveryReady(connection: PoolConnection, row: OrderRow, checkout: WebsiteCheckout) {
-  if (row.approved_at || row.rejected_at || !row.delivery_draft || !checkout.orderApprovedAt || !checkout.deliveryDraftId ||
+  if (row.approved_at || row.rejected_at ||
     !await paymentConfirmed(connection, row, checkout)) return;
-  const dedupeKey = 'order-delivery-ready:' + row.id + ':' + checkout.deliveryDraftId;
+  const dedupeKey = 'order-delivery-ready:' + row.id + ':' + (checkout.deliveryDraftId ?? 'none');
   await enqueueNotificationAlert(connection, { kind: 'order-delivery-ready', dedupeKey, entityId: row.id,
-    orderReference: row.id.replaceAll('-', '').slice(0, 8).toUpperCase(), deliveryDraftId: checkout.deliveryDraftId });
+    orderReference: row.id.replaceAll('-', '').slice(0, 8).toUpperCase(),
+    ...(checkout.deliveryDraftId ? { deliveryDraftId: checkout.deliveryDraftId } : {}) });
   return dedupeKey;
 }
 
@@ -815,7 +867,7 @@ async function stageOrderDelivery(id: string, body: unknown) {
     const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ', delivery_draft FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
     const { row, checkout } = editableWebsiteOrder(rows[0], parsed.data.revision);
     const previous = row.delivery_draft ? decryptDeliveryDraft(row) : undefined;
-    const lines = prepareFulfillment(row, parsed.data, previous?.lines ?? []);
+    const lines = prepareFulfillment(row, parsed.data, previous?.lines ?? [], true);
     const draft: OrderDeliveryDraft = { lines, customerNote: parsed.data.customerNote ?? previous?.customerNote ?? row.customer_note ?? '' };
     checkout.deliveryDraftId = randomUUID();
     checkout.deliveryReady = true;
@@ -857,21 +909,22 @@ export async function applyAdminOrderAction(id: string, body: unknown): Promise<
       return { order: presentCheckout(row), applied: false };
     }
     const { checkout } = editableWebsiteOrder(row, input.revision);
-    if (input.action === 'order-approve') {
-      if (checkout.orderApprovedAt) throw new CommerceError(409, 'This order is already approved for processing.');
-      checkout.orderApprovedAt = new Date().toISOString();
-    } else if (input.action === 'payment-approve') {
+    if (input.action === 'payment-approve') {
       await applyPaymentDecision(connection, row, checkout, { action: input.action, proofRequestId: input.proofRequestId });
     } else {
-      if (!checkout.orderApprovedAt || !row.delivery_draft || checkout.deliveryDraftId !== input.deliveryDraftId) {
-        throw new CommerceError(409, 'Approve the order and review its latest prepared delivery first.');
+      if ((checkout.deliveryDraftId ?? null) !== (input.deliveryDraftId ?? null) ||
+        Boolean(row.delivery_draft) !== Boolean(checkout.deliveryDraftId)) {
+        throw new CommerceError(409, 'The prepared delivery changed. Review the latest order before sending.');
       }
       if (!await paymentConfirmed(connection, row, checkout)) throw new CommerceError(409, 'Approve the current payment proof before sending the order.');
-      const draft = decryptDeliveryDraft(row);
-      const lines = prepareFulfillment(row, { revision: row.revision, ...draft }, []);
-      row.approved_at = new Date().toISOString();
+      const now = new Date();
+      const draft = row.delivery_draft ? decryptDeliveryDraft(row) : undefined;
+      const snapshot: OrderSnapshot = JSON.parse(row.snapshot);
+      const lines = draft ? prepareFulfillment(row, { revision: row.revision, ...draft }, [], true) :
+        snapshot.lines.map(line => ({ id: line.id, ...defaultDeliveryDates(line.duration, now), accountInfo: '' }));
+      row.approved_at = now.toISOString();
       row.fulfillment = encryptFulfillment(id, fulfillmentOwner(row), lines);
-      row.customer_note = draft.customerNote;
+      if (draft) row.customer_note = draft.customerNote;
       row.delivery_draft = null;
       checkout.stage = 'completed';
       delete checkout.deliveryDraftId;
@@ -992,7 +1045,6 @@ export async function saveFulfillment(id: string, body: unknown) {
     row.approved_at ??= new Date().toISOString();
     if (checkout) {
       checkout.stage = 'completed';
-      checkout.orderApprovedAt ??= row.approved_at;
       delete checkout.deliveryDraftId;
       delete checkout.deliveryReady;
       row.checkout_state = JSON.stringify(checkout);
@@ -1048,8 +1100,10 @@ async function saveOrderDecision(id: string, body: unknown) {
 /** Older callers still send fulfillment without an action; decisions are explicit new variants. */
 export async function updateOrder(id: string, body: unknown) {
   const action = body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>).action : undefined;
+  if (action === 'payment-proof-preview') return queuePaymentProofPreview(id, body);
   if (action === 'stage-delivery') return stageOrderDelivery(id, body);
-  if (action === 'order-approve' || action === 'order-send' ||
+  if (action === 'order-approve') throw new CommerceError(400, 'Order approval is no longer required. Approve payment, then send the order.');
+  if (action === 'order-send' ||
     (action === 'payment-approve' && body && typeof body === 'object' && Object.hasOwn(body, 'requestId'))) {
     return (await applyAdminOrderAction(id, body)).order;
   }

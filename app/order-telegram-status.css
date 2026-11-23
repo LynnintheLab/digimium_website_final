@@ -1,0 +1,4 @@
+.order-telegram-status { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.order-telegram-status > a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--blue); font-size: .86rem; font-weight: 600; }
+.order-telegram-status > a > span { min-width: 0; overflow-wrap: anywhere; }
+.order-telegram-status a:hover { text-decoration: underline; text-underline-offset: 3px; }

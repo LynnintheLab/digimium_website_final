@@ -163,7 +163,7 @@ const proofAlert = z.object({
 }).strict();
 const deliveryAlert = z.object({
   kind: z.literal('order-delivery-ready'), dedupeKey: creationAlert.shape.dedupeKey, entityId: uuid,
-  orderReference: z.string().max(40), deliveryDraftId: uuid,
+  orderReference: z.string().max(40), deliveryDraftId: uuid.optional(),
 }).strict();
 const alertSchema = z.discriminatedUnion('kind', [creationAlert, proofAlert, deliveryAlert]);
 export type NotificationAlertInput = z.infer<typeof alertSchema>;
@@ -222,7 +222,8 @@ function alertText(payload: NotificationAlertInput, dedicated: boolean) {
   }
   if (payload.kind === 'order-delivery-ready') {
     return ['Order ready to send', 'Order #' + cleanAlert(payload.orderReference, 40),
-      'Send the saved delivery to the customer’s website account.'].join('\n');
+      payload.deliveryDraftId ? 'Delivery details saved in Admin.' : 'Add account details or a note in Admin if needed.',
+      'Send order completes delivery in the customer’s website account.'].join('\n');
   }
   const rows = [payload.kind === 'order-created' ? 'New Digimium order' : 'New Digimium customer',
     payload.kind === 'order-created' ? 'Order #' + cleanAlert(payload.orderReference || payload.entityId.slice(0, 8).toUpperCase(), 40) : 'Account #' + payload.entityId.slice(0, 8).toUpperCase()];
@@ -241,8 +242,9 @@ function alertKeyboard(payload: NotificationAlertInput, config: AlertConfig, id:
   url.pathname = '/admin';
   if (payload.kind === 'customer-created') url.searchParams.set('section', 'customers');
   else url.searchParams.set('order', payload.entityId);
-  rows.push([{ text: payload.kind === 'payment-proof-submitted' ? 'Review receipt in Admin' : 'Open Admin', url: url.href }]);
-  if (config.actions && payload.kind !== 'customer-created' && (payload.kind !== 'order-created' || payload.websiteOrder)) {
+  rows.push([{ text: payload.kind === 'payment-proof-submitted' ? 'Review receipt in Admin' :
+    payload.kind === 'order-delivery-ready' ? 'Add or edit delivery details in Admin' : 'Open Admin', url: url.href }]);
+  if (config.actions && (payload.kind === 'payment-proof-submitted' || payload.kind === 'order-delivery-ready')) {
     const kind: OrderBotActionKind = payload.kind;
     rows.push([{ text: orderBotActions[kind].label, callback_data: orderBotCallbackData(config.actions.secret, kind, id) }]);
   }
@@ -262,7 +264,7 @@ async function alertCancellation(payload: NotificationAlertInput) {
   const checkout = row.checkout_state ? JSON.parse(row.checkout_state) : null;
   if (payload.kind === 'order-delivery-ready') {
     return row.rejected_at || row.approved_at || checkout?.stage !== 'processing' ||
-      checkout.deliveryDraftId !== payload.deliveryDraftId ? 'delivery-superseded' : null;
+      (checkout.deliveryDraftId ?? null) !== (payload.deliveryDraftId ?? null) ? 'delivery-superseded' : null;
   }
   return row.rejected_at || row.approved_at || checkout?.stage !== 'payment_review' ||
     checkout.payment?.proofUrl !== `/api/customer/orders/${payload.entityId}/proof?version=${payload.proofRequestId}`
@@ -277,8 +279,52 @@ export async function readOrderBotAlert(id: string, kind: OrderBotActionKind) {
   );
   if (!rows[0]) return null;
   const parsed = alertSchema.safeParse(JSON.parse(rows[0].payload));
-  return parsed.success && parsed.data.kind === kind && (parsed.data.kind !== 'order-created' || parsed.data.websiteOrder)
-    ? parsed.data : null;
+  return parsed.success && parsed.data.kind === kind ? parsed.data : null;
+}
+
+async function telegramPosted(response: Response): Promise<boolean> {
+  // Telegram can return HTTP 200 with ok:false. Limit the reply even on error.
+  const reader = response.body?.getReader();
+  if (!reader) return false;
+  const decoder = new TextDecoder();
+  let text = '', bytes = 0;
+  try {
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      bytes += part.value.byteLength;
+      if (bytes > 16384) { await reader.cancel(); return false; }
+      text += decoder.decode(part.value, { stream: true });
+    }
+    return response.ok && JSON.parse(text + decoder.decode())?.ok === true;
+  } finally { reader.releaseLock(); }
+}
+
+async function postReceiptAlert(config: AlertConfig, payload: z.infer<typeof proofAlert>, id: string, deadline: number) {
+  const { orderProof } = await import('./orders');
+  const proof = await orderProof(payload.entityId, undefined, payload.proofRequestId);
+  const extensions: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+  const extension = extensions[proof.contentType];
+  if (!extension || !proof.bytes.length || proof.bytes.length > 5 * 1024 * 1024 || Date.now() >= deadline) return false;
+  const image = new Blob([new Uint8Array(proof.bytes)], { type: proof.contentType });
+  const keyboard = alertKeyboard(payload, config, id);
+  function upload(media: 'photo' | 'document') {
+    const form = new FormData();
+    form.set('chat_id', config.chat);
+    form.set('message_thread_id', String(config.topics?.['payment-proof-submitted']));
+    form.set('protect_content', 'true');
+    form.set('caption', alertText(payload, true));
+    if (keyboard) form.set('reply_markup', JSON.stringify(keyboard));
+    form.set(media, image, `payment-receipt.${extension}`);
+    const method = media === 'photo' ? 'sendPhoto' : 'sendDocument';
+    return fetch('https://api.telegram.org/bot' + config.token + '/' + method, {
+      method: 'POST', redirect: 'error', body: form, signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+    });
+  }
+  const response = await upload('photo');
+  const posted = await telegramPosted(response);
+  // A confirmed photo rejection can mean the stored screenshot exceeds Telegram's photo dimensions.
+  return !posted && response.status === 400 && Date.now() < deadline ? telegramPosted(await upload('document')) : posted;
 }
 
 /** Bounded, leased outbox delivery; invoke only after the creation transaction has committed. */
@@ -321,27 +367,16 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
           lease_token = NULL, lease_until = NULL, last_error = ? WHERE id = ? AND lease_token = ?`, [cancellation, row.id, lease]);
         continue;
       }
-      const response = await fetch('https://api.telegram.org/bot' + config.token + '/sendMessage', {
+      if (config.actions && payload.kind === 'payment-proof-submitted') {
+        ok = await postReceiptAlert(config, payload, row.id, deadline);
+      } else {
+        ok = await telegramPosted(await fetch('https://api.telegram.org/bot' + config.token + '/sendMessage', {
         method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: config.chat, text: alertText(payload, Boolean(config.topics)), link_preview_options: { is_disabled: true },
           ...(config.topics ? { message_thread_id: config.topics[payload.kind], protect_content: true, reply_markup: alertKeyboard(payload, config, row.id) } : {}) }),
         signal: AbortSignal.timeout(Math.max(1, Math.min(2000, deadline - Date.now()))),
-      });
-      // Telegram can return HTTP 200 with ok:false. Bound the response before parsing.
-      const reader = response.body?.getReader(); let text = '', bytes = 0;
-      if (reader) {
-        const decoder = new TextDecoder();
-        try {
-          for (;;) {
-            const part = await reader.read(); if (part.done) break;
-            bytes += part.value.byteLength;
-            if (bytes > 16384) { await reader.cancel(); throw new Error('Oversized delivery response.'); }
-            text += decoder.decode(part.value, { stream: true });
-          }
-          text += decoder.decode();
-        } finally { reader.releaseLock(); }
+        }));
       }
-      ok = response.ok && text.length <= 16384 && JSON.parse(text)?.ok === true;
     } catch { /* Store only a fixed error class; never a token, URL, body or provider response. */ }
     if (ok) {
       await getPool().execute(`UPDATE digimium_notification_outbox SET sent_at = UTC_TIMESTAMP(3),

@@ -10,6 +10,7 @@ import { checkoutFieldsFor, MAX_CUSTOMER_INPUT_UNITS } from '@/lib/payment';
 import { durationText, planName, priceText, type ShopLanguage } from '@/lib/shop-language';
 import { OfferPrice } from '../offer-price';
 import { CustomerPayment, SubmittedOrderDetails } from '../customer-payment';
+import { OrderTelegramStatus } from '../order-telegram-status';
 
 const ATTEMPT_KEY = 'digimium:website-checkout-attempt:v1';
 type CheckoutRequest = {
@@ -34,7 +35,7 @@ function readAttempt(customerId: string): SavedAttempt | null {
   } catch { return null; }
 }
 
-export default function Checkout({ lang }: { lang: ShopLanguage }) {
+export default function Checkout({ lang, orderBotUrl }: { lang: ShopLanguage; orderBotUrl?: string }) {
   const t = (en: string, my: string) => lang === 'my' ? my : en;
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [customer, setCustomer] = useState<CommerceCustomer | null>(null);
@@ -252,6 +253,7 @@ export default function Checkout({ lang }: { lang: ShopLanguage }) {
         <ul className="checkout-summary">{order.lines.map(line => <li key={line.id}><div><strong>{line.productName}</strong><span>{[line.planName, durationText(line.duration, lang), t(`Qty ${line.quantity}`, `${line.quantity} ခု`)].filter(Boolean).join(' · ')}</span></div><span>{priceText(line.price, lang)}</span></li>)}</ul>
         <CustomerPayment order={order} methods={catalog?.paymentMethodIds || []} lang={lang} onUpdated={setOrder} />
         <SubmittedOrderDetails order={order} lang={lang} />
+        <OrderTelegramStatus botUrl={orderBotUrl} orderId={order.id} linked={!!customer.telegram} lang={lang} />
         <a className="customer-history-link" href="/order-history">{t('Open order history and delivered accounts', 'အော်ဒါမှတ်တမ်းနှင့် ရရှိသောအကောင့် ကြည့်ရန်')}<ArrowRight size={16} /></a>
       </div>}
       {!loading && customer && !order && catalog && (rows.length ? <form onSubmit={createOrder} className="checkout-form" autoComplete="off">

@@ -18,7 +18,7 @@ export function orderTotal(order: CommerceOrder) {
 export function orderStageLabel(order: CommerceOrder) {
   if (order.status === 'rejected') return 'Rejected';
   if (!order.checkout) return order.status === 'approved' ? 'Approved' : 'Pending';
-  if (order.checkout.stage === 'processing' && order.checkout.orderApprovedAt && order.checkout.deliveryReady) return 'Ready to send';
+  if (order.checkout.stage === 'processing' && (order.totalMmk === 0 || order.checkout.payment?.approvedAt)) return 'Ready to send';
   const labels = {
     quote_required: 'Quote required', awaiting_payment: 'Awaiting payment', payment_review: 'Review payment',
     payment_rejected: 'Payment rejected', processing: 'Processing', completed: 'Completed',
@@ -30,16 +30,18 @@ function initialDetails(line: CommerceOrderLine) {
   const startDate = line.startDate ?? todayInMyanmar();
   return {
     id: line.id, startDate, endDate: line.endDate ?? suggestedEndDate(startDate, line.duration),
+    accountInfo: line.accountInfo ?? '',
     accountDetails: { account: '', password: '', manager: '', username: '', ...line.accountDetails },
   };
 }
 type LineDetails = ReturnType<typeof initialDetails>;
 type DeliveryDraft = { lines: OrderFulfillment[]; customerNote?: string };
-export type OrderSaveAction = 'approve' | 'reject' | 'note' | 'quote' | 'payment-approve' | 'payment-reject' | 'order-approve' | 'stage-delivery' | 'order-send';
+export type OrderSaveAction = 'approve' | 'reject' | 'note' | 'quote' | 'payment-approve' | 'payment-reject' | 'stage-delivery' | 'order-send';
 
-export default function OrderEditor({ order, customer, onSaved, onBack, onReload, onDirtyChange, onRemove, backLabel = 'Back to orders' }: {
+export default function OrderEditor({ order, customer, testingOrderAlerts = false, onSaved, onBack, onReload, onDirtyChange, onRemove, backLabel = 'Back to orders' }: {
   order: CommerceOrder;
   customer?: CommerceCustomer;
+  testingOrderAlerts?: boolean;
   onSaved: (order: CommerceOrder, action: OrderSaveAction) => void;
   onBack: () => void;
   onReload: () => Promise<void>;
@@ -60,8 +62,10 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
   const sendTrigger = useRef<HTMLButtonElement>(null);
   const sendHeading = useRef<HTMLHeadingElement>(null);
   const errorFeedback = useRef<HTMLDivElement>(null);
-  const actionRequest = useRef<{ action: 'order-approve' | 'order-send'; revision: number; deliveryDraftId?: string; requestId: string } | null>(null);
+  const actionRequest = useRef<{ action: 'order-send'; revision: number; deliveryDraftId?: string; requestId: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [previewingProof, setPreviewingProof] = useState(false);
+  const [proofPreviewed, setProofPreviewed] = useState(false);
   const [error, setError] = useState('');
   const [failureStatus, setFailureStatus] = useState(0);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
@@ -83,10 +87,9 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
   const canEditDelivery = websitePending || canFulfill;
   const paymentReady = order.totalMmk === 0 || (checkout?.stage === 'processing' && !!payment?.approvedAt);
   const sendRequirements = websitePending ? [
-    !checkout.orderApprovedAt && 'Approve the order',
     !paymentReady && 'approve payment',
-    (!checkout.deliveryReady || !checkout.deliveryDraftId) && 'save a delivery draft',
     fulfillmentDirty && 'save your delivery changes',
+    paymentDirty && 'save your payment changes',
   ].filter(Boolean) : [];
   const canSend = websitePending && privateDetailsReady && !sendRequirements.length;
   const quotedTotal = quotePrices.reduce<number | null>((total, item, index) => {
@@ -158,11 +161,10 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
 
   async function save(action: OrderSaveAction) {
     if (blocked || (action === 'reject' && (!pending || !rejecting)) ||
-        (action === 'order-approve' && (!websitePending || checkout.orderApprovedAt)) ||
         (action === 'order-send' && (!sending || !canSend))) return;
     const paymentAction = action === 'quote' || action === 'payment-approve' || action === 'payment-reject';
-    if ((paymentAction || action === 'order-approve') && fulfillmentDirty && !window.confirm('Continue with this action and discard your unsaved delivery edits?')) return;
-    if ((action === 'stage-delivery' || action === 'order-approve') && paymentDirty && !window.confirm('Continue with this action and discard your unsaved quote or payment-review edits?')) return;
+    if (paymentAction && fulfillmentDirty && !window.confirm('Continue with this action and discard your unsaved delivery edits?')) return;
+    if (action === 'stage-delivery' && paymentDirty && !window.confirm('Continue with this action and discard your unsaved quote or payment-review edits?')) return;
     if (action === 'quote' && quotedTotal === null) {
       setError('Enter a valid whole-MMK unit price for every item.');
       return;
@@ -173,13 +175,13 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
     setFailureStatus(0);
     let saved = false;
     try {
-      if (action === 'order-approve' || action === 'order-send') {
-        const draftId = action === 'order-send' ? checkout?.deliveryDraftId : undefined;
+      if (action === 'order-send') {
+        const draftId = checkout?.deliveryDraftId;
         if (actionRequest.current?.action !== action || actionRequest.current.revision !== order.revision || actionRequest.current.deliveryDraftId !== draftId) {
-          actionRequest.current = { action, revision: order.revision, deliveryDraftId: draftId, requestId: crypto.randomUUID() };
+          actionRequest.current = { action, revision: order.revision, ...(draftId ? { deliveryDraftId: draftId } : {}), requestId: crypto.randomUUID() };
         }
       }
-      const body = action === 'order-approve' || action === 'order-send' ? actionRequest.current : action === 'quote' ? {
+      const body = action === 'order-send' ? actionRequest.current : action === 'quote' ? {
         action, revision: order.revision, lines: quotePrices.map(item => ({ id: item.id, unitPriceMmk: parseMmk(item.value, true) })),
       } : action === 'payment-approve' || action === 'payment-reject' ? {
         action, revision: order.revision, note: paymentNote,
@@ -203,6 +205,34 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
     } finally { setBusy(false); if (!saved) onDirtyChange(dirty); }
   }
 
+  async function showReceiptInTelegram() {
+    if (blocked || !testingOrderAlerts || checkout?.stage !== 'payment_review' || !payment?.proofUrl || proofPreviewed) return;
+    setBusy(true);
+    setPreviewingProof(true);
+    setError('');
+    setFailureStatus(0);
+    onDirtyChange(true);
+    try {
+      const response = await fetch('/api/admin/commerce/' + encodeURIComponent(order.id), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+        body: JSON.stringify({ action: 'payment-proof-preview', revision: order.revision }),
+      });
+      if (!response.ok) {
+        const result = await response.json() as { error?: string };
+        setFailureStatus(response.status);
+        setError(result.error || 'The receipt could not be shown in Telegram. Try again.');
+        return;
+      }
+      setProofPreviewed(true);
+    } catch {
+      setError('Could not confirm receipt display. Check Telegram before trying again.');
+    } finally {
+      setBusy(false);
+      setPreviewingProof(false);
+      onDirtyChange(dirty);
+    }
+  }
+
   return <section className="commerce-panel" aria-labelledby="commerce-order-title">
     <div className="commerce-panel-heading">
       <button type="button" className="admin-text-button" disabled={busy} onClick={() => {
@@ -218,18 +248,12 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
       {customer && <div className="commerce-customer"><strong>{customer.name}</strong><span>{customerContact(customer)}</span></div>}
       {order.customerId === null && <div className="commerce-customer"><strong>{order.guestName ?? 'Telegram guest'}</strong><span>Guest order</span></div>}
       {pending && <p>{checkout
-        ? 'Review the order, check payment when required, and save delivery details before sending them to the customer.'
+        ? 'Approve payment when required, then send the order. Add delivery details below if needed.'
         : order.customerId === null ? 'Match the order reference with the Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.' : customer?.telegram ? 'Match the reference, name and Telegram ID with the customer’s message. Confirm payment and deliver access in that chat, then approve the dates here.' : 'Match the reference, name and email with the customer’s Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.'}</p>}
       {rejected && <p>This order was rejected. You can update the customer note; no subscription dates or account details are assigned.</p>}
     </div>
-    {websitePending && <section className="commerce-order-approval" aria-labelledby="order-approval-heading">
-      <h3 id="order-approval-heading">Order approval</h3>
-      {checkout.orderApprovedAt ? <p className="commerce-approval-saved"><Check size={17} aria-hidden="true"/>Approved {new Date(checkout.orderApprovedAt).toLocaleString('en-GB', { timeZone: 'Asia/Yangon' })} · Myanmar time</p>
-        : <><p>Confirm the services and information supplied by the customer. Payment review and delivery remain separate steps.</p>
-          <button type="button" className="admin-button admin-button-secondary" disabled={blocked || rejecting} onClick={() => void save('order-approve')}><Check size={16}/>Approve order</button></>}
-    </section>}
     {checkout && <section className="commerce-checkout-review" aria-labelledby="order-payment-heading">
-      <h3 id="order-payment-heading">Payment</h3>
+      <h3 id="order-payment-heading">Payment approval</h3>
       {checkout.stage === 'quote_required' && !rejected && <fieldset className="commerce-quote-fields" disabled={blocked}>
         <legend>Quote this order</legend>
         <p>Set the actual whole-MMK unit price for each item. The saved quote lets the customer continue to payment.</p>
@@ -255,6 +279,13 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
           <Image src={payment.proofUrl} width={360} height={440} alt="Customer payment screenshot" unoptimized/>
           <span>Open payment screenshot<ArrowUpRight size={16}/></span>
         </a>}
+        {testingOrderAlerts && websitePending && checkout.stage === 'payment_review' && payment.proofUrl && <div className="commerce-proof-preview">
+          <button type="button" className="admin-text-button" disabled={blocked || proofPreviewed} onClick={() => void showReceiptInTelegram()}>
+            {previewingProof ? <LoaderCircle className="admin-spinner" size={16}/> : <Send size={16}/>}Show receipt in Telegram
+          </button>
+          {proofPreviewed ? <p role="status">Receipt sent or queued for Telegram. Payment approval and delivery edits are unchanged.</p>
+            : <p>Optional: show the screenshot for an earlier alert that contains only text. New payment alerts include it automatically.</p>}
+        </div>}
         {checkout.stage === 'payment_review' && !rejected ? <fieldset className="commerce-payment-decision" disabled={blocked}>
           <legend>Review payment</legend>
           <p>{payment.method.demo ? 'This is a testing payment. Review the sample image, then approve or reject it to test order progress.' : 'Check the payment in the receiving account, then approve it or ask the customer to submit corrected proof.'}</p>
@@ -290,11 +321,11 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
     <form onSubmit={submit}>
       <fieldset disabled={busy} className="commerce-fieldset">
         {websitePending && <section className="commerce-delivery-intro" aria-labelledby="order-delivery-heading">
-          <h3 id="order-delivery-heading">Delivery draft</h3>
-          <p>Save the subscription dates and account details here. The customer can see them in website order history only after you send the order.</p>
+          <h3 id="order-delivery-heading">Send order</h3>
+          <p>Delivery details are optional. Add dates, account details or notes, then save a draft for sending from Telegram or here. Without a draft, sending starts the subscription today using the plan duration.</p>
           <p id="order-delivery-state" role="status">{!privateDetailsReady ? 'Loading saved delivery details…' : checkout.deliveryReady
             ? fulfillmentDirty ? 'Unsaved delivery changes. Save the draft before sending.' : 'Delivery draft saved.'
-            : 'No delivery draft saved yet.'}</p>
+            : 'No draft saved. You can send this order without adding delivery details.'}</p>
         </section>}
         {order.lines.map((line, index) => {
           const item = details[index];
@@ -321,7 +352,7 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
               <legend>Purchased account details <span>Optional</span></legend>
               <p>{websitePending ? 'Leave any field blank. Saved account details remain in the private draft until the order is sent.' : 'Leave any field blank. You can approve the order without these details. Saved values appear in the customer’s purchased order history.'}</p>
               <div className="commerce-account-grid">
-                <label className="admin-field">Account
+                <label className="admin-field">Account / email
                   <input type="text" autoComplete="off" maxLength={500} value={item.accountDetails.account}
                     onChange={event => updateLine(item.id, { accountDetails: { ...item.accountDetails, account: event.target.value } })} />
                 </label>
@@ -343,10 +374,17 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
                   <input type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={500} value={item.accountDetails.username}
                     onChange={event => updateLine(item.id, { accountDetails: { ...item.accountDetails, username: event.target.value } })} />
                 </label>
+                {websitePending && <div className="commerce-product-note">
+                  <label className="admin-field" htmlFor={'product-note-' + line.id}><span>Product note <small>Optional</small></span>
+                    <textarea id={'product-note-' + line.id} value={item.accountInfo} maxLength={4000} rows={3}
+                      aria-describedby={'product-note-help-' + line.id} onChange={event => updateLine(item.id, { accountInfo: event.target.value })}/>
+                  </label>
+                  <p id={'product-note-help-' + line.id}>Published with this product in the customer’s website order history when you send the order.</p>
+                </div>}
               </div>
             </fieldset>
-            {line.accountInfo && <details className="commerce-legacy-details">
-              <summary>Previously saved account details</summary>
+            {!websitePending && line.accountInfo && <details className="commerce-legacy-details">
+              <summary>{checkout ? 'Product note' : 'Previously saved account details'}</summary>
               <p dir="auto">{line.accountInfo}</p>
             </details>}</>}
           </section>;
@@ -377,11 +415,13 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
         </section>}
         {sending && <section className="commerce-send-confirm" role="group" aria-labelledby="send-order-title" aria-describedby="send-order-description">
           <h3 ref={sendHeading} id="send-order-title" tabIndex={-1}>Send order {orderReference(order.id)} to the customer?</h3>
-          <p id="send-order-description">The saved subscription dates, account details and customer note will become available in their website order history. Passwords stay on the website.</p>
+          <p id="send-order-description">{checkout?.deliveryReady
+            ? 'The saved subscription dates, account details and notes will become available in their website order history. Passwords stay on the website.'
+            : 'The order will appear in the customer’s website order history without account details or a new note. The subscription starts today using the plan duration; an unknown duration ends today.'}</p>
           <div className="commerce-customer-actions">
             <button type="button" className="admin-button admin-button-secondary" onClick={() => { setSending(false); requestAnimationFrame(() => sendTrigger.current?.focus()); }}>Cancel</button>
             <button type="button" className="admin-button admin-button-primary" disabled={blocked || !canSend} onClick={() => void save('order-send')}>
-              {busy ? <LoaderCircle size={16} className="admin-spinner"/> : <Send size={16}/>}Send to customer
+              {busy ? <LoaderCircle size={16} className="admin-spinner"/> : <Send size={16}/>}Send order
             </button>
           </div>
         </section>}
@@ -397,16 +437,16 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
         <div className="commerce-save" data-delivery={websitePending || undefined}>
           <div><span>Order total</span><strong>{orderTotal(order)}</strong></div>
           {websitePending && privateDetailsReady && <p id="order-send-requirements" className="commerce-send-requirements">{sendRequirements.length
-            ? `Before sending: ${sendRequirements.join(', ')}.` : 'Ready to send the saved delivery.'}</p>}
+            ? `Before sending: ${sendRequirements.join(', ')}.` : checkout.deliveryReady ? 'Ready to send the saved delivery.' : 'Ready to send. Delivery details are optional.'}</p>}
           <div className="commerce-save-actions">
           {pending && <button ref={rejectTrigger} type="button" className="admin-button commerce-danger-outline" disabled={blocked || rejecting || sending} onClick={() => { setRejecting(true); requestAnimationFrame(() => rejectHeading.current?.focus()); }}><X size={16}/>Reject…</button>}
           {websitePending ? <>
-            <button type="submit" className={'admin-button ' + (canSend ? 'admin-button-secondary' : 'admin-button-primary')}
+            <button type="submit" className="admin-button admin-button-secondary"
               disabled={blocked || rejecting || sending || (!!checkout.deliveryReady && !fulfillmentDirty)} aria-describedby="order-delivery-state">
               {busy ? <LoaderCircle className="admin-spinner" size={16}/> : <Save size={16}/>}Save delivery draft
             </button>
-            <button ref={sendTrigger} type="button" className={'admin-button ' + (canSend ? 'admin-button-primary' : 'admin-button-secondary')}
-              disabled={blocked || rejecting || sending || !canSend} aria-describedby="order-send-requirements" onClick={() => { setSending(true); requestAnimationFrame(() => sendHeading.current?.focus()); }}><Send size={16}/>Send to customer…</button>
+            <button ref={sendTrigger} type="button" className="admin-button admin-button-primary"
+              disabled={blocked || rejecting || sending || !canSend} aria-describedby="order-send-requirements" onClick={() => { setSending(true); requestAnimationFrame(() => sendHeading.current?.focus()); }}><Send size={16}/>Send order…</button>
           </> : (canFulfill || rejected) && <button type="submit" className="admin-button admin-button-primary" disabled={blocked || rejecting || (!pending && !dirty)}>
             {busy ? <LoaderCircle className="admin-spinner" size={16} /> : pending ? <Check size={16} /> : <Save size={16} />}
             {busy ? 'Saving…' : pending ? checkout ? 'Mark completed' : 'Approve order' : rejected ? 'Save customer note' : 'Save changes'}

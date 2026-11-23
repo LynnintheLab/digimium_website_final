@@ -2,7 +2,7 @@
 
 ## Current status
 
-The testing checkout has a distinct receipt upload surface with file selection, drop, paste, preview and replacement, plus an animated connector for order progress. The dedicated testing Telegram bot has separate **Orders**, **Payment approval**, **Order send** and **Registration** topics. Admin can save an encrypted delivery draft before payment review finishes. Sending publishes that draft in the customer’s website Order History. [Testing bot setup](docs/ORDER-ALERT-BOT.md)
+The testing checkout has a distinct receipt upload surface with file selection, drop, paste, preview and replacement, plus an animated order progress line. The dedicated testing bot shows the submitted receipt in the owner's **Payment approval** topic. **Approve payment → Send order** is the full staff approval flow. **Orders** and **Registration** remain informational. Admin can optionally save encrypted per-product delivery details and notes. Linked customers can check their current website order step in the private bot chat. [Testing bot setup](docs/ORDER-ALERT-BOT.md)
 
 23 November 2026: The dedicated testing bot `@DigimiumTestingOrdersBot` has private topics for **Payment approval**, **Orders** and **Registration**. Its five runtime settings were applied on the testing Hostinger app. Payment alerts identify new proofs by order reference, method, amount and demo status with a link to protected Admin review. Proof images remain on the website. [Bot setup](docs/ORDER-ALERT-BOT.md)
 
@@ -95,6 +95,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Implemented the two-step testing workflow with protected receipt uploads to the configured owner topic, optional encrypted delivery details and owner-bound approvals. Added a receipt resend control for older pending proofs and a private `/status` lookup bound to the existing verified Telegram identity. Node 24 standalone build, strict lint, 111 unit tests and three disposable checkout integrations passed. Tests cover the exact website receipt bytes, recovered alerts, stale buttons, editing delivery details, sending without a draft and cross-customer status isolation.
 
 Hosted testing order `#DF0B4C5C` verifies the CapCut provided-account checkout, demo KPay receipt upload and protected Admin receipt readback. The dedicated bot received the matching Orders alert. A synthetic delivery draft was saved and verified private in the customer’s pending history. Mouse and keyboard automation could not activate Telegram’s inline buttons in the native Mac app. The owner requested the native app for the test, and the matching Orders alert is open for the three owner clicks.
 
@@ -254,7 +256,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Resume the hosted test on `#DF0B4C5C` after the owner uses the matching inline buttons in Orders, Payment approval and Order send in the native Telegram app. Verify customer history shows the saved demo delivery. Reuse this order to avoid duplicate fixtures.
+- Use the same hosted demo `#DF0B4C5C` with **Approve payment → Send order** in the native Telegram app and verify the delivered account in customer history. Existing old Orders alerts can retain their historical button. Keep testing separate from any production release.
 
 - Verify the next authorized testing order, proof, delivery draft and registration in their Telegram topics. Buttons appear on new alerts. Continue to use the website Admin to review previously sent alerts. Promote website changes only after the owner explicitly approves production.
 

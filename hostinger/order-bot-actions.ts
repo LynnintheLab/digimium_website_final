@@ -2,7 +2,6 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 
 export const orderBotActions = {
-  'order-created': { action: 'order-approve', code: 'o', label: 'Approve order' },
   'payment-proof-submitted': { action: 'payment-approve', code: 'p', label: 'Approve payment' },
   'order-delivery-ready': { action: 'order-send', code: 's', label: 'Send order' },
 } as const;

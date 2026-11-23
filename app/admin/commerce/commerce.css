@@ -45,6 +45,7 @@
 .commerce-account-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
 .commerce-account-grid .admin-field { font-size: 13px; }
 .commerce-account-grid input { width: 100%; min-width: 0; min-height: 44px; }
+.commerce-product-note { grid-column: 1 / -1; display: grid; gap: 8px; }
 .commerce-password-field { position: relative; display: block; }
 .commerce-password-field input { padding-inline-end: 48px; }
 .admin-commerce .commerce-password-field > button { position: absolute; inset-block: 0; inset-inline-end: 0; display: grid; place-items: center; width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 0 6px 6px 0; background: transparent; color: var(--admin-muted); }
@@ -57,9 +58,9 @@
 .commerce-save .commerce-save-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .commerce-customer-note { display: grid; gap: 8px; padding: 22px 28px; border-top: 1px solid var(--admin-line); }
 .commerce-customer-note .admin-field { gap: 8px; }
-.commerce-customer-note .admin-field small { margin-inline-start: 8px; color: var(--admin-muted); font-weight: 400; }
-.commerce-customer-note textarea { width: 100%; min-width: 0; min-height: 110px; padding: 10px 12px; border: 1px solid var(--admin-line); border-radius: 6px; background: var(--canvas); color: var(--admin-ink); font: inherit; font-size: 16px; line-height: 1.7; resize: vertical; }
-.commerce-customer-note > p { margin: 0; max-width: 70ch; color: var(--admin-muted); font-size: 13px; line-height: 1.7; }
+.commerce-customer-note .admin-field small, .commerce-product-note .admin-field small { margin-inline-start: 8px; color: var(--admin-muted); font-weight: 400; }
+.commerce-customer-note textarea, .commerce-product-note textarea { width: 100%; min-width: 0; min-height: 110px; padding: 10px 12px; border: 1px solid var(--admin-line); border-radius: 6px; background: var(--canvas); color: var(--admin-ink); font: inherit; font-size: 16px; line-height: 1.7; resize: vertical; }
+.commerce-customer-note > p, .commerce-product-note > p { margin: 0; max-width: 70ch; color: var(--admin-muted); font-size: 13px; line-height: 1.7; }
 .commerce-note-length { color: var(--admin-muted); font-size: 12px; text-align: end; font-variant-numeric: tabular-nums; }
 .commerce-reject-confirm, .commerce-send-confirm { display: grid; gap: 12px; margin: 0 28px 22px; padding: 18px; border: 1px solid var(--admin-line); border-radius: 8px; background: var(--soft); }
 .commerce-reject-confirm > h3, .commerce-send-confirm > h3 { font-size: 17px; line-height: 1.5; }
@@ -190,7 +191,6 @@
   .commerce-create .commerce-save-actions > button { width: 100%; }
 }
 
-.commerce-order-approval,
 .commerce-delivery-intro,
 .commerce-checkout-review,
 .commerce-customer-inputs {
@@ -201,14 +201,12 @@
   border-bottom: 1px solid var(--admin-line);
 }
 
-.commerce-order-approval > h3,
 .commerce-delivery-intro > h3,
 .commerce-checkout-review > h3,
 .commerce-customer-inputs > h3 {
   font-size: 17px;
 }
 
-.commerce-order-approval p,
 .commerce-delivery-intro p,
 .commerce-checkout-review p,
 .commerce-customer-inputs p {
@@ -352,20 +350,15 @@
   white-space: pre-wrap;
 }
 
-.commerce-approval-saved {
-  display: flex;
-  align-items: start;
-  gap: 8px;
-}
+.commerce-proof-preview { display: grid; justify-items: start; gap: 8px; }
+.commerce-proof-preview > button { min-height: 44px; text-align: start; }
 
-.commerce-approval-saved > svg { flex: none; margin-top: 2px; }
 .commerce-delivery-intro #order-delivery-state { color: var(--admin-ink); font-weight: 550; }
 .commerce-save[data-delivery] { align-items: start; }
 .commerce-save[data-delivery] .commerce-save-actions { width: 100%; justify-content: flex-end; }
 .commerce-send-requirements { flex: 1; min-width: min(240px, 100%); max-width: 70ch; margin: 0; color: var(--admin-muted); font-size: 13px; line-height: 1.7; }
 
 @media (max-width: 620px) {
-  .commerce-order-approval,
   .commerce-delivery-intro,
   .commerce-checkout-review,
   .commerce-customer-inputs {

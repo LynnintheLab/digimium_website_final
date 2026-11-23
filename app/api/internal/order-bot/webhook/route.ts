@@ -18,9 +18,14 @@ const updateSchema = z.object({ callback_query: z.object({
     message_thread_id: id,
   }),
 }) });
+const statusUpdateSchema = z.object({ message: z.object({
+  text: z.string().min(1).max(150),
+  from: z.object({ id, is_bot: z.literal(false) }),
+  chat: z.object({ id, type: z.literal('private') }),
+  message_thread_id: id.optional(),
+}) });
 
 const successText = {
-  'order-approve': 'Order approved.',
   'payment-approve': 'Payment approved.',
   'order-send': 'Delivery sent to the customer’s website account.',
 };
@@ -41,7 +46,18 @@ export async function POST(request: Request) {
   try { body = await readCommerceJson(request, 16384); }
   catch (error) { return new Response(null, { status: error instanceof CommerceError ? error.status : 400 }); }
   const parsed = updateSchema.safeParse(body);
-  if (!parsed.success) return new Response(null, { status: 200 });
+  if (!parsed.success) {
+    const incoming = statusUpdateSchema.safeParse(body);
+    if (!incoming.success) return new Response(null, { status: 200 });
+    const message = incoming.data.message;
+    try {
+      const { customerOrderTelegramReply } = await import('../../../../../hostinger/customer-order-telegram');
+      const reply = await customerOrderTelegramReply({ senderId: String(message.from.id), chatId: String(message.chat.id),
+        chatType: message.chat.type, text: message.text });
+      return reply ? Response.json({ ...reply, ...(message.message_thread_id ? { message_thread_id: message.message_thread_id } : {}) })
+        : new Response(null, { status: 200 });
+    } catch { return new Response(null, { status: 503 }); }
+  }
   const callback = parsed.data.callback_query;
   if (callback.from.id !== config.owner || callback.message.chat.id !== config.owner || callback.message.from.id !== config.bot) {
     return answer(callback.id, 'This action is available to the store owner in the private order bot.', true);

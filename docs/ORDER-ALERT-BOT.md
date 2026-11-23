@@ -4,12 +4,14 @@ Use the dedicated bot with the owner’s private Telegram chat on the testing en
 
 | Topic | Workflow |
 | --- | --- |
-| **Orders** | Approve a new website order for processing from its alert. |
-| **Payment approval** | Open the protected receipt in Admin, then approve the current screenshot from its alert. |
-| **Order send** | Send the draft saved in Admin once the order is approved and its payment is approved or the total is zero. Delivery appears in the customer’s website Order History. |
+| **Orders** | Read new order alerts. |
+| **Payment approval** | View the submitted website receipt in the private topic and tap **Approve payment**. The protected Admin link opens the same order. |
+| **Order send** | Tap **Send order** after payment approval, or as soon as a zero-total order is ready. Delivery appears in the customer’s website Order History. |
 | **Registration** | Read new customer alerts. |
 
-In Admin → Orders, open a pending website order, enter its dates and delivery information, then select **Save delivery draft**. A draft can be saved while payment is under review. An updated draft gets a new **Order send** button when eligible. Passwords, uploaded receipts and delivery notes are stored on the website.
+When a delivery needs account details, open **Add or edit delivery details in Admin** from the Order send alert. Save dates, email, password, username, manager, a per-product note or an order note as needed. After saving, use the newest **Send order** button. The website encrypts delivery details and displays them in the owning customer's Order History. Sending without a draft starts the term on the send date in Myanmar time and uses its saved duration when available.
+
+For a receipt that was submitted before photo alerts were enabled, use **Show receipt in Telegram** in the reviewing Admin order. The bot uploads the exact current proof to the configured private owner topic. New receipts appear there automatically.
 
 | Environment variable | Value |
 | --- | --- |
@@ -20,6 +22,7 @@ In Admin → Orders, open a pending website order, enter its dates and delivery 
 | `ORDER_ALERTS_TELEGRAM_REGISTRATION_TOPIC_ID` | Registration topic ID |
 | `ORDER_ALERTS_TELEGRAM_FULFILLMENT_TOPIC_ID` | Order send topic ID |
 | `ORDER_ALERTS_TELEGRAM_WEBHOOK_SECRET` | Dedicated random secret for the testing order bot webhook and signing buttons |
+| `ORDER_ALERTS_TELEGRAM_BOT_USERNAME` | Optional public status-link handle. Testing defaults to `DigimiumTestingOrdersBot`. |
 
 ## Prepare Telegram
 
@@ -36,6 +39,7 @@ ORDER_ALERTS_TELEGRAM_ORDERS_TOPIC_ID=
 ORDER_ALERTS_TELEGRAM_REGISTRATION_TOPIC_ID=
 ORDER_ALERTS_TELEGRAM_FULFILLMENT_TOPIC_ID=
 ORDER_ALERTS_TELEGRAM_WEBHOOK_SECRET=
+ORDER_ALERTS_TELEGRAM_BOT_USERNAME=
 ```
 
 ## Create the four topics
@@ -68,9 +72,11 @@ If a terminated process left a `.setup.lock`, first confirm that setup has ended
 
 Generate the webhook secret with 32 random bytes encoded as base64url and save it privately. Import all seven `ORDER_ALERTS_TELEGRAM_*` values into the testing Hostinger application’s environment settings, then deploy the testing revision. Keep the environment file and journal outside Git. The notification outbox delivers queued alerts through the configured topics.
 
-For **the dedicated testing bot**, configure `setWebhook` with URL `https://test.buywith-digimium.store/api/internal/order-bot/webhook`, `allowed_updates: ["callback_query"]`, and `secret_token` matching the private testing environment value. Keep the bot’s `callback_query_mode` set to `default` so the callback includes its source topic message. Verify the URL and allowed update type with `getWebhookInfo`. [Official Bot API webhook settings](https://core.telegram.org/bots/api#setwebhook) · [Official bot settings](https://core.telegram.org/bots/api#setmysettings)
+For **the dedicated testing bot**, configure `setWebhook` with URL `https://test.buywith-digimium.store/api/internal/order-bot/webhook`, `allowed_updates: ["callback_query", "message"]`, and `secret_token` matching the private testing environment value. Keep the bot’s `callback_query_mode` set to `default` so the callback includes its source topic message. Verify the URL and allowed update types with `getWebhookInfo`. [Official Bot API webhook settings](https://core.telegram.org/bots/api#setwebhook) · [Official bot settings](https://core.telegram.org/bots/api#setmysettings)
 
-Buttons in new alerts are bound to the owner, private topic and order event. Payment and delivery buttons bind the exact proof or draft, so an earlier button cannot approve a newer screenshot or publish a superseded draft. Alerts already sent before activation retain their original Admin link. Use Admin for those pending approvals.
+Buttons bind the owner, private topic and exact proof or delivery draft. An earlier button cannot act on a newer screenshot or a changed draft. Alerts created under the earlier workflow may still show an Approve order button. Review the payment and use the current Send order alert.
+
+Customers with a linked Telegram identity can open **Check this order in Telegram** from checkout or Order History, then press **Start**. `/status` shows the latest current steps for that identity's website orders. The reply includes the order reference, status and a link to its protected website page.
 
 During implementation, verify routing with intercepted Telegram responses and disposable local data. Record actual hosted delivery separately when the owner authorizes a real alert. The production customer-login configuration continues to use its existing `TELEGRAM_BOT_*` and webhook settings.
 

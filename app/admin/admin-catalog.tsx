@@ -85,7 +85,9 @@ function validateCatalog(catalog: Catalog): ValidationIssue | null {
   return null;
 }
 
-export default function AdminCatalog({ identity, signOutHref, postSignOut }: { identity: Identity; signOutHref: string; postSignOut: boolean }) {
+export default function AdminCatalog({ identity, signOutHref, postSignOut, testingOrderAlerts = false }: {
+  identity: Identity; signOutHref: string; postSignOut: boolean; testingOrderAlerts?: boolean;
+}) {
   const [saved, setSaved] = useState<Catalog | null>(null);
   const [draft, setDraft] = useState<Catalog | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -310,7 +312,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
         </div>}
       </header>
 
-      {commerceView ? <AdminCommerce key={commerceView} view={commerceView} customerId={orderCustomerId} initialOrderId={linkedOrderId}
+      {commerceView ? <AdminCommerce key={commerceView} view={commerceView} customerId={orderCustomerId} initialOrderId={linkedOrderId} testingOrderAlerts={testingOrderAlerts}
         telegramContact={saved ? resolveTelegramContact(saved.settings) : null}
         onDirtyChange={setOrderDirty} clearCustomer={() => setOrderCustomerId(null)}
         showCustomerOrders={id => navigate('orders', id)} /> : view === 'giveaway' ? <AdminGiveaway onDirtyChange={setOrderDirty} /> : <>
