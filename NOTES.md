@@ -2,7 +2,7 @@
 
 ## Current status
 
-22 November 2026: The testing order-alert release routes new payment proofs, orders and registrations to separate topics in the owner's dedicated Telegram bot chat. Payment alerts identify the order, method, amount and demo status and link to protected Admin review. A proof remains in the website. The testing queues await the distinct bot owner/chat/topic settings. [Bot setup](docs/ORDER-ALERT-BOT.md)
+23 November 2026: The dedicated testing bot `@DigimiumTestingOrdersBot` has private topics for **Payment approval**, **Orders** and **Registration**. Its five runtime settings were applied on the testing Hostinger app. Payment alerts identify new proofs by order reference, method, amount and demo status with a link to protected Admin review. Proof images remain on the website. [Bot setup](docs/ORDER-ALERT-BOT.md)
 
 22 November 2026: The testing storefront uses four demo payment methods when its catalog has no saved payment settings. KPay, AYA Pay, Wave Pay and Binance Pay each show a labeled QR that decodes to a plain test message. Customers can download it and upload it as sample proof. Admin can approve the sample and complete delivery using test details. Binance Pay uses 4,000 MMK per USDT as a sample rate. The preset reads the configured testing origin and stays out of saved catalog settings.
 
@@ -94,7 +94,7 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
-Implemented transactional payment-proof alerts with exact retry deduplication, stale-proof cancellation and category routing. Clean build, strict lint, 103 units, and disposable dedicated-bot, legacy notification and unconfigured checkout integrations passed. The dedicated integration intercepted Telegram and checked redaction, retries and Admin links. Bot topic provisioning passed separately with mocked Telegram responses.
+Verified the testing bot and owner private chat against Telegram, enabled private threads and provisioned all three topics. Applied the private route settings in testing Hostinger. The dedicated-bot, legacy notification and unconfigured checkout suites passed with intercepted Telegram, including proof deduplication, stale-proof cancellation, retry, protected Admin links and payload redaction. Live setup verified topics and hosting configuration.
 
 Verified that all four demo QR images decode to the intended test messages. Clean standalone build and strict lint passed. Disposable checkout integrations passed with and without the testing preset, including all four QR downloads, sample image upload, approval, sample delivery, and precedence for custom payment settings.
 
@@ -248,7 +248,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Complete Threaded mode and Start in `@DigimiumTestingOrdersBot`, provision the three private topics, and configure the testing environment. Check a new authorized event in its topic after activation. Keep production on its existing release.
+- Verify the next authorized testing payment proof, order and registration in their Telegram topics. Promote website changes only after the owner explicitly approves production.
 
 - Use synthetic details for checkout and fulfillment on testing. The demo preset is active while there are no saved payment settings. Save receiver details in Admin Payments when ready to replace the demo choices. Keep production on its existing release until the owner explicitly requests promotion.
 
