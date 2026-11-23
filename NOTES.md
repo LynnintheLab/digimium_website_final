@@ -2,6 +2,8 @@
 
 ## Current status
 
+Testing order status is available through the dedicated bot for verified Telegram identities. Submitted receipts appear in the owning customer's website order and the owner's private Telegram Payment approval topic. Testing's customer Telegram connection capability currently reports disabled, so fresh linking on the hosted test site remains unverified.
+
 Signed-in website checkout on testing requires one order contact before payment. Telegram is selected by default and customers can choose Viber, Facebook or phone. The chosen contact is encrypted with the order and shown in full order details to the customer and Admin. The guest Telegram purchase path still starts a chat directly. Older orders can be opened without a recorded contact.
 
 The testing checkout has a distinct receipt upload surface with file selection, drop, paste, preview and replacement, plus an animated order progress line. The dedicated testing bot shows the submitted receipt in the owner's **Payment approval** topic. **Approve payment → Send order** is the full staff approval flow. **Orders** and **Registration** remain informational. Admin can optionally save encrypted per-product delivery details and notes. Linked customers can check their current website order step in the private bot chat. [Testing bot setup](docs/ORDER-ALERT-BOT.md)
@@ -97,6 +99,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Audited testing checkout receipt and Telegram status privacy. Hosted checks denied anonymous orders and proofs and denied the dedicated webhook request without its secret. Node 24 build, typecheck, 115 unit tests, the isolated website checkout with dedicated bot, and the isolated Telegram login/linking suite passed. The samples verified owner/admin proof access, cross-customer rejection, private topic receipt delivery, current status, and the payment and fulfillment action boundaries with intercepted provider responses. The runtime dependency scan reported zero known advisories. No product code, hosted customer records, or bot settings were changed during the audit.
 
 Added required checkout contact and verified all four methods, rejection of absent or invalid contact, protected detail reads, redaction from alerts and lists, and retry compatibility with older orders. Clean Node 24 build, typecheck, strict lint, 115 unit tests and three isolated checkout integration variants passed. This change ships on the testing branch only.
 
@@ -259,6 +263,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+- Verify a newly linked Telegram customer on the hosted test site after a separate testing customer-login bot is configured. Review receipt metadata stripping and the notice about delivery to the private Telegram topic before using the test workflow with real payment screenshots.
 
 - Use the next authorized testing purchase to confirm staff can use the selected contact from Admin → Orders. Keep production promotion pending the owner's approval.
 
