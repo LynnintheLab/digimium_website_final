@@ -96,7 +96,7 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
-Hosted testing order `#DF0B4C5C` verifies the CapCut provided-account checkout, demo KPay receipt upload and protected Admin receipt readback. The dedicated bot received the matching Orders alert. A synthetic delivery draft was saved and verified private in the customer’s pending history. Native Mac automation could not activate Telegram’s inline buttons. Owner sign-in to Telegram Web is pending before testing Approve order, Approve payment and Send order for this same order.
+Hosted testing order `#DF0B4C5C` verifies the CapCut provided-account checkout, demo KPay receipt upload and protected Admin receipt readback. The dedicated bot received the matching Orders alert. A synthetic delivery draft was saved and verified private in the customer’s pending history. Mouse and keyboard automation could not activate Telegram’s inline buttons in the native Mac app. The owner requested the native app for the test, and the matching Orders alert is open for the three owner clicks.
 
 Added owner- and topic-bound Telegram buttons for order approval, payment approval and delivery. The server verifies the current proof or draft before writing and records action receipts for replay safety. Provisioned the Order send topic and verified the registered Telegram webhook, including rejection of a request without the shared secret. Clean Node 24 builds, typecheck, strict lint, 103 unit tests and disposable checkout integrations passed, including the three callbacks, mismatched credentials and topic, button tampering, stale proof/draft and replay. The order progress connector uses the storefront theme’s blue for visibility in both appearances.
 
@@ -254,7 +254,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Resume the hosted test on `#DF0B4C5C` after the owner signs in to Telegram Web. Use the matching inline buttons in Orders, Payment approval and Order send, then verify customer history shows the saved demo delivery. Reuse this order to avoid duplicate fixtures.
+- Resume the hosted test on `#DF0B4C5C` after the owner uses the matching inline buttons in Orders, Payment approval and Order send in the native Telegram app. Verify customer history shows the saved demo delivery. Reuse this order to avoid duplicate fixtures.
 
 - Verify the next authorized testing order, proof, delivery draft and registration in their Telegram topics. Buttons appear on new alerts. Continue to use the website Admin to review previously sent alerts. Promote website changes only after the owner explicitly approves production.
 
