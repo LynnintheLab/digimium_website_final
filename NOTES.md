@@ -2,7 +2,7 @@
 
 ## Current status
 
-Testing order status is available through the dedicated bot for verified Telegram identities. Submitted receipts appear in the owning customer's website order and the owner's private Telegram Payment approval topic. Testing's customer Telegram connection capability currently reports disabled, so fresh linking on the hosted test site remains unverified.
+Testing order status is available through the dedicated bot for verified Telegram identities. Submitted receipts appear in the owning customer's website order and the owner's private Telegram Payment approval topic. Keep the original uploaded receipt and its metadata for the owner to review. Testing's customer Telegram connection capability currently reports disabled, so fresh linking on the hosted test site remains unverified.
 
 Signed-in website checkout on testing requires one order contact before payment. Telegram is selected by default and customers can choose Viber, Facebook or phone. The chosen contact is encrypted with the order and shown in full order details to the customer and Admin. The guest Telegram purchase path still starts a chat directly. Older orders can be opened without a recorded contact.
 
@@ -99,6 +99,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+The owner confirmed that Admin Telegram should continue to receive the original receipt file, including its metadata. Recorded the decision on the testing branch.
 
 Audited testing checkout receipt and Telegram status privacy. Hosted checks denied anonymous orders and proofs and denied the dedicated webhook request without its secret. Node 24 build, typecheck, 115 unit tests, the isolated website checkout with dedicated bot, and the isolated Telegram login/linking suite passed. The samples verified owner/admin proof access, cross-customer rejection, private topic receipt delivery, current status, and the payment and fulfillment action boundaries with intercepted provider responses. The runtime dependency scan reported zero known advisories. No product code, hosted customer records, or bot settings were changed during the audit.
 
@@ -264,7 +266,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Verify a newly linked Telegram customer on the hosted test site after a separate testing customer-login bot is configured. Review receipt metadata stripping and the notice about delivery to the private Telegram topic before using the test workflow with real payment screenshots.
+- Verify a newly linked Telegram customer on the hosted test site after a separate testing customer-login bot is configured. Review the notice about delivery to the private Telegram topic before using the test workflow with real payment screenshots.
 
 - Use the next authorized testing purchase to confirm staff can use the selected contact from Admin → Orders. Keep production promotion pending the owner's approval.
 
