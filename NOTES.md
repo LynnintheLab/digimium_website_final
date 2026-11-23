@@ -96,9 +96,9 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
-Implemented the two-step testing workflow with protected receipt uploads to the configured owner topic, optional encrypted delivery details and owner-bound approvals. Added a receipt resend control for older pending proofs and a private `/status` lookup bound to the existing verified Telegram identity. Node 24 standalone build, strict lint, 111 unit tests and three disposable checkout integrations passed. Tests cover the exact website receipt bytes, recovered alerts, stale buttons, editing delivery details, sending without a draft and cross-customer status isolation.
+Testing release `8104967` is live. The two-step workflow sends protected receipt images to the owner topic and can deliver with optional encrypted details. The dedicated webhook now accepts callbacks and private `/status` requests. Node 24 build and typecheck, strict lint, 111 unit tests, three disposable checkout integrations and the Sites compatibility build passed. Integrations cover exact receipt bytes, recovery of old proof alerts, stale buttons, delivery with and without a draft and cross-customer status isolation. The previously created `#DF0B4C5C` was already completed; verified its demo account, username and note in the customer's hosted Order History.
 
-Hosted testing order `#DF0B4C5C` verifies the CapCut provided-account checkout, demo KPay receipt upload and protected Admin receipt readback. The dedicated bot received the matching Orders alert. A synthetic delivery draft was saved and verified private in the customer’s pending history. Mouse and keyboard automation could not activate Telegram’s inline buttons in the native Mac app. The owner requested the native app for the test, and the matching Orders alert is open for the three owner clicks.
+The `#DF0B4C5C` CapCut demo verified KPay receipt upload, protected Admin receipt readback, the matching Telegram Orders alert and privacy of the delivery draft before sending. Native Mac automation lacked access to Telegram's inline buttons during that test.
 
 Added owner- and topic-bound Telegram buttons for order approval, payment approval and delivery. The server verifies the current proof or draft before writing and records action receipts for replay safety. Provisioned the Order send topic and verified the registered Telegram webhook, including rejection of a request without the shared secret. Clean Node 24 builds, typecheck, strict lint, 103 unit tests and disposable checkout integrations passed, including the three callbacks, mismatched credentials and topic, button tampering, stale proof/draft and replay. The order progress connector uses the storefront theme’s blue for visibility in both appearances.
 
@@ -256,7 +256,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Use the same hosted demo `#DF0B4C5C` with **Approve payment → Send order** in the native Telegram app and verify the delivered account in customer history. Existing old Orders alerts can retain their historical button. Keep testing separate from any production release.
+- Verify receipt photo placement and the linked customer status reply on the next authorized pending testing order. The completed `#DF0B4C5C` record already shows its delivered details. Keep testing separate from any production release.
 
 - Verify the next authorized testing order, proof, delivery draft and registration in their Telegram topics. Buttons appear on new alerts. Continue to use the website Admin to review previously sent alerts. Promote website changes only after the owner explicitly approves production.
 
