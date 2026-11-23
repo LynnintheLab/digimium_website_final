@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { Check, ChevronDown, Copy, Eye, EyeOff, ImagePlus, RefreshCw, Upload, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ClipboardEvent, type CSSProperties, type DragEvent, type FormEvent } from 'react';
 import type { CommerceOrder } from '@/lib/commerce-types';
+import type { OrderContact } from '@/lib/order-contact';
 import { PAYMENT_METHODS, type CustomerOrderInput, type PaymentMethodId, type WebsiteCheckout } from '@/lib/payment';
 import { priceText, type ShopLanguage } from '@/lib/shop-language';
 import './customer-payment.css';
@@ -285,9 +286,14 @@ export function CustomerPayment({ order, methods, lang, onUpdated, showTotal = t
   </section>;
 }
 
+type SubmittedDetails = { customerInputs: CustomerOrderInput[]; orderContact?: OrderContact };
+
 export function SubmittedOrderDetails({ order, lang }: { order: CommerceOrder; lang: ShopLanguage }) {
   const t = (en: string, my: string) => lang === 'my' ? my : en;
-  const [inputs, setInputs] = useState<CustomerOrderInput[] | null>(null);
+  const [details, setDetails] = useState<SubmittedDetails | null>(null);
+  const inputs = details?.customerInputs;
+  const contact = details?.orderContact;
+  const contactMethods = { telegram: 'Telegram', viber: 'Viber', facebook: 'Facebook', phone: t('Phone number', 'ဖုန်းနံပါတ်') };
   const [visible, setVisible] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const active = useRef<AbortController | null>(null);
@@ -302,8 +308,8 @@ export function SubmittedOrderDetails({ order, lang }: { order: CommerceOrder; l
     try {
       const response = await fetch(`/api/customer/orders/${order.id}`, { cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error('load');
-      const result = await response.json() as { customerInputs: CustomerOrderInput[] };
-      if (!controller.signal.aborted) setInputs(result.customerInputs);
+      const result = await response.json() as SubmittedDetails;
+      if (!controller.signal.aborted) setDetails(result);
     } catch {
       if (!controller.signal.aborted) setError(t('Couldn’t load your submitted details. Try again.', 'ပို့ထားသော အချက်အလက် ကြည့်မရသေးပါ။ ပြန်စမ်းပါ။'));
     }
@@ -312,11 +318,15 @@ export function SubmittedOrderDetails({ order, lang }: { order: CommerceOrder; l
   if (!order.checkout) return null;
   return <details className="customer-submitted-details" onToggle={event => {
     if (event.currentTarget.open) void load();
-    else { active.current?.abort(); setInputs(null); setVisible({}); setError(''); }
+    else { active.current?.abort(); setDetails(null); setVisible({}); setError(''); }
   }}>
     <summary>{t('Your submitted details', 'သင်ပို့ထားသော အချက်အလက်များ')}<ChevronDown size={16} /></summary>
-    {!inputs && !error && <p role="status">{t('Loading…', 'ဖော်ပြနေသည်…')}</p>}
+    {!details && !error && <p role="status">{t('Loading…', 'ဖော်ပြနေသည်…')}</p>}
     {error && <p className="payment-error" role="alert">{error}<button type="button" className="payment-text-button" onClick={() => void load()}>{t('Retry', 'ပြန်စမ်းရန်')}</button></p>}
+    {contact && <div className="customer-submitted-unit">
+      <h5>{t('Order contact', 'အော်ဒါအတွက် ဆက်သွယ်ရန်')}</h5>
+      <dl><div><dt>{contactMethods[contact.method]}</dt><dd><span dir="auto">{contact.value}</span></dd></div></dl>
+    </div>}
     {inputs?.length === 0 && <p>{t('This order required no additional account details.', 'ဒီအော်ဒါအတွက် ထပ်ဖြည့်ရန် အကောင့်အချက်အလက် မလိုပါ။')}</p>}
     {inputs?.map(input => {
       const line = order.lines.find(item => item.id === input.lineId);

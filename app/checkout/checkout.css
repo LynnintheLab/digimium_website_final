@@ -24,6 +24,21 @@
 .checkout-field-control { display: flex; width: 100%; min-width: 0; gap: 8px; align-items: center; }
 .checkout-field-control input { width: 100%; min-width: 0; min-height: 46px; padding: 10px 12px; border: 1px solid var(--brand-line-strong); border-radius: 8px; color: var(--ink); background: var(--canvas); font: inherit; font-weight: 400; }
 .website-checkout .checkout-field-control button { display: grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0; color: var(--ink); }
+.checkout-contact > p { color: var(--muted); font-size: .9rem; line-height: 1.9; }
+.checkout-contact-methods { min-width: 0; margin: 18px 0; padding: 0; border: 0; }
+.checkout-contact-methods legend { margin-bottom: 10px; font-size: .9rem; font-weight: 600; }
+.checkout-contact-methods > div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.checkout-contact-methods label { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 46px; padding: 10px 12px; border: 1px solid var(--brand-line-strong); border-radius: 6px; color: var(--ink); font-size: .86rem; cursor: pointer; }
+.checkout-contact-methods label:has(input:checked) { background: var(--brand-selected); border-color: var(--blue); }
+.checkout-contact-methods label:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 3px; }
+.checkout-contact-methods input { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--brand-primary); }
+.checkout-contact-value { display: grid; gap: 8px; font-size: .9rem; font-weight: 600; }
+.checkout-contact-value input { width: 100%; min-width: 0; min-height: 46px; padding: 10px 12px; border: 1px solid var(--brand-line-strong); border-radius: 8px; color: var(--ink); background: var(--canvas); font: inherit; font-size: 1rem; font-weight: 400; }
+.checkout-contact-value input[aria-invalid="true"] { border-color: #a72e3e; }
+.checkout-contact > .checkout-contact-help { margin-top: 8px; font-size: .82rem; }
+.checkout-contact > .checkout-contact-error { margin-top: 8px; color: #a72e3e; font-size: .86rem; }
+html[data-shop-theme="dark"] .checkout-contact > .checkout-contact-error { color: #ffb6c2; }
+html[data-shop-theme="dark"] .checkout-contact-value input[aria-invalid="true"] { border-color: #ffb6c2; }
 .checkout-submit { display: grid; justify-items: start; gap: 14px; padding: 22px 0; }
 .checkout-submit p { color: var(--muted); font-size: .9rem; }
 .checkout-notice { padding: 14px 0; color: var(--muted); font-size: .9rem; }
@@ -35,4 +50,5 @@ html[data-shop-theme="dark"] .checkout-error { color: #ffb6c2; }
   .checkout-summary li { gap: 10px; }
   .checkout-submit .customer-primary { width: 100%; }
   .checkout-reference { flex-wrap: wrap; gap: 4px 12px; }
+  .checkout-contact-methods > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

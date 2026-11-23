@@ -2,6 +2,8 @@
 
 ## Current status
 
+Signed-in website checkout on testing requires one order contact before payment. Telegram is selected by default and customers can choose Viber, Facebook or phone. The chosen contact is encrypted with the order and shown in full order details to the customer and Admin. The guest Telegram purchase path still starts a chat directly. Older orders can be opened without a recorded contact.
+
 The testing checkout has a distinct receipt upload surface with file selection, drop, paste, preview and replacement, plus an animated order progress line. The dedicated testing bot shows the submitted receipt in the owner's **Payment approval** topic. **Approve payment → Send order** is the full staff approval flow. **Orders** and **Registration** remain informational. Admin can optionally save encrypted per-product delivery details and notes. Linked customers can check their current website order step in the private bot chat. [Testing bot setup](docs/ORDER-ALERT-BOT.md)
 
 23 November 2026: The dedicated testing bot `@DigimiumTestingOrdersBot` has private topics for **Payment approval**, **Orders** and **Registration**. Its five runtime settings were applied on the testing Hostinger app. Payment alerts identify new proofs by order reference, method, amount and demo status with a link to protected Admin review. Proof images remain on the website. [Bot setup](docs/ORDER-ALERT-BOT.md)
@@ -95,6 +97,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Added required checkout contact and verified all four methods, rejection of absent or invalid contact, protected detail reads, redaction from alerts and lists, and retry compatibility with older orders. Clean Node 24 build, typecheck, strict lint, 115 unit tests and three isolated checkout integration variants passed. This change ships on the testing branch only.
 
 Testing release `8104967` is live. The two-step workflow sends protected receipt images to the owner topic and can deliver with optional encrypted details. The dedicated webhook now accepts callbacks and private `/status` requests. Node 24 build and typecheck, strict lint, 111 unit tests, three disposable checkout integrations and the Sites compatibility build passed. Integrations cover exact receipt bytes, recovery of old proof alerts, stale buttons, delivery with and without a draft and cross-customer status isolation. The previously created `#DF0B4C5C` was already completed; verified its demo account, username and note in the customer's hosted Order History.
 
@@ -255,6 +259,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+- Use the next authorized testing purchase to confirm staff can use the selected contact from Admin → Orders. Keep production promotion pending the owner's approval.
 
 - Verify receipt photo placement and the linked customer status reply on the next authorized pending testing order. The completed `#DF0B4C5C` record already shows its delivered details. Keep testing separate from any production release.
 

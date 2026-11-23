@@ -36,6 +36,8 @@ function initialDetails(line: CommerceOrderLine) {
 }
 type LineDetails = ReturnType<typeof initialDetails>;
 type DeliveryDraft = { lines: OrderFulfillment[]; customerNote?: string };
+type OrderContact = { method: 'telegram' | 'viber' | 'facebook' | 'phone'; value: string };
+const contactMethodLabels: Record<OrderContact['method'], string> = { telegram: 'Telegram', viber: 'Viber', facebook: 'Facebook', phone: 'Phone' };
 export type OrderSaveAction = 'approve' | 'reject' | 'note' | 'quote' | 'payment-approve' | 'payment-reject' | 'stage-delivery' | 'order-send';
 
 export default function OrderEditor({ order, customer, testingOrderAlerts = false, onSaved, onBack, onReload, onDirtyChange, onRemove, backLabel = 'Back to orders' }: {
@@ -70,6 +72,7 @@ export default function OrderEditor({ order, customer, testingOrderAlerts = fals
   const [failureStatus, setFailureStatus] = useState(0);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [customerInputs, setCustomerInputs] = useState<CustomerOrderInput[] | null>(null);
+  const [orderContact, setOrderContact] = useState<OrderContact | null>(null);
   const [inputError, setInputError] = useState('');
   const [inputReload, setInputReload] = useState(0);
   const [visibleInputs, setVisibleInputs] = useState<Record<string, boolean>>({});
@@ -106,7 +109,7 @@ export default function OrderEditor({ order, customer, testingOrderAlerts = fals
         const response = await fetch('/api/admin/commerce/' + encodeURIComponent(order.id), {
           credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
         });
-        const result = await response.json() as { order: CommerceOrder; customerInputs: CustomerOrderInput[]; deliveryDraft?: DeliveryDraft; error?: string };
+        const result = await response.json() as { order: CommerceOrder; customerInputs: CustomerOrderInput[]; orderContact?: OrderContact; deliveryDraft?: DeliveryDraft; error?: string };
         if (controller.signal.aborted) return;
         if (!response.ok) {
           setInputError(result.error || 'Customer details could not be loaded.');
@@ -134,6 +137,7 @@ export default function OrderEditor({ order, customer, testingOrderAlerts = fals
           setCustomerNote(note);
         }
         setCustomerInputs(result.customerInputs);
+        setOrderContact(result.orderContact ?? null);
         setInputError('');
       } catch {
         if (!controller.signal.aborted) setInputError('Customer details could not be loaded. Check your connection and try again.');
@@ -247,6 +251,10 @@ export default function OrderEditor({ order, customer, testingOrderAlerts = fals
       <button type="button" className="admin-text-button commerce-danger-link" disabled={busy} onClick={event => onRemove(order, event.currentTarget)}><Trash2 size={16}/>{rejected ? 'Remove rejected order' : pending ? 'Remove pending order' : 'Delete approved order'}</button>
       {customer && <div className="commerce-customer"><strong>{customer.name}</strong><span>{customerContact(customer)}</span></div>}
       {order.customerId === null && <div className="commerce-customer"><strong>{order.guestName ?? 'Telegram guest'}</strong><span>Guest order</span></div>}
+      {privateDetailsReady && <dl className="commerce-order-contact">
+        <dt>Order contact</dt>
+        <dd>{orderContact ? <><strong>{contactMethodLabels[orderContact.method]}</strong><span dir="auto">{orderContact.value}</span></> : 'Not provided for this order.'}</dd>
+      </dl>}
       {pending && <p>{checkout
         ? 'Approve payment when required, then send the order. Add delivery details below if needed.'
         : order.customerId === null ? 'Match the order reference with the Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.' : customer?.telegram ? 'Match the reference, name and Telegram ID with the customer’s message. Confirm payment and deliver access in that chat, then approve the dates here.' : 'Match the reference, name and email with the customer’s Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.'}</p>}

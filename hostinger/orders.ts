@@ -13,9 +13,10 @@ import { effectivePrice, parseMmk } from '../lib/pricing';
 import { resolveTelegramContact } from '../lib/telegram-contact';
 import { priceOnEnquiry } from '../lib/shop-language';
 import { defaultDeliveryDates } from '../lib/order-dates';
+import { normalizeOrderContact, type OrderContact } from '../lib/order-contact';
 import { checkoutFieldsFor, MAX_CUSTOMER_INPUT_UNITS, type CustomerOrderInput, type WebsiteCheckout } from '../lib/payment';
 import { checkoutPaymentMethods } from '../lib/demo-payments';
-import { paymentDecisionSchema, proofRequestSchema, quoteOrderSchema, selectPaymentSchema, websiteCheckoutSchema } from '../lib/payment-validation';
+import { paymentDecisionSchema, proofRequestSchema, quoteOrderSchema, selectPaymentSchema, websiteCheckoutRetrySchema, websiteCheckoutSchema } from '../lib/payment-validation';
 import { identifyLogo, LogoInputError } from '../lib/logo-storage';
 import type { CatalogSnapshot } from '../lib/storage-types';
 import { ensureCustomerSchema, presentCustomer, type CustomerIdentityRow } from './customer-auth';
@@ -467,7 +468,7 @@ function decryptCheckoutData(id: string, customerId: string, purpose: 'inputs' |
   return Buffer.concat([decipher.update(data.subarray(28)), decipher.final()]);
 }
 
-function collectCustomerInputs(input: z.infer<typeof websiteCheckoutSchema>, snapshot: OrderSnapshot, catalog: Catalog): CustomerOrderInput[] {
+function collectCustomerInputs(input: Pick<z.infer<typeof websiteCheckoutSchema>, 'items'>, snapshot: OrderSnapshot, catalog: Catalog): CustomerOrderInput[] {
   let inputUnits = 0;
   return input.items.flatMap((item, index) => {
     const product = catalog.products.find(product => product.id === item.productId)!;
@@ -504,8 +505,8 @@ function collectCustomerInputs(input: z.infer<typeof websiteCheckoutSchema>, sna
 
 export async function createWebsiteOrder(customerId: string, body: unknown): Promise<{ order: CommerceOrder; created: boolean }> {
   enforceCollectionLimit(body, 'items');
-  const parsed = websiteCheckoutSchema.safeParse(body);
-  if (!parsed.success) throw new CommerceError(400, 'Review the cart and requested customer details.');
+  const parsed = websiteCheckoutRetrySchema.safeParse(body);
+  if (!parsed.success) throw new CommerceError(400, 'Review the cart, requested customer details and contact channel.');
   const input = parsed.data;
   if (input.expectedCustomerId !== customerId) {
     throw new CommerceError(409, 'The signed-in account changed. Review your checkout again.');
@@ -516,7 +517,9 @@ export async function createWebsiteOrder(customerId: string, body: unknown): Pro
     units.sort((a, b) => Number(a[0]) - Number(b[0]));
     return [item.productId, item.planId, item.quantity, units];
   });
-  const canonical = [customerId, input.expectedCatalogRevision, canonicalItems];
+  const canonical: unknown[] = [customerId, input.expectedCatalogRevision, canonicalItems];
+  // Omission keeps the old digest only for replay recovery; new orders always include contact.
+  if (input.contact) canonical.push([input.contact.method, input.contact.value]);
   const hash = createHmac('sha256', checkoutKey('request')).update(JSON.stringify(canonical)).digest();
   await ensureOrders();
   const connection = await getPool().getConnection();
@@ -535,6 +538,7 @@ export async function createWebsiteOrder(customerId: string, body: unknown): Pro
       await connection.commit();
       return { order: presentCheckout(existing[0]), created: false };
     }
+    if (!input.contact) throw new CommerceError(400, 'Choose Telegram, Viber, Facebook or phone and enter a contact for this order.');
     const [catalogRows] = await connection.execute<(CatalogSnapshot & RowDataPacket)[]>(
       "SELECT payload, revision, updated_at AS updatedAt FROM digimium_catalog WHERE id = 'main' LOCK IN SHARE MODE");
     const catalog = catalogRows.length ? decodeSnapshot(catalogRows[0]) : initialCatalog();
@@ -543,7 +547,9 @@ export async function createWebsiteOrder(customerId: string, body: unknown): Pro
     const customerInputs = collectCustomerInputs(input, snapshot, catalog);
     const id = randomUUID();
     const checkout: WebsiteCheckout = { stage: snapshot.totalMmk === null ? 'quote_required' : snapshot.totalMmk === 0 ? 'processing' : 'awaiting_payment' };
-    const encrypted = encryptCheckoutData(id, customerId, 'inputs', Buffer.from(JSON.stringify(customerInputs))).toString('base64');
+    const encrypted = encryptCheckoutData(id, customerId, 'inputs', Buffer.from(JSON.stringify({
+      version: 2, customerInputs, orderContact: input.contact,
+    }))).toString('base64');
     await connection.execute(`INSERT INTO digimium_orders
       (id, customer_id, request_id, request_hash, created_at, snapshot, checkout_state, customer_inputs)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [id, customerId, input.requestId, hash, new Date().toISOString(), JSON.stringify(snapshot), JSON.stringify(checkout), encrypted]);
@@ -585,9 +591,20 @@ export async function orderDetails(id: string, customerId?: string, includeInput
   const row = rows[0];
   if (!row) throw new CommerceError(404, 'Order not found.');
   if (!includeInputs) return { order: presentCheckout(row) };
-  const customerInputs: CustomerOrderInput[] = row.customer_inputs && row.customer_id
+  const submission: unknown = row.customer_inputs && row.customer_id
     ? JSON.parse(decryptCheckoutData(id, row.customer_id, 'inputs', Buffer.from(row.customer_inputs, 'base64')).toString('utf8')) : [];
+  let customerInputs: CustomerOrderInput[];
+  let contact: OrderContact | undefined;
+  if (Array.isArray(submission)) customerInputs = submission;
+  else if (submission && typeof submission === 'object' && 'version' in submission && submission.version === 2 &&
+    'customerInputs' in submission && Array.isArray(submission.customerInputs) && 'orderContact' in submission) {
+    const normalized = normalizeOrderContact(submission.orderContact);
+    if (!normalized) throw new Error('Invalid saved order contact.');
+    customerInputs = submission.customerInputs;
+    contact = normalized;
+  } else throw new Error('Invalid saved customer details.');
   return { order: present(row), customerInputs,
+    ...(contact ? { orderContact: contact } : {}),
     ...(!customerId && row.delivery_draft ? { deliveryDraft: decryptDeliveryDraft(row) } : {}) };
 }
 

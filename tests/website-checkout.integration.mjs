@@ -1,7 +1,7 @@
 // Uses an EMPTY disposable loopback database and blocks outbound providers.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createCipheriv, createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -74,6 +74,7 @@ async function addCustomer(name) {
 }
 const png = await readFile(new URL('public/assets/symbol-blue.png', root));
 const anotherPng = await readFile(new URL('public/assets/logo.png', root));
+const contact = { method: 'telegram', value: '@checkout_contact_fixture' };
 const orderPath = id => '/api/customer/orders/' + id;
 const adminPath = id => '/api/admin/commerce/' + id;
 const proof = (id, revision, requestId, session, body = png, mime = 'image/png', origin = applicationOrigin) => request(
@@ -234,7 +235,7 @@ try {
     assert.equal(demoPublic.settings.paymentMethods, undefined);
     assert.equal((await json(await get('/api/admin/catalog', owner))).settings.paymentMethods, undefined);
     let demoOrder = (await json(await mutate('/api/customer/checkout', 'POST', {
-      requestId: randomUUID(), expectedCustomerId: alice.id, expectedCatalogRevision: demoCatalog.revision,
+      requestId: randomUUID(), expectedCustomerId: alice.id, expectedCatalogRevision: demoCatalog.revision, contact,
       items: [{ productId: product.id, planId: 'provided', quantity: 1 }],
     }, alice.cookie), 201)).order;
     for (const methodId of ['kpay', 'aya', 'wave', 'binance']) {
@@ -335,7 +336,7 @@ try {
     assert.deepEqual(disabledPublic.paymentMethodIds, []);
     assert.notEqual(disabledPublic.demoPayments, true);
     const disabledOrder = (await json(await mutate('/api/customer/checkout', 'POST', {
-      requestId: randomUUID(), expectedCustomerId: alice.id, expectedCatalogRevision: disabled.revision,
+      requestId: randomUUID(), expectedCustomerId: alice.id, expectedCatalogRevision: disabled.revision, contact,
       items: [{ productId: product.id, planId: 'provided', quantity: 1 }],
     }, alice.cookie), 201)).order;
     await json(await mutate(orderPath(disabledOrder.id) + '/payment', 'PATCH',
@@ -365,7 +366,7 @@ try {
       { unit: 1, values: { email: 'account-two@example.invalid', password: 'private-fixture-two' } },
     ] }] };
   const create = (body = input, session = alice.cookie, origin = applicationOrigin) => mutate('/api/customer/checkout', 'POST',
-    { expectedCustomerId: alice.id, ...body }, session, origin);
+    { expectedCustomerId: alice.id, contact, ...body }, session, origin);
   await json(await create(input, ''), 401);
   await json(await create({ ...input, expectedCustomerId: undefined }), 400);
   await json(await create({ ...input, expectedCustomerId: 'invalid-customer' }), 400);
@@ -384,6 +385,12 @@ try {
     { ...input, items: [{ ...input.items[0], quantity: 1, inputs: [{ unit: 0, values: { email: 'x@example.invalid', password: 'x', extra: 'x' } }] }] },
     { ...input, items: [{ productId: product.id, planId: 'constructor-field', quantity: 1, inputs: [{ unit: 0, values: {} }] }] },
   ]) await json(await create(bad), 400);
+  for (const missingOrInvalid of [undefined, null, { method: 'telegram', value: ' ' },
+    { method: 'telegram', value: 'https://other.example.invalid/profile' },
+    { method: 'email', value: 'fixture@example.invalid' }]) {
+    await json(await create({ ...input, contact: missingOrInvalid }), 400);
+  }
+  assert.equal((await db.execute('SELECT id FROM digimium_orders WHERE request_id = ?', [input.requestId]))[0].length, 0);
   const unitInputs = quantity => Array.from({ length: quantity }, (_, unit) => ({ unit,
     values: { email: 'bounded-' + unit + '@example.invalid', password: 'bounded-fixture-secret' } }));
   await json(await create({ ...input, items: [{ ...input.items[0], quantity: 101, inputs: unitInputs(101) }] }), 400);
@@ -400,29 +407,58 @@ try {
   assert.equal(saved[1].order.id, order.id);
   assert.equal(order.totalMmk, 2468);
   assert.equal(order.checkout.stage, 'awaiting_payment');
-  const secrets = input.items[0].inputs.flatMap(unit => Object.values(unit.values));
+  const secrets = [...input.items[0].inputs.flatMap(unit => Object.values(unit.values)), contact.value];
   const safe = value => secrets.forEach(secret => assert.ok(!JSON.stringify(value).includes(secret), 'Private customer inputs never appear in metadata'));
   safe(saved);
   const snapshotAtCreation = JSON.stringify(order.lines);
   const full = await json(await get(orderPath(order.id), alice.cookie));
   assert.equal(full.customerInputs.length, 2);
   assert.equal(full.customerInputs[0].fields[1].value, 'private-fixture-one');
-  assert.deepEqual((await json(await get(adminPath(order.id), owner))).customerInputs, full.customerInputs);
+  assert.deepEqual(full.orderContact, contact);
+  const adminFull = await json(await get(adminPath(order.id), owner));
+  assert.deepEqual(adminFull.customerInputs, full.customerInputs);
+  assert.deepEqual(adminFull.orderContact, contact);
+  assert.equal((await json(await create({ ...input, contact: { method: 'telegram', value: 'https://t.me/Checkout_Contact_Fixture' } }))).order.id, order.id);
+  await json(await create({ ...input, contact: { ...contact, value: '@changed_contact_fixture' } }), 409);
+  await json(await create({ ...input, contact: undefined }), 409);
+  safe(orderAlerts());
   await json(await get(orderPath(order.id), bob.cookie), 404);
   await json(await get(adminPath(order.id), alice.cookie), 401);
   safe(await json(await get(orderPath(order.id) + '?view=status', alice.cookie)));
   safe(await json(await get('/api/customer/orders?view=overview', alice.cookie)));
   safe(await json(await get('/api/customer/orders?view=history', alice.cookie)));
   safe(await json(await get('/api/admin/commerce', owner)));
-  const [[stored]] = await db.execute('SELECT snapshot, customer_inputs FROM digimium_orders WHERE id = ?', [order.id]);
+  const [[stored]] = await db.execute('SELECT snapshot, customer_inputs, checkout_state FROM digimium_orders WHERE id = ?', [order.id]);
   safe(stored);
   assert.ok(stored.customer_inputs.length > 30);
   safe((await db.query('SELECT * FROM digimium_notification_outbox'))[0]);
   await json(await create({ ...input, items: [{ ...input.items[0], quantity: 1, inputs: [input.items[0].inputs[0]] }] }), 409);
+  // Seed the old encrypted array and request digest. Missing contact may recover only this exact legacy request.
+  const legacyId = randomUUID();
+  const legacyInput = { ...input, requestId: randomUUID(), contact: undefined };
+  const legacyUnits = input.items[0].inputs.map(({ unit, values }) => [unit, Object.entries(values).sort()]);
+  const legacyKey = purpose => createHmac('sha256', env.ORDER_FULFILLMENT_SECRET).update('digimium/website-checkout/v1/' + purpose).digest();
+  const legacyHash = createHmac('sha256', legacyKey('request'))
+    .update(JSON.stringify([alice.id, catalog.revision, [[product.id, 'monthly', 2, legacyUnits]]])).digest();
+  const legacyIv = randomBytes(12);
+  const legacyCipher = createCipheriv('aes-256-gcm', legacyKey('inputs'), legacyIv);
+  legacyCipher.setAAD(Buffer.from(legacyId + '/' + alice.id));
+  const legacyCiphertext = Buffer.concat([legacyCipher.update(JSON.stringify(full.customerInputs)), legacyCipher.final()]);
+  const legacyEnvelope = Buffer.concat([legacyIv, legacyCipher.getAuthTag(), legacyCiphertext]).toString('base64');
+  await db.execute('INSERT INTO digimium_orders (id, customer_id, request_id, request_hash, created_at, snapshot, checkout_state, customer_inputs) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [legacyId, alice.id, legacyInput.requestId, legacyHash, new Date().toISOString(), stored.snapshot, stored.checkout_state, legacyEnvelope]);
+
   catalog = await json(await save([{ ...product, name: 'Changed catalog name' }, inquiry, free], settings, catalog.revision));
+  const legacyRetry = await json(await create(legacyInput));
+  assert.equal(legacyRetry.order.id, legacyId);
+  const legacyFull = await json(await get(orderPath(legacyId), alice.cookie));
+  assert.equal(legacyFull.orderContact, undefined);
+  assert.deepEqual(legacyFull.customerInputs, full.customerInputs);
   assert.equal(JSON.stringify((await json(await create())).order.lines), snapshotAtCreation, 'Exact retry recovers the old snapshot after catalog edits');
   if (orderBotMode) await expectAlerts(12, order.id, 1);
-  assert.equal((await json(await get('/api/customer/checkout?requestId=' + input.requestId, alice.cookie))).order.id, order.id);
+  const recovered = await json(await get('/api/customer/checkout?requestId=' + input.requestId, alice.cookie));
+  assert.equal(recovered.order.id, order.id);
+  safe(recovered);
   await json(await get('/api/customer/checkout?requestId=' + input.requestId, bob.cookie), 404);
   const fulfill = revision => ({ revision, lines: order.lines.map(line => ({ id: line.id, startDate: '2028-01-01', endDate: '2028-02-01',
     accountDetails: { account: 'delivered@example.invalid', password: 'delivered-fixture-secret', manager: '', username: '' } })) });
@@ -504,6 +540,16 @@ try {
   const override = await json(await create({ requestId: randomUUID(), expectedCatalogRevision: catalog.revision,
     items: [{ productId: product.id, planId: 'provided', quantity: 1 }] }), 201);
   assert.deepEqual((await json(await get(orderPath(override.order.id), alice.cookie))).customerInputs, []);
+  for (const [method, value, normalizedValue] of [
+    ['viber', '၀၉ ၇၇၇ ၁၂၃ ၄၅၆', '09777123456'],
+    ['facebook', 'facebook.com/profile.php?id=1234567&ref=fixture', 'https://www.facebook.com/profile.php?id=1234567'],
+    ['phone', '+1 (202) 555-0123', '+12025550123'],
+  ]) {
+    const created = await json(await create({ requestId: randomUUID(), expectedCatalogRevision: catalog.revision,
+      items: [{ productId: product.id, planId: 'provided', quantity: 1 }], contact: { method, value } }), 201);
+    assert.equal(created.orderContact, undefined);
+    assert.deepEqual((await json(await get(orderPath(created.order.id), alice.cookie))).orderContact, { method, value: normalizedValue });
+  }
   let conversion = override.order;
   for (const [unitPriceMmk, amount] of [[350, '0.07'], [2468, '0.49'], [25, '0.01']]) {
     conversion = (await json(await mutate(adminPath(conversion.id), 'PATCH', { action: 'quote', revision: conversion.revision,

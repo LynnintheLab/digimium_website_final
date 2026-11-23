@@ -11,7 +11,7 @@
     "build": "next build --webpack && node scripts/package-hostinger.mjs",
     "start": "node .next/standalone/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/cart-order.test.mjs tests/shop-language.test.mjs tests/shop-theme.test.mjs tests/showcase.test.mjs tests/subscription-term.test.mjs tests/configure-telegram.test.mjs tests/telegram-history.test.mjs tests/order-receipt.test.mjs tests/telegram-login-presentation.test.mjs tests/login-location.test.mjs tests/giveaway.test.mjs tests/notification-runner.test.mjs tests/notification-action.test.mjs tests/customer-order-status.test.mjs tests/order-delivery-dates.test.mjs tests/validation-security.test.mjs tests/preview-binding-security.test.mjs tests/toolchain-compatibility.test.mjs",
+    "test": "node --test tests/cart-order.test.mjs tests/shop-language.test.mjs tests/shop-theme.test.mjs tests/showcase.test.mjs tests/subscription-term.test.mjs tests/configure-telegram.test.mjs tests/telegram-history.test.mjs tests/order-receipt.test.mjs tests/order-contact.test.mjs tests/telegram-login-presentation.test.mjs tests/login-location.test.mjs tests/giveaway.test.mjs tests/notification-runner.test.mjs tests/notification-action.test.mjs tests/customer-order-status.test.mjs tests/order-delivery-dates.test.mjs tests/validation-security.test.mjs tests/preview-binding-security.test.mjs tests/toolchain-compatibility.test.mjs",
     "test:integration": "node tests/catalog.integration.mjs && node tests/logo-plans.integration.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",

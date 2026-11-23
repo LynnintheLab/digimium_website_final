@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Catalog } from '@/lib/catalog';
 import { CART_KEY, resolveOrder, restoreCart, totalMmk, type CartItem } from '@/lib/cart-order';
 import type { CommerceCustomer, CommerceOrder } from '@/lib/commerce-types';
+import { MAX_ORDER_CONTACT_LENGTH, normalizeOrderContact, type OrderContact } from '@/lib/order-contact';
 import { checkoutFieldsFor, MAX_CUSTOMER_INPUT_UNITS } from '@/lib/payment';
 import { durationText, planName, priceText, type ShopLanguage } from '@/lib/shop-language';
 import { OfferPrice } from '../offer-price';
@@ -17,6 +18,7 @@ type CheckoutRequest = {
   requestId: string;
   expectedCustomerId: string;
   expectedCatalogRevision: number;
+  contact: OrderContact;
   items: (CartItem & { inputs?: { unit: number; values: Record<string, string> }[] })[];
 };
 type SavedAttempt = { requestId: string; customerId: string; items: CartItem[] };
@@ -42,6 +44,9 @@ export default function Checkout({ lang, orderBotUrl }: { lang: ShopLanguage; or
   const [cart, setCart] = useState<CartItem[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+  const [contactMethod, setContactMethod] = useState<OrderContact['method']>('telegram');
+  const [contactValue, setContactValue] = useState('');
+  const [contactError, setContactError] = useState('');
   const [order, setOrder] = useState<CommerceOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -55,6 +60,7 @@ export default function Checkout({ lang, orderBotUrl }: { lang: ShopLanguage; or
   const submittedCart = useRef<CartItem[]>([]);
   const inFlight = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
+  const contactInput = useRef<HTMLInputElement>(null);
   const rows = catalog ? resolveOrder(cart, catalog.products) : [];
   const total = totalMmk(rows);
   const inputUnits = rows.reduce((count, row) => count + (checkoutFieldsFor(row.product, row.plan).length ? row.quantity : 0), 0);
@@ -74,6 +80,7 @@ export default function Checkout({ lang, orderBotUrl }: { lang: ShopLanguage; or
         if (controller.signal.aborted) return;
         if (knownCustomerId.current && knownCustomerId.current !== session.customer?.id) {
           setValues({}); setVisiblePasswords({}); setOrder(null); setUncertain(false);
+          setContactValue(''); setContactMethod('telegram'); setContactError('');
           request.current = null; savedRequestId.current = null; submittedCart.current = [];
         }
         knownCustomerId.current = session.customer?.id ?? null;
@@ -99,6 +106,8 @@ export default function Checkout({ lang, orderBotUrl }: { lang: ShopLanguage; or
               const result = await response.json() as { order: CommerceOrder };
               if (!controller.signal.aborted) {
                 setOrder(result.order);
+                setValues({}); setVisiblePasswords({}); setContactValue(''); setContactError(''); setUncertain(false);
+                request.current = null; savedRequestId.current = null;
                 window.history.replaceState(window.history.state, '', `/checkout?order=${result.order.id}`);
                 clearCompletedCart(restoreCart(attempt.items, nextCatalog.products), nextCatalog);
                 try { sessionStorage.removeItem(ATTEMPT_KEY); } catch { /* Optional storage. */ }
@@ -118,7 +127,7 @@ export default function Checkout({ lang, orderBotUrl }: { lang: ShopLanguage; or
   }, [lang, reload]);
 
   useEffect(() => {
-    function clearPrivateFields() { setValues({}); setVisiblePasswords({}); request.current = null; }
+    function clearPrivateFields() { setValues({}); setVisiblePasswords({}); setContactValue(''); setContactError(''); request.current = null; }
     function restore(event: PageTransitionEvent) { if (event.persisted) window.location.reload(); }
     window.addEventListener('pagehide', clearPrivateFields);
     window.addEventListener('pageshow', restore);
@@ -139,6 +148,7 @@ export default function Checkout({ lang, orderBotUrl }: { lang: ShopLanguage; or
     setOrder(nextOrder);
     setValues({});
     setVisiblePasswords({});
+    setContactValue(''); setContactMethod('telegram'); setContactError('');
     setUncertain(false);
     request.current = null;
     savedRequestId.current = null;
@@ -153,10 +163,21 @@ export default function Checkout({ lang, orderBotUrl }: { lang: ShopLanguage; or
   async function createOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (inFlight.current || !catalog || !customer || !rows.length || tooManyInputs) return;
+    const contact = request.current?.contact || normalizeOrderContact({ method: contactMethod, value: contactValue });
+    if (!contact) {
+      setContactError(contactMethod === 'telegram'
+        ? t('Enter a Telegram username such as @username or a t.me profile link.', 'Telegram username (@username) သို့မဟုတ် t.me profile link ဖြည့်ပါ။')
+        : contactMethod === 'facebook'
+          ? t('Enter your Facebook profile link or profile name.', 'Facebook profile link သို့မဟုတ် profile အမည် ဖြည့်ပါ။')
+          : t('Enter a phone number with 7–15 digits. You can include the country code.', 'ဂဏန်း ၇ လုံးမှ ၁၅ လုံးအထိ ဖုန်းနံပါတ် ဖြည့်ပါ။ နိုင်ငံကုဒ် ထည့်နိုင်ပါတယ်။'));
+      contactInput.current?.focus();
+      return;
+    }
     inFlight.current = true;
     setBusy(true);
     setError('');
     setCatalogChanged(false);
+    setContactError('');
     let sent = false;
     try {
       const sessionResponse = await fetch('/api/customer/session', { cache: 'no-store' });
@@ -164,14 +185,22 @@ export default function Checkout({ lang, orderBotUrl }: { lang: ShopLanguage; or
       const session = await sessionResponse.json() as { customer: CommerceCustomer | null };
       if (session.customer?.id !== customer.id) {
         setValues({}); setVisiblePasswords({}); request.current = null;
+        setContactValue(''); setContactError('');
         setCustomer(null);
         throw new Error(t('Sign in with your original account to continue.', 'ဆက်လုပ်ရန် မူလအကောင့်ဖြင့် ပြန်ဝင်ပါ။'));
       }
       if (!request.current) {
+        if (savedRequestId.current) {
+          const recovery = await fetch(`/api/customer/checkout?requestId=${savedRequestId.current}`, { cache: 'no-store' });
+          if (recovery.ok) { acceptOrder((await recovery.json() as { order: CommerceOrder }).order); return; }
+          if (recovery.status !== 404) throw new Error(t('Couldn’t check the previous submission. Try this checkout again.', 'အရင်တင်ထားသော အော်ဒါကို စစ်မရသေးပါ။ ဒီအော်ဒါကိုပဲ ပြန်စမ်းပါ။'));
+        }
+        const requestId = savedRequestId.current || crypto.randomUUID();
         request.current = {
-          requestId: savedRequestId.current || crypto.randomUUID(),
+          requestId,
           expectedCustomerId: customer.id,
           expectedCatalogRevision: catalog.revision,
+          contact,
           items: rows.map(row => {
             const fields = checkoutFieldsFor(row.product, row.plan);
             return {
@@ -199,6 +228,7 @@ export default function Checkout({ lang, orderBotUrl }: { lang: ShopLanguage; or
         if (latestSession.customer?.id !== customer.id) {
           sent = false;
           setValues({}); setVisiblePasswords({}); setCustomer(null); setUncertain(false);
+          setContactValue(''); setContactError('');
           request.current = null;
           throw new Error(t('Your account changed. Sign in with the original account to recover this checkout.', 'အကောင့် ပြောင်းသွားပါတယ်။ ဒီအော်ဒါကို ပြန်ရယူရန် မူလအကောင့်ဖြင့် ပြန်ဝင်ပါ။'));
         }
@@ -262,6 +292,21 @@ export default function Checkout({ lang, orderBotUrl }: { lang: ShopLanguage; or
             <ul className="checkout-summary">{rows.map((row, index) => <li key={index}><div><strong>{row.product.name}</strong><span>{[row.plan && planName(row.plan, lang), t(`Qty ${row.quantity}`, `${row.quantity} ခု`)].filter(Boolean).join(' · ')}</span></div><OfferPrice offer={row.plan || row.product} lang={lang} /></li>)}</ul>
             <div className="customer-total"><span>{t('Order total', 'စုစုပေါင်း')}</span><strong>{total === undefined ? t('Awaiting a quote', 'ဈေးနှုန်း အတည်ပြုရန်') : priceText(`${total.toLocaleString('en-US')} MMK`, lang)}</strong></div>
           </div>
+          <section className="checkout-panel checkout-contact" aria-labelledby="checkout-contact-title">
+            <h2 id="checkout-contact-title">{t('How can we reach you?', 'ဘယ်နည်းလမ်းနဲ့ ဆက်သွယ်ရမလဲ?')}</h2>
+            <p>{t('Choose one contact method for this order.', 'ဒီအော်ဒါအတွက် ဆက်သွယ်ရန်နည်းလမ်း တစ်ခု ရွေးပြီး ဖြည့်ပါ။')}</p>
+            <fieldset className="checkout-contact-methods"><legend>{t('Contact method (required)', 'ဆက်သွယ်နည်း (မဖြစ်မနေ)')}</legend>
+              <div>{(['telegram', 'viber', 'facebook', 'phone'] as const).map(method => <label key={method}>
+                <input type="radio" name="order-contact-method" value={method} checked={contactMethod === method} onChange={() => { setContactMethod(method); setContactValue(''); setContactError(''); }} />
+                <span>{method === 'telegram' ? 'Telegram' : method === 'viber' ? 'Viber' : method === 'facebook' ? 'Facebook' : t('Phone', 'ဖုန်း')}</span>
+              </label>)}</div>
+            </fieldset>
+            <label className="checkout-contact-value" htmlFor="checkout-contact-value">{contactMethod === 'telegram' ? t('Telegram username or profile link', 'Telegram username သို့မဟုတ် profile link') : contactMethod === 'facebook' ? t('Facebook profile link or name', 'Facebook profile link သို့မဟုတ် အမည်') : contactMethod === 'viber' ? t('Viber phone number', 'Viber ဖုန်းနံပါတ်') : t('Phone number', 'ဖုန်းနံပါတ်')}
+              <input ref={contactInput} id="checkout-contact-value" name="order-contact-value" type={contactMethod === 'viber' || contactMethod === 'phone' ? 'tel' : 'text'} inputMode={contactMethod === 'viber' || contactMethod === 'phone' ? 'tel' : 'text'} required maxLength={MAX_ORDER_CONTACT_LENGTH} value={contactValue} autoComplete="off" autoCapitalize="none" spellCheck={false} aria-invalid={!!contactError} aria-describedby={`checkout-contact-help${contactError ? ' checkout-contact-error' : ''}`} onChange={event => { setContactValue(event.target.value); setContactError(''); }} />
+            </label>
+            <p className="checkout-contact-help" id="checkout-contact-help">{contactMethod === 'telegram' ? t('Use @username or your t.me profile link.', '@username သို့မဟုတ် သင့် t.me profile link ကို သုံးပါ။') : contactMethod === 'facebook' ? t('Use your profile link or the name shown on Facebook.', 'သင့် profile link သို့မဟုတ် Facebook မှာ ပြထားသောအမည်ကို သုံးပါ။') : t('Include the country code if needed, such as +95.', 'လိုအပ်လျှင် +95 ကဲ့သို့ နိုင်ငံကုဒ် ထည့်ပါ။')}</p>
+            {contactError && <p className="checkout-contact-error" id="checkout-contact-error" role="alert">{contactError}</p>}
+          </section>
           {!tooManyInputs && rows.map(row => {
             const fields = checkoutFieldsFor(row.product, row.plan);
             if (!fields.length) return null;
