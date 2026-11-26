@@ -2,6 +2,8 @@
 
 ## Current status
 
+The private Digimium Admin Orders bot shows the account name, available email and verified Telegram username, Telegram display name for Telegram sign-ups, and registration time in the Account Registration topic. The Orders and Running HUB Orders topics show a labeled Order ID and the original order time. Running HUB receipt and approval messages use the same order reference and time. All timestamps use Myanmar time.
+
 Regular storefront checkout asks signed-in customers without a verified Telegram link to provide a Telegram username, Telegram phone number, or Viber phone number. The popup shows input examples and offers a separate Telegram connection button. The existing bot verifies the connection with a four-digit code and returns the customer to their cart for review. Admin can see the manually entered contact in the order details. Order payment and handoff continue through the existing seller Telegram chat.
 
 The live catalog prices are 18,000 MMK for ChatGPT Go Share - 1 Device, 145,000 MMK for ChatGPT Plus - Own Mail, and 54,000 MMK for ChatGPT Go - Own Mail. Claude Pro, Max, and Ultra - Own Mail are 145,000 MMK, 750,000 MMK, and 1,450,000 MMK respectively.
@@ -119,6 +121,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Updated the private registration and order alert text on November 27, 2026. Verified email, Google and Telegram account events and Running HUB new-order, receipt and approval messages in disposable databases with the Telegram API simulated. Checked existing queued alerts, order timestamps across Myanmar midnight, protected topic routing, and existing approval buttons. Node 24 build, typecheck, strict lint, and 103 unit tests passed.
 
 Implemented the checkout contact popup and inline Telegram connection on November 27, 2026. Verified the Burmese popup at 320 pixels, explicit theme selection, Viber checkout and Admin display, and English desktop checkout using the simulated Telegram bot. Local integrations confirmed existing order retries, private contact storage, and account binding. The Node 24 build, strict lint, typecheck, and 103 unit tests passed.
 

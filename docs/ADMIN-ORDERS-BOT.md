@@ -4,9 +4,9 @@ Use [Digimium Admin Orders](https://t.me/DigimiumAdminOrdersBot) as the private 
 
 | Topic | What appears |
 | --- | --- |
-| Orders | New standard storefront orders with the order reference, products, total, and an Admin link |
-| Running HUB Orders | New Running HUB API Key reservations, original payment receipts with the approval button, and payment confirmations |
-| Account Registration | New website accounts with the sign-up method and an Admin link |
+| Orders | New standard storefront orders with a labeled Order ID, order time in Myanmar time, products, total, and an Admin link |
+| Running HUB Orders | New Running HUB API Key reservations, original payment receipts with the approval button, and payment confirmations. Each shows the Order ID and original order time in Myanmar time. |
+| Account Registration | New website accounts with the sign-up method, name, available email and verified Telegram username, Telegram display name for Telegram sign-ups, registration time in Myanmar time, and an Admin link |
 
 Website Telegram order drafts show the customer's verified `@username` if available. The order reference can be used to look up the record in Admin.
 

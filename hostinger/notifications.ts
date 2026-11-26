@@ -7,7 +7,7 @@ import { CommerceError } from '../lib/commerce-http';
 import type { CustomerNotification, CustomerNotificationPage } from '../lib/notification-types';
 import { normalizeNotificationActionLabel, normalizeNotificationActionUrl } from '../lib/notification-action';
 import { getSubscriptionTerm, todayInMyanmar } from '../lib/subscription-term';
-import { adminOrdersNotificationTopics, adminOrdersNotificationTopicsConfigured } from './admin-orders-telegram';
+import { adminOrdersNotificationTopics, adminOrdersNotificationTopicsConfigured, formatAdminTimestamp } from './admin-orders-telegram';
 import { getPool } from './mysql';
 
 const uuid = z.string().uuid();
@@ -193,20 +193,37 @@ function cleanAlert(value: string | undefined, maximum: number) {
   for (const point of clean) { if (result.length + point.length > maximum) break; result += point; }
   return result.trim();
 }
-function alertText(payload: NotificationAlertInput, dedicated: boolean) {
+type AlertEntity = RowDataPacket & {
+  createdAt?: string; name?: string; email?: string | null; telegramUsername?: string | null;
+};
+
+function alertText(payload: NotificationAlertInput, dedicated: boolean, entity: AlertEntity) {
   const registration = payload.kind === 'customer-created';
   const shortId = payload.entityId.slice(0, 8).toUpperCase();
-  const reference = registration ? 'Account #' + shortId : 'Order #' + cleanAlert(payload.orderReference || shortId, 40);
+  const reference = registration ? 'Account #' + shortId : 'Order ID: #' + (cleanAlert(payload.orderReference, 40) || shortId);
+  const createdAt = formatAdminTimestamp(entity.createdAt);
+  const orderTime = !registration && createdAt ? 'Order time: ' + createdAt : '';
   const total = payload.totalMmk == null ? 'Price on request' : payload.totalMmk.toLocaleString('en-US') + ' MMK';
   if (dedicated) {
     if (registration) {
       const providerLabels = { email: 'Email', google: 'Google', telegram: 'Telegram' };
-      return [reference, payload.authProvider && 'Sign-up method: ' + providerLabels[payload.authProvider]].filter(Boolean).join('\n');
+      const name = cleanAlert(entity.name, 200);
+      const email = cleanAlert(entity.email ?? undefined, 254);
+      const username = entity.telegramUsername && /^[A-Za-z0-9_]{5,32}$/.test(entity.telegramUsername) ? entity.telegramUsername : null;
+      // For Telegram sign-ups, the transaction captures the verified bot profile name separately from later account edits.
+      const telegramName = payload.authProvider === 'telegram' ? cleanAlert(payload.customerName, 200) : '';
+      return [
+        reference, payload.authProvider && 'Sign-up method: ' + providerLabels[payload.authProvider],
+        name && 'Name: ' + name, email && 'Email: ' + email, username && 'Telegram username: @' + username,
+        telegramName && 'Telegram name: ' + telegramName, createdAt && 'Registered at: ' + createdAt,
+      ].filter(Boolean).join('\n');
     }
     const items = payload.productSummary?.split('\n').map(line => cleanAlert(line, 350).replace(' · ', ' — ')).filter(Boolean);
-    return [reference, items?.join('\n'), 'Total ' + total].filter(Boolean).join('\n\n');
+    const header = [reference, orderTime].filter(Boolean).join('\n');
+    return [header, items?.join('\n'), 'Total ' + total].filter(Boolean).join('\n\n');
   }
   const rows = [registration ? 'New Digimium customer' : 'New Digimium order', reference];
+  if (orderTime) rows.push(orderTime);
   if (payload.customerName) rows.push('Name: ' + cleanAlert(payload.customerName, 100));
   if (payload.authProvider) rows.push('Sign-in: ' + payload.authProvider);
   if (payload.productSummary) rows.push('Items: ' + cleanAlert(payload.productSummary, 350));
@@ -226,10 +243,14 @@ function topicFields(payload: NotificationAlertInput, topics: NonNullable<AlertC
   };
 }
 
+const registrationProfileQuery = `SELECT c.name, c.email, t.username AS telegramUsername,
+  DATE_FORMAT(c.created_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS createdAt FROM digimium_customers c
+  LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id WHERE c.id = ?`;
+
 const alertEntityQueries: Record<NotificationAlertInput['kind'], string> = {
   'customer-created': 'SELECT id FROM digimium_customers WHERE id = ?',
-  'order-created': 'SELECT id FROM digimium_orders WHERE id = ?',
-  'runninghub-order-created': "SELECT id FROM digimium_runninghub_orders WHERE id = ? AND status NOT IN ('expired', 'rejected')",
+  'order-created': 'SELECT created_at AS createdAt FROM digimium_orders WHERE id = ?',
+  'runninghub-order-created': "SELECT created_at AS createdAt FROM digimium_runninghub_orders WHERE id = ? AND status NOT IN ('expired', 'rejected')",
 };
 
 /** Bounded, leased outbox delivery; invoke only after the creation transaction has committed. */
@@ -264,8 +285,10 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
     let ok = false;
     try {
       const payload = alertSchema.parse(JSON.parse(row.payload));
-      const [entities] = await getPool().execute<RowDataPacket[]>(alertEntityQueries[payload.kind], [payload.entityId]);
-      if (!entities.length) {
+      const entityQuery = payload.kind === 'customer-created' && config.topics
+        ? registrationProfileQuery : alertEntityQueries[payload.kind];
+      const [[entity]] = await getPool().execute<AlertEntity[]>(entityQuery, [payload.entityId]);
+      if (!entity) {
         // Removed entities and inactive Running HUB orders must not cause a delayed alert.
         await getPool().execute(`UPDATE digimium_notification_outbox SET cancelled_at = UTC_TIMESTAMP(3), payload = '{}',
           lease_token = NULL, lease_until = NULL, last_error = 'entity-removed' WHERE id = ? AND lease_token = ?`, [row.id, lease]);
@@ -274,7 +297,7 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
       const response = await fetch('https://api.telegram.org/bot' + config.token + '/sendMessage', {
         method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: config.chat, text: alertText(payload, Boolean(config.topics)), link_preview_options: { is_disabled: true },
+          chat_id: config.chat, text: alertText(payload, Boolean(config.topics), entity), link_preview_options: { is_disabled: true },
           ...(config.topics ? topicFields(payload, config.topics) : {}),
         }),
         signal: AbortSignal.timeout(Math.max(1, Math.min(2000, deadline - Date.now()))),

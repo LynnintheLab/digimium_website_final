@@ -284,7 +284,7 @@ export async function runningHubAdminBotReceipt(id: string, proofRequestId: stri
     const contentType = z.enum(['image/png', 'image/jpeg', 'image/webp']).parse(row.proof_mime);
     const paymentMethod = methodId.parse((JSON.parse(row.payment) as RunningHubPaymentMethod).id);
     return { id: row.id, proofRequestId, revision: row.revision, packLabel: row.pack_label, priceMmk: row.price_mmk, paymentMethod, contentType,
-      bytes: decrypt('proof/' + id + '/' + row.customer_id, row.proof_cipher) };
+      createdAt: row.created_at, bytes: decrypt('proof/' + id + '/' + row.customer_id, row.proof_cipher) };
   });
 }
 
@@ -292,16 +292,16 @@ export async function runningHubAdminBotReceipt(id: string, proofRequestId: stri
 export async function runningHubAdminBotApproval(id: string) {
   validId(id);
   await ensureRunningHub();
-  const [rows] = await getPool().execute<(RowDataPacket & { id: string; pack_label: string; price_mmk: number; payment_method: string;
+  const [rows] = await getPool().execute<(RowDataPacket & { id: string; created_at: string; pack_label: string; price_mmk: number; payment_method: string;
     customer_name: string; customer_email: string | null; telegram_username: string | null })[]>(
-    `SELECT o.id, o.pack_label, o.price_mmk, JSON_UNQUOTE(JSON_EXTRACT(o.payment, '$.id')) AS payment_method,
+    `SELECT o.id, o.created_at, o.pack_label, o.price_mmk, JSON_UNQUOTE(JSON_EXTRACT(o.payment, '$.id')) AS payment_method,
        c.name AS customer_name, c.email AS customer_email, t.username AS telegram_username
      FROM digimium_runninghub_orders o JOIN digimium_customers c ON c.id = o.customer_id
      LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id
      WHERE o.id = ? AND o.status = 'approved' AND o.delivery_cipher IS NOT NULL`, [id]);
   const row = rows[0];
   if (!row) throw new CommerceError(404, 'Approved Running HUB order not found.');
-  return { id: row.id, packLabel: row.pack_label, priceMmk: row.price_mmk, paymentMethod: methodId.parse(row.payment_method),
+  return { id: row.id, createdAt: row.created_at, packLabel: row.pack_label, priceMmk: row.price_mmk, paymentMethod: methodId.parse(row.payment_method),
     customerName: row.customer_name, customerEmail: row.customer_email, telegramUsername: row.telegram_username };
 }
 

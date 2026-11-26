@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { CommerceError } from '../lib/commerce-http';
 import { RUNNINGHUB_PRODUCT_NAME, type RunningHubPaymentMethod } from '../lib/runninghub';
-import { AdminOrdersActionError, type AdminOrdersBotAdapter } from './admin-orders-telegram';
+import { AdminOrdersActionError, formatAdminTimestamp, type AdminOrdersBotAdapter } from './admin-orders-telegram';
 
 type ApprovalBinding = { id: string; proofRequestId: string; revision: number };
 const uuid = z.string().uuid();
@@ -20,12 +20,14 @@ export function signRunningHubApproval(secret: string, order: ApprovalBinding): 
   return Buffer.concat([body, signature(secret, body)]).toString('base64url');
 }
 export function runningHubAdminMessage(order: {
-  id: string; packLabel: string; paymentMethod: RunningHubPaymentMethod['id']; priceMmk: number;
+  id: string; createdAt: string; packLabel: string; paymentMethod: RunningHubPaymentMethod['id']; priceMmk: number;
 }, status: string) {
   const reference = order.id.slice(0, 8).toUpperCase();
+  const time = formatAdminTimestamp(order.createdAt);
   const method = order.paymentMethod === 'kpay' ? 'KPay' : 'AYA Pay';
   return [
-    'Order #' + reference,
+    'Order ID: #' + reference,
+    ...(time ? ['Order time: ' + time] : []),
     '',
     RUNNINGHUB_PRODUCT_NAME + ' — ' + order.packLabel,
     `Payment: ${method} · ${order.priceMmk.toLocaleString('en-US')} MMK`,

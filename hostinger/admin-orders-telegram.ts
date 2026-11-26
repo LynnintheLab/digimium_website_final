@@ -1,6 +1,15 @@
 import { timingSafeEqual } from 'node:crypto';
 import { CommerceError } from '../lib/commerce-http';
 
+const adminTimestamp = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Yangon', dateStyle: 'medium', timeStyle: 'short',
+});
+
+export function formatAdminTimestamp(value: string | null | undefined): string {
+  const time = value ? Date.parse(value) : NaN;
+  return Number.isFinite(time) ? adminTimestamp.format(time) + ' MMT' : '';
+}
+
 // Only these fixed messages may be shown for a recognized, authenticated payment action.
 // Never forward arbitrary exception text or interpolate customer/payment data into a bot reply.
 const actionFailures = {

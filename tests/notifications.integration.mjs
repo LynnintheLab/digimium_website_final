@@ -289,6 +289,7 @@ try {
   process.env.ADMIN_TELEGRAM_CHAT_ID = env.NOTIFICATION_FIXTURE_CHAT;
   const flushed = await notifications.drainAdminNotificationAlerts({ limit: 5, budgetMs: 5000 }); assert.equal(flushed.sent, 2);
   assert.equal((await calls()).length, 2, 'Only new signup events were queued; old pending fixtures produce no alerts.');
+  for (const oldBotCall of await calls()) assert.doesNotMatch(oldBotCall.fields.text, /Email:|Telegram username:|Telegram name:|Registered at:/);
   const rolledBackId = randomUUID(), rolledBackKey = 'rollback:' + randomUUID();
   const transaction = await pool.getConnection();
   try {
@@ -357,6 +358,7 @@ try {
 
   const pendingAtCutover = { ...alert('Queued before topic cutover'), authProvider: 'email' };
   await enqueue(notifications, pendingAtCutover);
+  await db.execute('UPDATE digimium_customers SET created_at = ? WHERE id = ?', ['2026-11-26 18:00:00', alice.id]);
   const beforeTopics = (await calls()).length;
   process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID = sharedBotEnvironment.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID;
   assert.equal((await notifications.drainAdminNotificationAlerts({ dedupeKey: pendingAtCutover.dedupeKey })).configured, false,
@@ -368,7 +370,10 @@ try {
   assert.equal(registration.shared, true);
   assert.equal(registration.fields.message_thread_id, 22);
   assert.equal(registration.fields.protect_content, true);
-  assert.equal(registration.fields.text, 'Account #' + alice.id.slice(0, 8).toUpperCase() + '\nSign-up method: Email');
+  assert.equal(registration.fields.text, [
+    'Account #' + alice.id.slice(0, 8).toUpperCase(), 'Sign-up method: Email', 'Name: ' + alice.name,
+    'Email: ' + alice.email, 'Registered at: 27 Nov 2026, 00:30 MMT',
+  ].join('\n'));
   assert.equal(registration.fields.reply_markup.inline_keyboard[0][0].url, base.origin + '/admin?customer=' + alice.id);
   const oldDueAlert = alert('Independent old alert');
   await enqueue(notifications, oldDueAlert);
@@ -378,8 +383,30 @@ try {
   const newRegistration = (await calls()).at(-1);
   assert.equal(newRegistration.shared, true);
   assert.equal(newRegistration.fields.message_thread_id, 22);
-  assert.equal(newRegistration.fields.text, 'Account #' + topicCustomer.id.slice(0, 8).toUpperCase() + '\nSign-up method: Email');
+  assert.deepEqual(newRegistration.fields.text.split('\n').slice(0, 4), [
+    'Account #' + topicCustomer.id.slice(0, 8).toUpperCase(), 'Sign-up method: Email',
+    'Name: ' + topicCustomer.name, 'Email: ' + topicCustomer.email,
+  ]);
+  assert.match(newRegistration.fields.text, /\nRegistered at: \d{1,2} [A-Z][a-z]{2,3} \d{4}, \d{2}:\d{2} MMT$/);
+  assert.doesNotMatch(newRegistration.fields.text, /Telegram username:|Telegram name:/);
+  assert.ok(!JSON.stringify(newRegistration.fields).includes(topicCustomer.password));
   assert.equal(newRegistration.fields.reply_markup.inline_keyboard[0][0].url, base.origin + '/admin?customer=' + topicCustomer.id);
+  const telegramSignup = await resolveTelegramIdentity({ id: '999900039', firstName: 'Telegram', lastName: 'Fixture', username: 'topic_fixture' });
+  await db.execute('UPDATE digimium_customers SET name = ? WHERE id = ?', ['Edited Website Name', telegramSignup.id]);
+  assert.equal((await notifications.drainAdminNotificationAlerts({ dedupeKey: 'customer-created:' + telegramSignup.id })).sent, 1);
+  const telegramRegistration = (await calls()).at(-1);
+  assert.equal(telegramRegistration.fields.message_thread_id, 22);
+  assert.equal(telegramRegistration.fields.protect_content, true);
+  assert.deepEqual(telegramRegistration.fields.text.split('\n').slice(1, 5),
+    ['Sign-up method: Telegram', 'Name: Edited Website Name', 'Telegram username: @topic_fixture', 'Telegram name: Telegram Fixture']);
+  assert.doesNotMatch(telegramRegistration.fields.text, /Email:/);
+  const googleSignup = await resolveGoogleIdentity({ sub: 'topic-registration-google', name: 'Topic Google Fixture', email: 'topic-google@example.invalid' });
+  assert.equal(googleSignup.status, 'success');
+  const googleRegistration = (await calls()).at(-1);
+  assert.equal(googleRegistration.fields.message_thread_id, 22);
+  assert.deepEqual(googleRegistration.fields.text.split('\n').slice(1, 4),
+    ['Sign-up method: Google', 'Name: Topic Google Fixture', 'Email: topic-google@example.invalid']);
+  assert.doesNotMatch(googleRegistration.fields.text, /Telegram username:|Telegram name:/);
   const original = await json(await get('/api/admin/catalog', owner));
   const products = Array.from({ length: 6 }, (_, index) => ({ ...original.products[0], id: 'notification-fixture-' + index,
     name: 'Long product ' + index + ' ' + 'X'.repeat(50), published: true, availability: 'available',
@@ -394,11 +421,20 @@ try {
   assert.equal(newOrder.shared, true);
   assert.equal(newOrder.fields.message_thread_id, 21);
   assert.equal(newOrder.fields.protect_content, true);
-  assert.match(newOrder.fields.text, /^Order #[A-F0-9]{8}\n\nLong product 0 .+ — Long plan .+ × 1\n/);
+  assert.equal(newOrder.fields.text.split('\n')[0], 'Order ID: #' + checkout.id.slice(0, 8).toUpperCase());
+  assert.match(newOrder.fields.text, /\nOrder time: \d{1,2} [A-Z][a-z]{2,3} \d{4}, \d{2}:\d{2} MMT\n\nLong product 0 .+ — Long plan .+ × 1\n/);
   assert.match(newOrder.fields.text, /\n\nTotal 96,000 MMK$/);
   assert.doesNotMatch(newOrder.fields.text, /Notification Alice|Items:|New Digimium order/);
   assert.ok(!JSON.stringify(newOrder.fields).includes(contact.value), 'Telegram alerts omit the buyer’s manual contact');
   assert.equal(newOrder.fields.reply_markup.inline_keyboard[0][0].url, base.origin + '/admin?order=' + checkout.id);
+  const legacyOrder = await seedOrder(alice.id, 'Queued order fixture', { status: 'pending' });
+  await db.execute('UPDATE digimium_orders SET created_at = ? WHERE id = ?', ['2026-11-26T18:45:35.000Z', legacyOrder.id]);
+  const legacyAlert = { kind: 'order-created', dedupeKey: 'fixture:' + randomUUID(), entityId: legacyOrder.id, productSummary: 'Queued order fixture' };
+  await enqueue(notifications, legacyAlert);
+  assert.equal((await notifications.drainAdminNotificationAlerts({ dedupeKey: legacyAlert.dedupeKey })).sent, 1);
+  const legacyText = (await calls()).at(-1).fields.text;
+  assert.equal(legacyText.split('\n')[0], 'Order ID: #' + legacyOrder.id.slice(0, 8).toUpperCase());
+  assert.match(legacyText, /\nOrder time: 27 Nov 2026, 01:15 MMT\n/, 'Queued alerts use the actual order time across Myanmar midnight.');
   assert.match(await (await get('/admin?order=' + checkout.id, owner)).text(), /<h1>Orders<\/h1>/);
   assert.match(await (await get('/admin?customer=' + topicCustomer.id, owner)).text(), /<h1>Customers<\/h1>/);
   assert.ok([302, 303, 307, 308].includes((await get('/admin?order=' + checkout.id)).status));
