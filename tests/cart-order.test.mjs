@@ -105,15 +105,16 @@ const telegramOrder = {
   id: '22ced3c4-b727-44e2-b3ab-9d25ce2a64db', lines: [telegramOrderLine], totalMmk: 38000,
 };
 
-test('the customer Telegram draft uses the short reference and repeats each purchased unit', () => {
+test('the customer Telegram draft uses the saved reference and repeats each purchased unit', () => {
   const identity = { telegramUsername: 'real_buyer', googleEmail: 'buyer+shop@gmail.com',
     name: 'private account name', checkoutContact: 'private manual contact' };
   const item = 'ChatGPT Plus Share - 1 Device · 1 လ — 38,000 ကျပ်';
-  const header = ['📦 Order ID — #22CED3C4', '💬 Telegram — @real_buyer', '📧 Gmail — buyer+shop@gmail.com', ''];
-  const [single] = orderTelegramMessages(telegramOrder, identity, 'my');
+  const header = ['📦 Order ID — DG - 2026NOV27 - 003', '💬 Telegram — @real_buyer', '📧 Gmail — buyer+shop@gmail.com', ''];
+  const order = { ...telegramOrder, reference: 'DG - 2026NOV27 - 003' };
+  const [single] = orderTelegramMessages(order, identity, 'my');
   assert.equal(single, [...header, item, '', '─────', '', '🧾 Total — 38,000 ကျပ်'].join('\n'));
   const [two] = orderTelegramMessages({
-    ...telegramOrder, lines: [{ ...telegramOrderLine, quantity: 2 }], totalMmk: 76000,
+    ...order, lines: [{ ...telegramOrderLine, quantity: 2 }], totalMmk: 76000,
   }, identity, 'my');
   assert.equal(two, [...header, item, item, '', '─────', '', '🧾 Total — 76,000 ကျပ်'].join('\n'));
   assert.equal(new URL(telegramDraft('DigimiumCheckout', two)).searchParams.get('text'), two);

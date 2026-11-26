@@ -51,6 +51,12 @@ function withoutCheckoutContact({ checkoutContact, ...order }) {
   assert.ok(checkoutContact);
   return order;
 }
+function myanmarOrderDay(timestamp) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Yangon',
+  }).formatToParts(new Date(timestamp));
+  return ['year', 'month', 'day'].map(type => parts.find(part => part.type === type).value).join('').toUpperCase();
+}
 
 try {
   const [tables] = await db.query('SHOW TABLES');
@@ -148,10 +154,13 @@ try {
     assert.equal(row.status, legacy.approved ? 'approved' : 'pending');
     assert.equal(row.customerNote, ''); assert.equal(row.rejectedAt, null);
     assert.equal(row.checkoutContact, undefined);
+    assert.equal(row.reference, undefined, 'Legacy orders keep their existing UUID reference');
     assert.equal(row.lines[0].accountInfo, legacy.approved ? 'legacy-fixture-delivery' : '');
     const replay = await json(await mutate(customerOrders, 'POST', legacy.legacySubmission, alice.cookie));
     assert.equal(replay.id, legacy.id, 'Legacy checkout receipts can still be recovered without supplying a contact');
-    const [[savedLegacy]] = await db.execute('SELECT snapshot, fulfillment FROM digimium_orders WHERE id = ?', [legacy.id]);
+    assert.equal(replay.order.reference, undefined);
+    const [[savedLegacy]] = await db.execute('SELECT order_reference, snapshot, fulfillment FROM digimium_orders WHERE id = ?', [legacy.id]);
+    assert.equal(savedLegacy.order_reference, null, 'Reading or replaying a legacy order does not assign a new reference');
     assert.equal(savedLegacy.snapshot, legacy.snapshot, 'Additive migration preserves legacy snapshots byte-for-byte');
     assert.equal(savedLegacy.fulfillment, legacy.fulfillment, 'Additive migration preserves encrypted credentials byte-for-byte');
     await db.execute('DELETE FROM digimium_orders WHERE id = ?', [legacy.id]);
@@ -211,7 +220,11 @@ try {
   assert.equal(checkout.telegram, telegram);
   assert.deepEqual(checkout.customer, { name: first.name, email: first.email });
   assert.ok(!JSON.stringify(checkout).includes(normalizedContact.value), 'Checkout receipts never include a manual contact');
-  assert.deepEqual(checkout.order, { id, totalMmk: null, lines: [
+  const [[referenceRow]] = await db.execute('SELECT created_at, order_reference FROM digimium_orders WHERE id = ?', [id]);
+  const firstOrderDay = myanmarOrderDay(referenceRow.created_at);
+  const reference = 'DG - ' + firstOrderDay + ' - 001';
+  assert.equal(referenceRow.order_reference, reference, 'The first valid checkout gets one daily reference despite idempotent concurrent requests');
+  assert.deepEqual(checkout.order, { id, reference, totalMmk: null, lines: [
     { productName: product.name, planName: plan.name, duration: plan.duration, quantity: 2, price: '1,500 MMK' },
     { productName: inquiry.name, planName: null, duration: inquiry.duration, quantity: 1, price: '' },
   ] });
@@ -219,6 +232,7 @@ try {
   assert.equal((await submit({ ...submission, items: [custom] })).status, 409);
   const before = (await json(await get(customerOrders, alice.cookie))).orders;
   assert.equal(before.length, 1);
+  assert.equal(before[0].reference, reference);
   assert.equal(before[0].status, 'pending');
   assert.equal(before[0].totalMmk, null);
   assert.deepEqual(before[0].lines.map(line => [line.productName, line.price, line.quantity, line.accountInfo, line.startDate]),
@@ -228,6 +242,8 @@ try {
   assert.ok(priced.id);
   const pricedRows = (await json(await get(customerOrders, alice.cookie))).orders;
   assert.equal(pricedRows.find(row => row.id === priced.id).totalMmk, 3000);
+  const pricedDay = myanmarOrderDay(pricedRows.find(row => row.id === priced.id).createdAt);
+  assert.equal(priced.order.reference, 'DG - ' + pricedDay + ' - ' + (firstOrderDay === pricedDay ? '002' : '001'));
   const updatedContact = 'NewStoreContact';
   await json(await saveCatalog([inquiry], original.revision + 1, updatedContact));
   assert.deepEqual(await json(await submit()), { ...checkout, telegram: updatedContact },
@@ -435,6 +451,8 @@ try {
   const guestAdmin = await json(await get(adminCommerce, owner));
   assert.equal(guestAdmin.customers.length, 2, 'Guest checkout never fabricates a registered customer');
   const guestOrder = guestAdmin.orders.find(order => order.id === guestCheckout.id);
+  assert.match(guestCheckout.order.reference, /^DG - \d{4}[A-Z]{3}\d{2} - \d{3,}$/);
+  assert.equal(guestOrder.reference, guestCheckout.order.reference);
   assert.equal(guestOrder.customerId, null);
   assert.equal(guestOrder.guestName, 'ဒေါ်မြ');
   assert.ok(!JSON.stringify(guestAdmin).includes('guest_key'));
@@ -832,7 +850,26 @@ try {
   assert.deepEqual(await json(rejectDelete), { removed: true, id: clearedRejection.id });
   assert.equal(await orderRow(clearedRejection.id), undefined, 'Explicit DELETE also works for a rejected order');
 
-  console.log('Commerce integration passed: legacy order migration and replay, private checkout contact, owner isolation, encrypted fulfillment, customer-facing notes, retained rejections, safe state projections and approval/reject/note/delete revision races.');
+  const newest = (await createDecisionOrder()).order;
+  await json(await removeOrder(newest.id, { revision: newest.revision, confirmation: newest.id }));
+  const [nextCheckout, simultaneousCheckout] = await Promise.all([1, 2].map(async () => json(
+    await submitWithContact({ items: [custom], requestId: randomUUID() }, bob.cookie), 201)));
+  const newestDay = myanmarOrderDay(newest.createdAt);
+  const assignments = await Promise.all([nextCheckout, simultaneousCheckout].map(async checkout => {
+    const row = await orderRow(checkout.id);
+    const day = myanmarOrderDay(row.created_at);
+    assert.equal(checkout.order.reference, row.order_reference);
+    assert.ok(row.order_reference.startsWith('DG - ' + day + ' - '));
+    return { day, number: Number(row.order_reference.split(' - ').at(-1)) };
+  }));
+  for (const day of new Set(assignments.map(assignment => assignment.day))) {
+    const numbers = assignments.filter(assignment => assignment.day === day).map(assignment => assignment.number).sort((a, b) => a - b);
+    const start = day === newestDay ? Number(newest.reference.split(' - ').at(-1)) + 1 : 1;
+    assert.deepEqual(numbers, Array.from({ length: numbers.length }, (_, index) => start + index),
+      'Concurrent distinct checkouts get consecutive references and deletion never reuses the latest number');
+  }
+
+  console.log('Commerce integration passed: daily order numbering and replay, legacy order migration, private checkout contact, owner isolation, encrypted fulfillment, customer-facing notes, retained rejections, safe state projections and approval/reject/note/delete revision races.');
 } finally {
   if (server && server.exitCode === null && !server.signalCode) {
     const exit = once(server, 'exit');

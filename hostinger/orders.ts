@@ -18,6 +18,7 @@ import { ensureCustomerSchema, presentCustomer, type CustomerIdentityRow } from 
 import { limitGuestCheckout } from './guest-checkout';
 import { getPool } from './mysql';
 import { drainAdminNotificationAlerts, enqueueNotificationAlert } from './notifications';
+import { assignOrderReference } from './order-reference';
 
 const MAX_ORDER_LINES = 3000;
 // Reject oversized collections before schema parsing as defense in depth.
@@ -91,6 +92,7 @@ type PurchasedLine = Omit<CommerceOrderLine, 'startDate' | 'endDate' | 'accountI
 type OrderSnapshot = { lines: PurchasedLine[]; totalMmk: number | null };
 interface OrderRow extends RowDataPacket {
   id: string;
+  order_reference: string | null;
   customer_id: string | null;
   guest_key: Buffer | null;
   guest_name: string | null;
@@ -112,9 +114,11 @@ async function bootstrap() {
   const pool = getPool();
   try {
     await pool.query('SELECT 1 FROM digimium_orders LIMIT 0');
+    await pool.query('SELECT 1 FROM digimium_order_daily_counters LIMIT 0');
   } catch (error) {
     if (!(error instanceof Error && 'code' in error && error.code === 'ER_NO_SUCH_TABLE')) throw error;
-    await pool.query(await readFile(join(process.cwd(), 'hostinger', 'order-schema.sql'), 'utf8'));
+    const sql = await readFile(join(process.cwd(), 'hostinger', 'order-schema.sql'), 'utf8');
+    for (const statement of sql.split(';').filter(part => part.trim())) await pool.query(statement);
   }
   // Existing deployments gain nullable account ownership without altering any saved snapshots.
   try {
@@ -136,6 +140,7 @@ async function bootstrap() {
   // Additive, independently guarded columns also repair a partially applied manual migration.
   for (const [column, definition] of [
     ['rejected_at', 'CHAR(24) CHARACTER SET ascii NULL'], ['customer_note', 'TEXT NULL'], ['checkout_contact', 'TEXT NULL'],
+    ['order_reference', 'VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL UNIQUE'],
   ]) {
     try {
       await pool.query(`SELECT ${column} FROM digimium_orders LIMIT 0`);
@@ -202,6 +207,7 @@ function present(row: OrderRow): CommerceOrder {
   const delivery = new Map((approved ? decryptFulfillment(row) : []).map(line => [line.id, line]));
   return {
     id: row.id, customerId: row.customer_id, createdAt: row.created_at, approvedAt: approved ? row.approved_at : null,
+    ...(row.order_reference ? { reference: row.order_reference } : {}),
     rejectedAt: row.rejected_at ?? null, customerNote: row.customer_note ?? '',
     ...(row.guest_name ? { guestName: row.guest_name } : {}),
     status: row.rejected_at ? 'rejected' : approved ? 'approved' : 'pending', revision: row.revision, totalMmk: snapshot.totalMmk,
@@ -249,8 +255,8 @@ function snapshotCart(items: CartItem[], catalog: Catalog, adminUnitPrices?: (nu
   return { lines, totalMmk: total ?? null };
 }
 
-function telegramOrder(id: string, snapshot: OrderSnapshot): TelegramOrder {
-  return { id, totalMmk: snapshot.totalMmk, lines: snapshot.lines.map(({ productName, planName, duration, price, quantity }) =>
+function telegramOrder(id: string, snapshot: OrderSnapshot, reference: string | null): TelegramOrder {
+  return { id, ...(reference ? { reference } : {}), totalMmk: snapshot.totalMmk, lines: snapshot.lines.map(({ productName, planName, duration, price, quantity }) =>
     ({ productName, planName, duration, price, quantity })) };
 }
 
@@ -266,12 +272,13 @@ export async function currentOrderContact() {
 
 async function existingCheckout(owner: CheckoutOwner, requestId: string, hash: Buffer) {
   const [rows] = await getPool().execute<RowDataPacket[]>(
-    'SELECT id, customer_id, request_hash, snapshot FROM digimium_orders WHERE ' + (owner.customerId ? 'customer_id' : 'guest_key') + ' = ? AND request_id = ?',
+    'SELECT id, order_reference, customer_id, request_hash, snapshot FROM digimium_orders WHERE ' + (owner.customerId ? 'customer_id' : 'guest_key') + ' = ? AND request_id = ?',
     [owner.customerId ?? owner.guestKey, requestId],
   );
   if (!rows.length) return null;
   if (!hash.equals(rows[0].request_hash)) throw new CommerceError(409, 'This checkout was already submitted with different items.');
-  return { order: telegramOrder(rows[0].id, JSON.parse(rows[0].snapshot)), customerId: rows[0].customer_id as string | null, telegram: await currentOrderContact(), created: false };
+  return { order: telegramOrder(rows[0].id, JSON.parse(rows[0].snapshot), rows[0].order_reference),
+    customerId: rows[0].customer_id as string | null, telegram: await currentOrderContact(), created: false };
 }
 
 export async function submitOrder(customer: Pick<CommerceCustomer, 'id' | 'telegram'>, body: unknown) {
@@ -320,21 +327,23 @@ async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSc
     const telegram = orderContact(current);
     const snapshot = snapshotCart(items, current);
     const id = randomUUID();
+    const createdAt = new Date();
     await connection.execute(
       'INSERT INTO digimium_orders (id, customer_id, guest_key, guest_name, request_id, request_hash, created_at, snapshot, checkout_contact) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, owner.customerId, owner.guestKey ?? null, owner.guestName ?? null, requestId, hash, new Date().toISOString(), JSON.stringify(snapshot), contact ? JSON.stringify(contact) : null],
+      [id, owner.customerId, owner.guestKey ?? null, owner.guestName ?? null, requestId, hash, createdAt.toISOString(), JSON.stringify(snapshot), contact ? JSON.stringify(contact) : null],
     );
+    const reference = await assignOrderReference(connection, id, createdAt);
     // The alert is committed with the order; retries cannot create a second alert.
     const [customers] = owner.customerId ? await connection.execute<(RowDataPacket & { name: string })[]>(
       'SELECT name FROM digimium_customers WHERE id = ?', [owner.customerId],
     ) : [[]];
     await enqueueNotificationAlert(connection, { kind: 'order-created', dedupeKey: 'order-created:' + id, entityId: id,
       customerName: owner.customerId ? customers[0]?.name : owner.guestName ?? 'Telegram guest',
-      orderReference: id.replaceAll('-', '').slice(0, 8).toUpperCase(),
+      orderReference: reference,
       productSummary: snapshot.lines.slice(0, 6).map(line => line.productName + (line.planName ? ' · ' + line.planName : '') + ' × ' + line.quantity).join('\n').slice(0, 350),
       totalMmk: snapshot.totalMmk });
     await connection.commit();
-    createdOrder = { order: telegramOrder(id, snapshot), customerId: owner.customerId, telegram, created: true };
+    createdOrder = { order: telegramOrder(id, snapshot, reference), customerId: owner.customerId, telegram, created: true };
   } catch (error) {
     await connection.rollback();
     if (!(error instanceof Error && 'code' in error && error.code === 'ER_DUP_ENTRY')) throw error;
@@ -351,7 +360,7 @@ async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSc
   return winner;
 }
 
-const orderColumns = 'id, customer_id, guest_key, guest_name, created_at, approved_at, rejected_at, customer_note, revision, snapshot, fulfillment';
+const orderColumns = 'id, order_reference, customer_id, guest_key, guest_name, created_at, approved_at, rejected_at, customer_note, revision, snapshot, fulfillment';
 const adminOrderColumns = orderColumns + ', checkout_contact';
 
 /** Record an existing purchase for a selected account without moving any guest order. */
@@ -395,10 +404,12 @@ export async function createAdminOrder(body: unknown): Promise<{ order: Commerce
     }
     const snapshot = snapshotCart(items, current, items.map(item => item.unitPriceMmk));
     const id = randomUUID();
+    const createdAt = new Date();
     await connection.execute(
       'INSERT INTO digimium_orders (id, customer_id, request_id, request_hash, created_at, snapshot, customer_note) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, customerId, requestId, hash, new Date().toISOString(), JSON.stringify(snapshot), customerNote],
+      [id, customerId, requestId, hash, createdAt.toISOString(), JSON.stringify(snapshot), customerNote],
     );
+    await assignOrderReference(connection, id, createdAt);
     const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ?', [id]);
     const order = present(rows[0]);
     await connection.commit();

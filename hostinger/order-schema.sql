@@ -1,6 +1,7 @@
 -- Import customer-auth-schema.sql first. An order, including all its lines, is one atomic record.
 CREATE TABLE IF NOT EXISTS digimium_orders (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  order_reference VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL,
   customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
   guest_key BINARY(32) NULL,
   guest_name VARCHAR(100) NULL,
@@ -14,6 +15,7 @@ CREATE TABLE IF NOT EXISTS digimium_orders (
   revision INT UNSIGNED NOT NULL DEFAULT 1,
   snapshot MEDIUMTEXT NOT NULL,
   fulfillment MEDIUMTEXT NULL,
+  UNIQUE KEY order_reference (order_reference),
   UNIQUE KEY orders_customer_request (customer_id, request_id),
   UNIQUE KEY orders_guest_request (guest_key, request_id),
   INDEX orders_customer_created (customer_id, created_at),
@@ -22,3 +24,8 @@ CREATE TABLE IF NOT EXISTS digimium_orders (
   CHECK ((approved_at IS NULL AND fulfillment IS NULL) OR (approved_at IS NOT NULL AND fulfillment IS NOT NULL)),
   CHECK (rejected_at IS NULL OR (approved_at IS NULL AND fulfillment IS NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS digimium_order_daily_counters (
+  order_day DATE NOT NULL PRIMARY KEY,
+  last_number INT UNSIGNED NOT NULL
+) ENGINE=InnoDB;

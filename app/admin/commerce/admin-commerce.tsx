@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ChevronRight, RefreshCw, Search, X, Pencil, Trash2, Plus } from 'lucide-react';
 import type { AdminCommerceOrder, CommerceCustomer, CommerceOrder } from '@/lib/commerce-types';
 import { customerContact } from '@/lib/customer-identity';
-import OrderEditor, { orderReference, orderTotal } from './order-editor';
+import { displayOrderReference } from '@/lib/order-reference';
+import OrderEditor, { orderTotal } from './order-editor';
 import CustomerEditor from './customer-editor';
 import RemoveOrderDialog from './remove-order-dialog';
 import CreateOrder from './create-order';
@@ -112,10 +113,12 @@ export default function AdminCommerce({ view, customerId, initialRecordId, teleg
   const scopedCustomer = customerId ? customersById.get(customerId) : undefined;
   const selected = orders.find(order => order.id === selectedId);
   const term = search.trim().toLowerCase();
+  const compactTerm = term.replace(/\s+/g, '');
   const shownOrders = scopedOrders.filter(order => {
     if (filter !== 'all' && order.status !== filter) return false;
+    if (compactTerm && order.reference?.toLowerCase().replace(/\s+/g, '').includes(compactTerm)) return true;
     const customer = order.customerId ? customersById.get(order.customerId) : undefined;
-    return [order.id, orderReference(order.id), customer?.name, customer && customerContact(customer), order.guestName, order.customerId === null ? 'Telegram guest' : '',
+    return [order.id, displayOrderReference(order.id), customer?.name, customer && customerContact(customer), order.guestName, order.customerId === null ? 'Telegram guest' : '',
       ...order.lines.flatMap(line => [line.productName, line.planName])]
       .some(value => value?.toLowerCase().includes(term));
   });
@@ -234,14 +237,14 @@ export default function AdminCommerce({ view, customerId, initialRecordId, teleg
           setNotice('');
           requestAnimationFrame(() => document.getElementById('commerce-order-title')?.focus());
         }}>
-          <span className="commerce-row-main"><strong>{orderReference(order.id)} <span className="commerce-status" data-status={order.status}>{order.status === 'rejected' ? 'Rejected' : order.status === 'pending' ? 'Pending' : 'Approved'}</span></strong>
+          <span className="commerce-row-main"><strong>{displayOrderReference(order.id, order.reference)} <span className="commerce-status" data-status={order.status}>{order.status === 'rejected' ? 'Rejected' : order.status === 'pending' ? 'Pending' : 'Approved'}</span></strong>
             <span>{customer ? customer.name + ' · ' + customerContact(customer) : order.guestName ? order.guestName + ' · Guest' : order.customerId === null ? 'Telegram guest' : 'Customer'}</span>
             <span>{order.lines.map(line => line.productName + (line.planName ? ' · ' + line.planName : '')).join(', ')}</span>
           </span>
           <span className="commerce-row-end"><strong>{orderTotal(order)}</strong>
             <span>{dateFormat.format(new Date(order.createdAt))}</span></span>
           <ChevronRight size={18} aria-hidden="true" />
-        </button><div className="commerce-row-actions"><button type="button" className="admin-text-button commerce-danger-link" aria-label={(order.status === 'approved' ? 'Delete approved order ' : order.status === 'rejected' ? 'Remove rejected order ' : 'Remove pending order ') + orderReference(order.id)} onClick={event => { removeTrigger.current = event.currentTarget; setRemovingOrder(order); }}><Trash2 size={16}/>{order.status === 'approved' ? 'Delete' : 'Remove'}</button></div></li>;
+        </button><div className="commerce-row-actions"><button type="button" className="admin-text-button commerce-danger-link" aria-label={(order.status === 'approved' ? 'Delete approved order ' : order.status === 'rejected' ? 'Remove rejected order ' : 'Remove pending order ') + displayOrderReference(order.id, order.reference)} onClick={event => { removeTrigger.current = event.currentTarget; setRemovingOrder(order); }}><Trash2 size={16}/>{order.status === 'approved' ? 'Delete' : 'Remove'}</button></div></li>;
       })}</ul> : <p className="commerce-empty">{term ? 'No matching orders.' : filter === 'pending' ? 'No orders are waiting for approval.' : filter === 'approved' ? 'No approved orders yet.' : filter === 'rejected' ? 'No rejected orders.' : 'No orders yet.'}</p>}
     </section> : refreshing && <p className="commerce-empty" role="status">Loading {view}…</p>}
     {removingOrder && <RemoveOrderDialog key={removingOrder.id} order={removingOrder}

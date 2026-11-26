@@ -24,6 +24,15 @@ test('guest receipts retain their guest identity without inheriting a signed-in 
   assert.equal(receiptCanResume(receipt, other, 'DigimiumStore'), true);
 });
 
+test('the saved reference survives receipt recovery and legacy receipts still load', () => {
+  const receipt = fixture();
+  assert.equal(readOrderReceipt(receipt, now).order.reference, undefined);
+  receipt.order.reference = 'DG - 2026NOV27 - 1000';
+  assert.equal(parseOrderReceipt(JSON.stringify(receipt), now).order.reference, receipt.order.reference);
+  receipt.order.reference = 'DG - 2026NOV27 - 1000\n';
+  assert.equal(readOrderReceipt(receipt, now).order.reference, undefined);
+});
+
 test('the receipt projection drops fulfillment, contact and credential-shaped extra keys', () => {
   const raw = fixture();
   raw.secret = 'session-secret';

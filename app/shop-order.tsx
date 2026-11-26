@@ -7,6 +7,7 @@ import type { Product } from '../lib/catalog';
 import { CART_KEY, orderMessages, resolveOrder, restoreCart, sameItem, telegramDraft, totalMmk, withSelection, type CartItem, type OrderLine } from '../lib/cart-order';
 import { orderTelegramIdentity, orderTelegramMessages, type OrderTelegramIdentity } from '../lib/order-telegram';
 import type { CommerceCustomer, TelegramCheckout, TelegramOrder } from '../lib/commerce-types';
+import { displayOrderReference } from '../lib/order-reference';
 import type { CheckoutContact } from '../lib/order-checkout-contact';
 import { ORDER_RECEIPT_KEY, createOrderReceipt, parseOrderReceipt, receiptCanResume, type OrderReceipt } from '../lib/order-receipt';
 import { commerceEnabled } from '../lib/commerce-enabled';
@@ -610,7 +611,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
           {commerceEnabled && orderId && <>
             <p className="order-saved-status"><CheckCircle2 size={19}/>{t('Awaiting shop approval', 'ဆိုင်အတည်ပြုရန် စောင့်နေသည်')}</p>
             <p>{t('Payment is not completed yet.', 'ငွေပေးချေပြီးခြင်း မဟုတ်ပါ။')}</p>
-            <div className="order-receipt-reference"><span>{t('Order reference', 'အော်ဒါအမှတ်')}</span><strong><bdi>#{orderId.slice(0, 8).toUpperCase()}</bdi></strong></div>
+            <div className="order-receipt-reference"><span>{t('Order reference', 'အော်ဒါအမှတ်')}</span><strong><bdi>{displayOrderReference(orderId, handoffOrder?.reference)}</bdi></strong></div>
             {handoffOrder && <ul className="order-receipt-lines">{handoffOrder.lines.map((line, index) => <li key={index}><div><strong>{line.productName}</strong><span>{[line.planName, line.duration, t(`Qty ${line.quantity}`, `${line.quantity} ခု`)].filter(Boolean).join(' · ')}</span></div><strong>{priceText(line.price, lang)}</strong></li>)}</ul>}
             {handoffOrder?.totalMmk !== null && handoffOrder?.totalMmk !== undefined && <div className="order-total"><span>{t('Order total', 'စုစုပေါင်း')}</span><strong>{priceText(handoffOrder.totalMmk.toLocaleString('en-US') + ' MMK', lang)}</strong></div>}
             <p>{guestOrder ? t('Keep your order message in Telegram.', 'Telegram က အော်ဒါစာကို သိမ်းထားပါ။') : t('Saved in your account.', 'အော်ဒါကို သင့်အကောင့်မှာ သိမ်းထားပါတယ်။')}</p>

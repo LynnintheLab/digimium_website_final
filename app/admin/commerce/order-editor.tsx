@@ -2,11 +2,8 @@ import { useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, AtSign, Check, Eye, EyeOff, LoaderCircle, Phone, Save, Smartphone, Trash2, X } from 'lucide-react';
 import type { AdminCommerceOrder, CommerceCustomer, CommerceOrder, CommerceOrderLine } from '@/lib/commerce-types';
 import { customerContact } from '@/lib/customer-identity';
+import { displayOrderReference } from '@/lib/order-reference';
 import { suggestedEndDate, todayInMyanmar } from './order-dates';
-
-export function orderReference(id: string) {
-  return '#' + id.slice(0, 8).toUpperCase();
-}
 
 export function orderTotal(order: CommerceOrder) {
   return order.totalMmk === null ? 'Price on request' : order.totalMmk.toLocaleString('en-US') + ' MMK';
@@ -102,7 +99,7 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
         onBack();
       }}><ArrowLeft size={16} />{backLabel}</button>
       <div className="commerce-heading-line">
-        <h2 id="commerce-order-title" tabIndex={-1}>Order {orderReference(order.id)}</h2>
+        <h2 id="commerce-order-title" tabIndex={-1}>Order {displayOrderReference(order.id, order.reference)}</h2>
         <span className="commerce-status" data-status={order.status}>{rejected ? 'Rejected' : pending ? 'Pending' : 'Approved'}</span>
       </div>
       <button type="button" className="admin-text-button commerce-danger-link" disabled={busy} onClick={event => onRemove(order, event.currentTarget)}><Trash2 size={16}/>{rejected ? 'Remove rejected order' : pending ? 'Remove pending order' : 'Delete approved order'}</button>
@@ -186,7 +183,7 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
           <span className="commerce-note-length">{customerNote.length} / 1000</span>
         </section>
         {rejecting && <section className="commerce-reject-confirm" role="group" aria-labelledby="reject-order-title" aria-describedby="reject-order-description">
-          <h3 ref={rejectHeading} id="reject-order-title" tabIndex={-1}>Reject order {orderReference(order.id)}?</h3>
+          <h3 ref={rejectHeading} id="reject-order-title" tabIndex={-1}>Reject order {displayOrderReference(order.id, order.reference)}?</h3>
           <p id="reject-order-description">The order will be marked Rejected. The customer note above will be saved; entered subscription dates and account details will not be saved. This order cannot be approved afterward.</p>
           <div className="commerce-customer-actions">
             <button type="button" className="admin-button admin-button-secondary" onClick={() => { setRejecting(false); requestAnimationFrame(() => rejectTrigger.current?.focus()); }}>Cancel</button>

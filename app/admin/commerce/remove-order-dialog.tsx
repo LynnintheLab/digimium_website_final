@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { LoaderCircle, Trash2 } from 'lucide-react';
 import type { CommerceOrder } from '@/lib/commerce-types';
-import { orderReference, orderTotal } from './order-editor';
+import { displayOrderReference } from '@/lib/order-reference';
+import { orderTotal } from './order-editor';
 
 export default function RemoveOrderDialog({ order, onClose, onRemoved, onReload }: {
   order: CommerceOrder;
@@ -16,7 +17,7 @@ export default function RemoveOrderDialog({ order, onClose, onRemoved, onReload 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [stale, setStale] = useState(false);
-  const reference = orderReference(order.id);
+  const reference = displayOrderReference(order.id, order.reference);
   const approved = order.status === 'approved';
   const rejected = order.status === 'rejected';
   useEffect(() => {

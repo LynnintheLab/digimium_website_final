@@ -1,9 +1,11 @@
 import { getSubscriptionTerm, todayInMyanmar } from './subscription-term.ts';
 import { durationText, priceText } from './shop-language.ts';
+import { displayOrderReference } from './order-reference.ts';
 
 export type TelegramHistoryView = 'history' | 'plans';
 export type TelegramTrackingLine = {
   orderId: string;
+  orderReference?: string | null;
   createdAt: string;
   status: 'pending' | 'approved' | 'rejected';
   totalMmk: number | null;
@@ -83,7 +85,8 @@ export function formatTelegramHistory(input: {
   let previousOrder = '';
   for (const line of lines) {
     if (line.orderId !== previousOrder) {
-      output.push('', `အော်ဒါ #${telegramTrackingText(line.orderId.slice(0, 8).toUpperCase(), 8)} • ${orderDate(line.createdAt)}`,
+      const reference = telegramTrackingText(displayOrderReference(line.orderId, line.orderReference), 40);
+      output.push('', `အော်ဒါ ${reference} • ${orderDate(line.createdAt)}`,
         line.status === 'rejected' ? '❌ ငြင်းပယ်ထားသည်' : line.status === 'pending' ? '⏳ အတည်ပြုရန် စောင့်နေသည်' : '✅ အတည်ပြုပြီး',
         'အော်ဒါစုစုပေါင်း — ' + (line.totalMmk === null ? 'သတ်မှတ်ရန်' : line.totalMmk.toLocaleString('en-US') + ' ကျပ်'));
       previousOrder = line.orderId;

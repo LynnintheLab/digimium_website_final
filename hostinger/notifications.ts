@@ -9,6 +9,7 @@ import { CommerceError } from '../lib/commerce-http';
 import type { CustomerNotification, CustomerNotificationPage } from '../lib/notification-types';
 import { normalizeNotificationActionLabel, normalizeNotificationActionUrl } from '../lib/notification-action';
 import { normalizeCheckoutContact } from '../lib/order-checkout-contact';
+import { displayOrderReference } from '../lib/order-reference';
 import { getSubscriptionTerm, todayInMyanmar } from '../lib/subscription-term';
 import { adminOrdersNotificationTopics, adminOrdersNotificationTopicsConfigured } from './admin-orders-telegram';
 import { getPool } from './mysql';
@@ -192,7 +193,7 @@ function telegramConfiguration(): AlertConfig | null {
 type AlertEntity = RowDataPacket & {
   createdAt?: string; name?: string; email?: string | null; telegramUsername?: string | null;
   customerId?: string | null; orderStatus?: 'pending' | 'approved' | 'rejected'; orderSnapshot?: string;
-  googleCheckoutContact?: string | null;
+  orderReference?: string | null; googleCheckoutContact?: string | null;
 };
 const orderAlertSnapshot = z.object({
   lines: z.array(z.object({
@@ -221,6 +222,7 @@ function alertMessage(payload: NotificationAlertInput, dedicated: boolean, entit
     const snapshot = orderAlertSnapshot.safeParse(JSON.parse(entity.orderSnapshot));
     if (snapshot.success) return formatAdminOrderDetailsNotice({
       id: payload.entityId,
+      reference: entity.orderReference,
       createdAt: entity.createdAt,
       status: entity.orderStatus,
       lines: snapshot.data.lines,
@@ -234,7 +236,10 @@ function alertMessage(payload: NotificationAlertInput, dedicated: boolean, entit
   }
 
   const shortId = payload.entityId.slice(0, 8).toUpperCase();
-  const reference = registration ? 'Account #' + shortId : 'Order ID: #' + (cleanAlert(payload.orderReference, 40) || shortId);
+  const orderReference = payload.kind === 'order-created' && entity.orderReference
+    ? displayOrderReference(payload.entityId, entity.orderReference)
+    : '#' + (cleanAlert(payload.orderReference, 40) || shortId);
+  const reference = registration ? 'Account #' + shortId : 'Order ID: ' + orderReference;
   const createdAt = formatAdminTimestamp(entity.createdAt);
   const orderTime = !registration && createdAt ? 'Order time: ' + createdAt : '';
   const total = payload.totalMmk == null ? 'Price on request' : payload.totalMmk.toLocaleString('en-US') + ' MMK';
@@ -269,6 +274,7 @@ const registrationProfileQuery = `SELECT c.name, c.email, t.username AS telegram
   LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id WHERE c.id = ?`;
 
 const orderDetailsQuery = `SELECT o.created_at AS createdAt, o.snapshot AS orderSnapshot, o.customer_id AS customerId,
+  o.order_reference AS orderReference,
   CASE WHEN o.rejected_at IS NOT NULL THEN 'rejected' WHEN o.approved_at IS NOT NULL THEN 'approved' ELSE 'pending' END AS orderStatus,
   CASE WHEN JSON_VALID(o.checkout_contact) AND EXISTS (
     SELECT 1 FROM digimium_google_identities g WHERE g.customer_id = o.customer_id
@@ -279,7 +285,7 @@ const orderDetailsQuery = `SELECT o.created_at AS createdAt, o.snapshot AS order
 
 const alertEntityQueries: Record<NotificationAlertInput['kind'], string> = {
   'customer-created': 'SELECT id FROM digimium_customers WHERE id = ?',
-  'order-created': 'SELECT created_at AS createdAt FROM digimium_orders WHERE id = ?',
+  'order-created': 'SELECT created_at AS createdAt, order_reference AS orderReference FROM digimium_orders WHERE id = ?',
   'runninghub-order-created': "SELECT created_at AS createdAt FROM digimium_runninghub_orders WHERE id = ? AND status NOT IN ('expired', 'rejected')",
 };
 
@@ -315,6 +321,11 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
     let ok = false;
     try {
       const payload = alertSchema.parse(JSON.parse(row.payload));
+      // A worker can pick up a queued standard order before this process has handled checkout.
+      if (payload.kind === 'order-created') {
+        const { ensureOrders } = await import('./orders');
+        await ensureOrders();
+      }
       let entityQuery = alertEntityQueries[payload.kind];
       if (config.topics) {
         if (payload.kind === 'customer-created') entityQuery = registrationProfileQuery;

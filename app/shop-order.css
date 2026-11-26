@@ -236,7 +236,7 @@
 .order-saved-status svg { flex: none; color: var(--blue); }
 .order-receipt-reference { display: grid; justify-items: center; gap: 2px; border: 1px solid var(--brand-line-strong); background: var(--soft); border-radius: 10px; padding: 10px 14px; }
 .order-receipt-reference > span { font-size: 14px; color: var(--muted); }
-.order-receipt-reference > strong { font: 700 25px/1.5 Manrope, sans-serif; color: var(--brand-navy); }
+.order-receipt-reference > strong { font: 700 clamp(18px, 5.5vw, 25px)/1.5 Manrope, sans-serif; color: var(--brand-navy); text-align: center; }
 .order-receipt-lines { display: grid; gap: 8px; list-style: none; padding: 0; margin: 0; }
 .order-receipt-lines li { display: flex; justify-content: space-between; align-items: start; gap: 12px; font-size: 16px; }
 .order-receipt-lines li > div { min-width: 0; display: grid; gap: 2px; }

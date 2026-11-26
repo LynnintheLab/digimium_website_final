@@ -167,6 +167,7 @@ try {
   assert.ok(results.every(result => Object.keys(result).sort().join(',') === 'created,order'), 'A manual receipt makes no automated email or Telegram delivery claim');
   const order = results[0].order;
   assert.match(order.id, /^[a-f0-9-]{36}$/i);
+  assert.match(order.reference, /^DG - \d{4}[A-Z]{3}\d{2} - 001$/);
   assert.equal(order.customerId, alice.id);
   assert.equal(order.status, 'pending');
   assert.equal(order.revision, 1);
@@ -254,7 +255,19 @@ try {
   assert.equal(await guestRows(), guestBefore, 'Unrelated guest data remains byte-for-byte unchanged after manual entry, fulfillment and removal races');
   assert.equal(await outboxRows(), outboxBefore, 'No manual-order path or retry creates checkout owner alerts');
   assert.deepEqual(messages.map(value => value.type), ['otp-mail'], 'The only provider message is the fake admin sign-in code');
-  console.log('Admin manual-order integration passed: auth/origin/strict bounds, server catalog snapshots and negotiated prices, idempotent retries, customer-only history, encrypted delivery and redacted previews, guest preservation and serialized create/delete races.');
+
+  const { order: manual } = await json(await create({ customerId: alice.id, requestId: randomUUID(),
+    expectedCatalogRevision: catalog.revision, items: [{ ...item, quantity: 1 }] }), 201);
+  const { order: storefront } = await json(await mutate(customerOrders, 'POST', {
+    expectedCustomerId: bob.id, requestId: randomUUID(), items: [{ ...item, quantity: 1 }],
+    contact: { method: 'telegram-username', value: '@reference_fixture' },
+  }, bob.cookie), 201);
+  assert.match(storefront.reference, /^DG - \d{4}[A-Z]{3}\d{2} - \d{3,}$/);
+  const [, manualDay, manualNumber] = manual.reference.split(' - ');
+  const [, storefrontDay, storefrontNumber] = storefront.reference.split(' - ');
+  assert.equal(Number(storefrontNumber), storefrontDay === manualDay ? Number(manualNumber) + 1 : 1,
+    'Manual and storefront orders share the same daily sequence');
+  console.log('Admin manual-order integration passed: shared daily numbering, auth/origin/strict bounds, server catalog snapshots and negotiated prices, idempotent retries, customer-only history, encrypted delivery and redacted previews, guest preservation and serialized create/delete races.');
 } finally {
   if (server && server.exitCode === null && !server.signalCode) {
     const exited = once(server, 'exit'); server.kill('SIGTERM');

@@ -420,11 +420,12 @@ try {
     items: products.map(product => ({ productId: product.id, planId: 'month', quantity: 1 })), contact };
   const checkout = await json(await mutate('/api/customer/orders', 'POST', cart, alice.cookie), 201);
   assert.equal(checkout.order.lines.length, 6, 'Long valid cart labels cannot roll back checkout because of alert display bounds.');
+  assert.match(checkout.order.reference, /^DG - \d{4}[A-Z]{3}\d{2} - 001$/);
   const newOrder = (await calls()).at(-1);
   assert.equal(newOrder.shared, true);
   assert.equal(newOrder.fields.message_thread_id, 21);
   assert.equal(newOrder.fields.protect_content, true);
-  assert.deepEqual(newOrder.fields.text.split('\n').slice(0, 2), ['🛒 New order', 'Order ID: #' + checkout.id.slice(0, 8).toUpperCase()]);
+  assert.deepEqual(newOrder.fields.text.split('\n').slice(0, 2), ['🛒 New order', 'Order ID: ' + checkout.order.reference]);
   assert.deepEqual(newOrder.fields.entities, [{ type: 'bold', offset: 0, length: '🛒 New order'.length }]);
   assert.match(newOrder.fields.text, /\nOrder time: \d{1,2} [A-Z][a-z]{2,3} \d{4}, \d{2}:\d{2} MMT\nStatus: Pending\n\n/);
   assert.equal(newOrder.fields.text.split('\n\n')[1], 'Customer: ' + alice.name + '\nEmail: ' + alice.email);
@@ -443,16 +444,18 @@ try {
     [{ method: 'telegram-phone', value: '+959777000124' }, 'Telegram phone'],
     [{ method: 'viber-phone', value: '09777000125' }, 'Viber phone'],
   ];
-  let googleOrderId;
+  let googleOrderId, googleOrderReference;
   for (const [googleContact, label] of googleContacts) {
     const googleCheckout = await json(await mutate('/api/customer/orders', 'POST', {
       requestId: randomUUID(), expectedCustomerId: googleSignup.customer.id, items: [cart.items[0]], contact: googleContact,
     }, googleCookie), 201);
     googleOrderId = googleCheckout.id;
+    googleOrderReference = googleCheckout.order.reference;
     const googleOrder = (await calls()).at(-1);
     assert.equal(googleOrder.shared, true);
     assert.equal(googleOrder.fields.message_thread_id, 21);
     assert.equal(googleOrder.fields.protect_content, true);
+    assert.equal(googleOrder.fields.text.split('\n')[1], 'Order ID: ' + googleOrderReference);
     assert.equal(googleOrder.fields.text.split('\n\n')[1], [
       'Customer: Topic Google Fixture',
       'Email: topic-google@example.invalid',
@@ -473,7 +476,8 @@ try {
   }
   const googleFallbackOrder = (await calls()).at(-1);
   assert.equal(googleFallbackOrder.shared, false);
-  assert.match(googleFallbackOrder.fields.text, /^New Digimium order\n/);
+  assert.deepEqual(googleFallbackOrder.fields.text.split('\n').slice(0, 2),
+    ['New Digimium order', 'Order ID: ' + googleOrderReference]);
   assert.doesNotMatch(googleFallbackOrder.fields.text, /Checkout contact:|09777000125/);
 
   const legacyOrder = await seedOrder(telegramSignup.id, 'Queued order fixture', { status: 'approved' });
@@ -531,7 +535,31 @@ try {
   await json(await get('/api/customer/notifications', bob.cookie), 401);
   const sentText = JSON.stringify(await calls());
   assert.doesNotMatch(sentText, /PRIVATE-NOTIFICATION-(?:DELIVERY|PASSWORD)|BOB-PRIVATE-NOTIFICATION|Website fixture|secret@example.invalid/);
-  console.log('Notification integration passed: optional safe buttons/legacy migration/normalized retry, owner-only messages/read state, strict bounded inputs, exact retry/rate limits, separate shared Admin bot topics and record links, validated 3/1-day expiry, transactional leased alerts/retries/deletion, long-cart/astral-name/pool regressions and private-data isolation.');
+
+  const { assignOrderReference } = await import('../hostinger/order-reference.ts');
+  const referenceTransaction = await pool.getConnection();
+  try {
+    await referenceTransaction.beginTransaction();
+    const boundaryOrders = [
+      ['2099-11-26T17:29:59.998Z', 'DG - 2099NOV26 - 001'],
+      ['2099-11-26T17:29:59.999Z', 'DG - 2099NOV26 - 002'],
+      ['2099-11-26T17:30:00.000Z', 'DG - 2099NOV27 - 001'],
+    ];
+    for (const [createdAt, reference] of boundaryOrders) {
+      const id = randomUUID();
+      await referenceTransaction.execute(`INSERT INTO digimium_orders (id, customer_id, request_id, request_hash, created_at, snapshot)
+        SELECT ?, customer_id, ?, ?, ?, snapshot FROM digimium_orders WHERE id = ?`,
+      [id, randomUUID(), randomBytes(32), createdAt, legacyOrder.id]);
+      assert.equal(await assignOrderReference(referenceTransaction, id, new Date(createdAt)), reference,
+        'The counter uses the order timestamp and resets at midnight in Myanmar');
+    }
+  } finally {
+    try { await referenceTransaction.rollback(); } finally { referenceTransaction.release(); }
+  }
+  const [rolledBackCounters] = await db.query("SELECT order_day FROM digimium_order_daily_counters WHERE order_day >= '2099-11-26'");
+  assert.deepEqual(rolledBackCounters, [], 'Rolling back an order transaction rolls back its number allocation');
+
+  console.log('Notification integration passed: order references and Myanmar midnight rollover, optional safe buttons/legacy migration/normalized retry, owner-only messages/read state, strict bounded inputs, exact retry/rate limits, separate shared Admin bot topics and record links, validated 3/1-day expiry, transactional leased alerts/retries/deletion, long-cart/astral-name/pool regressions and private-data isolation.');
 } finally {
   await stop(); if (pool) await pool.end(); await db.end(); await rm(scratch, { recursive: true, force: true });
 }

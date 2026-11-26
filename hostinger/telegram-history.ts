@@ -10,7 +10,7 @@ import { ensureTelegramIdentitySchema } from './telegram-identity';
 import { getPool } from './mysql';
 
 type MetadataRow = RowDataPacket & { id: string; customer_id: string; created_at: string; approved_at: string | null; rejected_at: string | null };
-type TrackingRow = MetadataRow & { snapshot: string; fulfillment: string | null };
+type TrackingRow = MetadataRow & { order_reference: string | null; snapshot: string; fulfillment: string | null };
 type PurchasedLine = { id: string; productName: string; planName: string | null; duration: string; price: string; quantity: number };
 const metadataLimit = 4;
 
@@ -66,7 +66,8 @@ export async function getTelegramHistory(telegramId: string, options: {
   for (let index = 0; index < metadata.length; index++) {
     const position = metadata[index];
     const [details] = await pool.execute<TrackingRow[]>(
-      `SELECT o.id, o.customer_id, o.created_at, o.approved_at, o.rejected_at, o.snapshot, o.fulfillment FROM digimium_orders o
+      `SELECT o.id, o.customer_id, o.created_at, o.approved_at, o.rejected_at, o.order_reference, o.snapshot, o.fulfillment
+       FROM digimium_orders o
        JOIN digimium_telegram_identities t ON t.customer_id = o.customer_id
        WHERE t.telegram_id = ? AND o.id = ?${options.view === 'plans' ? ' AND o.approved_at IS NOT NULL AND o.rejected_at IS NULL' : ''} LIMIT 1`, [telegramId, position.id],
     );
@@ -78,7 +79,8 @@ export async function getTelegramHistory(telegramId: string, options: {
     const take = Math.min(TELEGRAM_HISTORY_PAGE_LINES - page.length, Math.max(0, snapshot.lines.length - start));
     for (const line of snapshot.lines.slice(start, start + take)) {
       const term = terms.get(line.id);
-      page.push({ orderId: row.id, createdAt: row.created_at, status: row.rejected_at ? 'rejected' : approved ? 'approved' : 'pending', totalMmk: snapshot.totalMmk,
+      page.push({ orderId: row.id, orderReference: row.order_reference,
+        createdAt: row.created_at, status: row.rejected_at ? 'rejected' : approved ? 'approved' : 'pending', totalMmk: snapshot.totalMmk,
         productName: line.productName, planName: line.planName, duration: line.duration, price: line.price, quantity: line.quantity,
         startDate: term?.startDate ?? null, endDate: term?.endDate ?? null });
     }

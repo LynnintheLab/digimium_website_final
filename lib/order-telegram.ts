@@ -1,5 +1,6 @@
 import { orderMessages } from './cart-order.ts';
 import type { CommerceCustomer, TelegramOrder } from './commerce-types';
+import { displayOrderReference } from './order-reference.ts';
 import { durationDetail, priceText, type ShopLanguage } from './shop-language.ts';
 
 export type OrderTelegramIdentity = { telegramUsername?: string | null; googleEmail?: string | null };
@@ -12,7 +13,7 @@ export function orderTelegramMessages(order: TelegramOrder, identity: OrderTeleg
   const username = identity.telegramUsername ?? '';
   const googleEmail = identity.googleEmail?.trim() ?? '';
   const header = [
-    '📦 Order ID — #' + order.id.slice(0, 8).toUpperCase(),
+    '📦 Order ID — ' + displayOrderReference(order.id, order.reference),
     /^[A-Za-z0-9_]{5,32}$/.test(username) && '💬 Telegram — @' + username,
     googleEmail && (/@gmail\.com$/i.test(googleEmail) ? '📧 Gmail — ' : '📧 Email — ') + googleEmail,
   ].filter(Boolean).join('\n');

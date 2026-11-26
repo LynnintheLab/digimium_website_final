@@ -40,6 +40,7 @@ export type CommerceOrderLine = {
 
 export type CommerceOrder = {
   id: string;
+  reference?: string;
   customerId: string | null;
   guestName?: string;
   createdAt: string;
@@ -62,7 +63,7 @@ export type OrderFulfillment = {
 
 export type AdminCommerceOrder = CommerceOrder & { checkoutContact?: CheckoutContact };
 
-export type TelegramOrder = Pick<CommerceOrder, 'id' | 'totalMmk'> & {
+export type TelegramOrder = Pick<CommerceOrder, 'id' | 'reference' | 'totalMmk'> & {
   lines: Pick<CommerceOrderLine, 'productName' | 'planName' | 'duration' | 'price' | 'quantity'>[];
 };
 

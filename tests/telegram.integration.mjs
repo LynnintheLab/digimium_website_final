@@ -217,7 +217,9 @@ try {
  await db.execute('UPDATE digimium_orders SET rejected_at=?, customer_note=? WHERE id=?',
   [timestamp(69),'PRIVATE-CUSTOMER-NOTE-SENTINEL',rejectedOrder]);
  await fixtureOrder(own,'A-Multi-Only',{lineCount:5,createdAt:timestamp(65),startDate:day(-10),endDate:day(20)});
- await fixtureOrder(own,'A-Active-Only',{createdAt:timestamp(60),startDate:day(-10),endDate:day(20)});
+ const activeOrder=await fixtureOrder(own,'A-Active-Only',{createdAt:timestamp(60),startDate:day(-10),endDate:day(20)});
+ const activeOrderReference='DG - 2026NOV27 - 003';
+ await db.execute('UPDATE digimium_orders SET order_reference=? WHERE id=?',[activeOrderReference,activeOrder]);
  const sameCreated=timestamp(55);
  await fixtureOrder(own,'A-Tie-Low',{createdAt:sameCreated,orderId:'00000000-0000-4000-8000-000000000000',startDate:day(-10),endDate:day(20)});
  await fixtureOrder(own,'A-Tie-High',{createdAt:sameCreated,orderId:'ffffffff-ffff-4fff-8fff-ffffffffffff',startDate:day(-10),endDate:day(20)});
@@ -232,7 +234,7 @@ try {
  let historyPage=await command('/history',human(undefined,{first_name:'New display name',username:'copied_name'}));
  assert.ok(historyPage);let allHistory=historyPage.fields.text,historyPages=1;
  assert.match(historyPage.fields.text,/A-Pending-Only/);assert.match(historyPage.fields.text,/A-Multi-Only/);
- const rejectedHistory=historyPage.fields.text.split('အော်ဒါ #'+rejectedOrder.slice(0,8).toUpperCase())[1].split('\n\nအော်ဒါ #')[0];
+ const rejectedHistory=historyPage.fields.text.split('အော်ဒါ #'+rejectedOrder.slice(0,8).toUpperCase())[1].split('\n\nအော်ဒါ ')[0];
  assert.match(rejectedHistory,/❌ ငြင်းပယ်ထားသည်/);assert.match(rejectedHistory,/A-Rejected-Only/);
  assert.doesNotMatch(rejectedHistory,/အတည်ပြုရန် စောင့်နေသည်|အတည်ပြုပြီးရင် သက်တမ်းရက်တွေ ပြပါမယ်|စရက် —|ကုန်ရက် —|ရက် ကျန်|▰|▱/);
  while(historyPage.buttons.some(button=>button.text.includes('နောက်ထပ်'))){
@@ -241,6 +243,8 @@ try {
   assert.ok(historyPage);allHistory+='\n'+historyPage.fields.text;
  }
  assert.ok(historyPages>=3);for(const label of ['A-Pending-Only','A-Rejected-Only','A-Active-Only','A-EndsToday-Only','A-Expired-Only','A-Upcoming-Only','A-Undated-Only','A-Long-Only'])assert.ok(allHistory.includes(label),label+' must be reachable');
+ assert.ok(allHistory.includes('အော်ဒါ '+activeOrderReference+' • '),'Telegram history displays the persisted standard order reference');
+ assert.ok(!allHistory.includes('အော်ဒါ #'+activeOrder.slice(0,8).toUpperCase()),'Telegram history uses the old short reference only for legacy orders');
  assert.equal(allHistory.match(/A-Multi-Only/g)?.length,5,'A multi-line order crosses page boundaries without skipping/duplicating lines');
  assert.ok(allHistory.indexOf('A-Tie-High')<allHistory.indexOf('A-Tie-Low'),'Equal timestamps use UUID descending tie-breaks');
  assert.ok(historyPage.buttons.some(button=>button.text==='အစမှ'));

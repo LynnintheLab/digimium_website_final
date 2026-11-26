@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, Eye, EyeOff, LogOut, 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { telegramDraft } from "@/lib/cart-order";
 import { orderTelegramIdentity, orderTelegramMessages } from "@/lib/order-telegram";
+import { displayOrderReference } from "@/lib/order-reference";
 import type { CommerceCustomer as Customer, CommerceOrder, CommerceOrderLine } from "@/lib/commerce-types";
 import type { Product } from "@/lib/catalog";
 import type { ShopLanguage } from "@/lib/shop-language";
@@ -159,7 +160,7 @@ function OrderCard({ order, lang, t, customer, telegram, embedded, products, onC
   const rejected = order.status === "rejected";
   return <article className="customer-order" data-status={order.status}>
     <div className="customer-order-meta">
-      <div><h3>{t("Order", "အော်ဒါ")} <bdi>#{order.id.slice(0, 8).toUpperCase()}</bdi></h3>
+      <div><h3>{t("Order", "အော်ဒါ")} <bdi>{displayOrderReference(order.id, order.reference)}</bdi></h3>
         <time dateTime={order.createdAt}>{formatDate(order.createdAt, lang)}</time></div>
       <span className="customer-order-status">{rejected ? t("Rejected", "ငြင်းပယ်ထားသည်") : approved ? t("Approved", "အတည်ပြုပြီး") : t("Pending", "စောင့်ဆိုင်းဆဲ")}</span>
     </div>
@@ -224,7 +225,7 @@ function PendingPreview({ orders, runningHub, total, lang, t, onClose }: { order
       <div className="customer-pending-item-heading"><strong><bdi>#{order.id.slice(0, 8).toUpperCase()}</bdi></strong><time dateTime={order.createdAt}>{new Intl.DateTimeFormat(lang === "my" ? "my-MM" : "en-GB", { dateStyle: "medium", timeZone: "Asia/Yangon" }).format(new Date(order.createdAt))}</time></div>
       <div className="customer-pending-item-meta"><p>Running HUB API Key</p><strong>{priceText(entry.order.priceMmk.toLocaleString("en-US") + " MMK", lang)}</strong></div><small>{runningHubHistoryStatus(entry.order, t)} <ArrowRight size={13} aria-hidden /></small>
     </a></li>; return <li key={order.id}>
-      <div className="customer-pending-item-heading"><strong><bdi>#{order.id.slice(0, 8).toUpperCase()}</bdi></strong><time dateTime={order.createdAt}>{formatDate(order.createdAt, lang)}</time></div>
+      <div className="customer-pending-item-heading"><strong><bdi>{displayOrderReference(entry.order.id, entry.order.reference)}</bdi></strong><time dateTime={order.createdAt}>{formatDate(order.createdAt, lang)}</time></div>
       <div className="customer-pending-item-meta"><p>{entry.order.lines.slice(0, 2).map(line => line.productName).join(" · ")}{entry.order.lines.length > 2 && <span> +{number(entry.order.lines.length - 2)}</span>}</p>{entry.order.totalMmk !== null && <strong>{priceText(entry.order.totalMmk.toLocaleString("en-US") + " MMK", lang)}</strong>}</div>
     </li>; })}</ul> : <p className="customer-empty">{total === null ? t("Refresh to load all pending orders.", "စောင့်ဆိုင်းဆဲ အော်ဒါအားလုံးကို ဖော်ပြရန် ပြန်ကြည့်ပါ။") : t("No pending orders.", "စောင့်ဆိုင်းဆဲ အော်ဒါ မရှိပါ။")}</p>}
   </section>;

@@ -1,5 +1,6 @@
 import { cleanAdminTelegramValue, formatAdminTelegramNotice, formatAdminTimestamp } from './admin-telegram-message.ts';
 import type { CheckoutContact } from './order-checkout-contact.ts';
+import { displayOrderReference } from './order-reference.ts';
 
 type OrderNoticeLine = {
   productName: string;
@@ -11,6 +12,7 @@ type OrderNoticeLine = {
 
 type OrderNoticeDetails = {
   id: string;
+  reference?: string | null;
   createdAt: string;
   status: 'pending' | 'approved' | 'rejected';
   lines: readonly OrderNoticeLine[];
@@ -35,7 +37,7 @@ export function formatAdminOrderDetailsNotice(order: OrderNoticeDetails) {
   const time = formatAdminTimestamp(order.createdAt);
   const header = [
     order.historical ? '🛒 Order details' : '🛒 New order',
-    'Order ID: #' + order.id.slice(0, 8).toUpperCase(),
+    'Order ID: ' + displayOrderReference(order.id, order.reference),
     time && 'Order time: ' + time,
     'Status: ' + statusLabels[order.status],
   ].filter(Boolean).join('\n');

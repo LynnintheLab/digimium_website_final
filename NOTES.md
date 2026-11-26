@@ -2,7 +2,9 @@
 
 ## Current status
 
-Standard checkout drafts for customers use a short Order ID searchable in Admin, the verified Telegram username when available, and the Google sign-in email when available. The draft lists each unit on its own line for regular orders and uses the order's saved total. The private Orders topic includes the saved checkout contact method and value when a Google-linked buyer provides one.
+New standard orders get a public reference such as `DG - 2026NOV27 - 003`. The sequence starts at `001` each Myanmar calendar day and is shared across storefront and Admin-created standard orders. The saved reference appears in the customer draft, receipt, website history, Telegram history, and private Orders topic, and is searchable in Admin. Existing orders keep their short IDs.
+
+Standard checkout drafts include the verified Telegram username and Google sign-in email when available, purchase lines, and the saved total. The private Orders topic includes the saved checkout contact method and value when a Google-linked buyer provides one.
 
 The private Digimium Admin Orders bot shows the account name, available email and verified Telegram username, Telegram display name for Telegram sign-ups, and registration time in the Account Registration topic. The Orders and Running HUB Orders topics show a labeled Order ID and the original order time. Running HUB receipt and approval messages use the same order reference and time. All timestamps use Myanmar time.
 
@@ -127,6 +129,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Added standard order references and an additive database migration. Verified concurrent issuance, retries, deleted orders, legacy references, transaction rollback, Myanmar midnight rollover, and the customer/Admin projections in disposable fixtures. The Node 24 build, strict lint, typecheck, 105 unit tests, and commerce, Admin orders, notifications, and Telegram integration suites passed.
 
 Updated customer Telegram drafts for new checkouts, saved checkout receipts and pending order history. Added Google checkout contact to the dedicated private Orders alert and verified all three contact methods with fixture data. Node 24 production build, strict lint, typecheck, 104 unit tests, and the commerce and notification integrations passed.
 
@@ -321,6 +325,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+- Confirm the next standard order's saved reference matches between the storefront, Admin Orders, and the private Orders topic during normal production use.
 
 - When the next regular order arrives with a manually entered contact, use the phone number or username shown in Admin → Orders → order details to follow up.
 

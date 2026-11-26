@@ -1,4 +1,5 @@
 import type { TelegramOrder } from './commerce-types';
+import { isOrderReference } from './order-reference.ts';
 
 export const ORDER_RECEIPT_KEY = 'digimium:last-order-receipt:v1';
 export const ORDER_RECEIPT_TTL = 24 * 60 * 60 * 1000;
@@ -48,7 +49,8 @@ export function readOrderReceipt(raw: unknown, now = Date.now()): OrderReceipt |
   }
   const receipt: OrderReceipt = {
     version: 1, savedAt: value.savedAt, customerId: value.customerId,
-    telegram, messages: [...value.messages], order: { id: order.id, totalMmk: order.totalMmk, lines },
+    telegram, messages: [...value.messages],
+    order: { id: order.id, ...(isOrderReference(order.reference) ? { reference: order.reference } : {}), totalMmk: order.totalMmk, lines },
   };
   return JSON.stringify(receipt).length <= ORDER_RECEIPT_MAX_LENGTH ? receipt : null;
 }
