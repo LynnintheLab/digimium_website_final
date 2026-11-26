@@ -2,6 +2,8 @@
 
 ## Current status
 
+Both production Telegram bot profile photos use the original Digimium backgrounds with slightly larger badges. The customer bot has the cyan robot and Admin Orders has the gold shield.
+
 The production Digimium Admin Orders bot has three private topics with the topic sidebar enabled. Orders receives new storefront orders. Running HUB Orders receives new API Key orders, payment receipts and approval confirmations. Account Registration receives new website signups. Standard storefront payment and service delivery continue through the existing workflow. The full website payment and fulfillment rollout stays deferred.
 
 Running HUB checkout requires a signed-in Digimium account. Signed-out buyers can choose Create account or Sign in from checkout. The shared Admin bot sends a private approval confirmation with the order reference and verified Telegram username or a registered email when available.
@@ -99,6 +101,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Enlarged the robot and shield badges about 10–13%. Verified that decoded pixels outside each badge edit match the earlier assets, then updated both Telegram profiles and confirmed their new photos.
 
 Added grouped owner notifications with compact order references, product and plan names, totals and protected Admin links. Telegram checkout drafts show the verified @username if available. The placement response exposes only the Telegram username field. Legacy signed Running HUB approvals still work in their original private chat/topic. Updated the customer login bot and Admin Orders bot profile photos using the Digimium mark with distinct bot badges. The original production webhooks remain active. Node 24 standalone build, typecheck, strict lint, 103 unit tests, and the disposable Running HUB, notifications and commerce integration suites passed.
 
@@ -263,6 +267,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+- Use the updated profile photos as the current source assets for future Telegram profile changes.
 
 - Review the next legitimate signup, ordinary order and Running HUB order in their three private owner topics. Keep the testing website payment and fulfillment upgrade deferred until the owner asks to roll it out.
 
