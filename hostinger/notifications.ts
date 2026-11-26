@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { CommerceError } from '../lib/commerce-http';
 import type { CustomerNotification, CustomerNotificationPage } from '../lib/notification-types';
 import { normalizeNotificationActionLabel, normalizeNotificationActionUrl } from '../lib/notification-action';
+import { customerOrderStages, formatCustomerOrderUpdate, type CustomerOrderStatus } from '../lib/customer-order-status';
 import { getSubscriptionTerm, todayInMyanmar } from '../lib/subscription-term';
 import { getPool } from './mysql';
 import { orderBotActions, orderBotActionSettings, orderBotCallbackData, orderBotTestEnvironment, orderBotTopicKeys, privateTelegramId, type OrderBotActionKind } from './order-bot-actions';
@@ -167,6 +168,28 @@ const deliveryAlert = z.object({
 }).strict();
 const alertSchema = z.discriminatedUnion('kind', [creationAlert, proofAlert, deliveryAlert]);
 export type NotificationAlertInput = z.infer<typeof alertSchema>;
+const customerUpdateSchema = z.object({
+  customerId: uuid, orderId: uuid, stage: z.enum(customerOrderStages), rejected: z.boolean(),
+}).strict();
+const customerUpdateKind = 'customer-order-status';
+
+/** Queue only real website status changes for a verified, linked Telegram identity. */
+export async function enqueueCustomerOrderUpdate(connection: PoolConnection,
+  order: { id: string; customer_id: string | null; guest_key: Buffer | null; revision: number; rejected_at: string | null },
+  stage: CustomerOrderStatus['stage'],
+) {
+  if (!order.customer_id || order.guest_key || !stage || !orderBotActionSettings()) return;
+  const [linked] = await connection.execute<RowDataPacket[]>(
+    'SELECT 1 FROM digimium_telegram_identities WHERE customer_id = ?', [order.customer_id]);
+  if (!linked.length) return;
+  const payload = customerUpdateSchema.parse({ customerId: order.customer_id, orderId: order.id, stage, rejected: !!order.rejected_at });
+  const dedupeKey = customerUpdateKind + ':' + order.id + ':' + String(order.revision).padStart(10, '0');
+  await connection.execute(`INSERT IGNORE INTO digimium_notification_outbox
+    (id, dedupe_key, kind, entity_id, payload, created_at, next_attempt_at)
+    VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+  [randomUUID(), dedupeKey, customerUpdateKind, order.id, JSON.stringify(payload)]);
+  return dedupeKey;
+}
 
 const orderBotKeys = ['ORDER_ALERTS_TELEGRAM_BOT_TOKEN', 'ORDER_ALERTS_TELEGRAM_CHAT_ID', ...Object.values(orderBotTopicKeys)];
 function orderBotRoutingEnabled() {
@@ -327,10 +350,47 @@ async function postReceiptAlert(config: AlertConfig, payload: z.infer<typeof pro
   return !posted && response.status === 400 && Date.now() < deadline ? telegramPosted(await upload('document')) : posted;
 }
 
+async function postCustomerOrderUpdate(token: string, raw: unknown, id: string, deadline: number) {
+  const update = customerUpdateSchema.parse(raw);
+  const [rows] = await getPool().execute<(RowDataPacket & {
+    telegram_id: string; stage: CustomerOrderStatus['stage']; rejected: number; snapshot: string;
+  })[]>(`SELECT t.telegram_id, JSON_UNQUOTE(JSON_EXTRACT(o.checkout_state, '$.stage')) AS stage,
+      (o.rejected_at IS NOT NULL) AS rejected, o.snapshot
+    FROM digimium_orders o JOIN digimium_telegram_identities t ON t.customer_id = o.customer_id
+    JOIN digimium_notification_outbox n ON n.id = ? AND n.cancelled_at IS NULL
+    WHERE o.id = ? AND o.customer_id = ? AND o.guest_key IS NULL AND o.checkout_state IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM digimium_notification_outbox newer WHERE newer.dedupe_key LIKE ?
+        AND newer.dedupe_key > n.dedupe_key)`,
+  [id, update.orderId, update.customerId, customerUpdateKind + ':' + update.orderId + ':%']);
+  const order = rows[0];
+  const recipient = order && privateTelegramId(order.telegram_id);
+  if (!recipient || order.stage !== update.stage || Boolean(order.rejected) !== update.rejected) {
+    return { ok: false, cancellation: 'status-superseded' };
+  }
+  const snapshot: { lines: { productName?: string; planName?: string | null }[] } = JSON.parse(order.snapshot);
+  const items = snapshot.lines.slice(0, 5).map(line => {
+    const plan = cleanAlert(line.planName ?? undefined, 80);
+    return [cleanAlert(line.productName, 120), plan].filter(Boolean).join(' · ');
+  }).filter(Boolean);
+  const response = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
+    method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(formatCustomerOrderUpdate(recipient, { id: update.orderId, stage: update.stage, rejected: update.rejected }, items)),
+    signal: AbortSignal.timeout(Math.max(1, Math.min(2000, deadline - Date.now()))),
+  });
+  // Telegram refuses unsolicited private chats and blocked bots. /start can show the current state later.
+  if (response.status === 403) {
+    await response.body?.cancel();
+    return { ok: false, cancellation: 'chat-unavailable' };
+  }
+  return { ok: await telegramPosted(response), cancellation: null };
+}
+
+type DrainOptions = { limit?: number; budgetMs?: number; dedupeKey?: string };
+
 /** Bounded, leased outbox delivery; invoke only after the creation transaction has committed. */
-export async function drainAdminNotificationAlerts(options: { limit?: number; budgetMs?: number; dedupeKey?: string } = {}) {
+async function drainNotificationAlerts(options: DrainOptions, customerUpdates: boolean) {
   const config = telegramConfiguration();
-  if (!config) return { sent: 0, failed: 0, configured: false };
+  if (!config || (customerUpdates && !config.actions)) return { sent: 0, failed: 0, configured: false };
   await ensureNotifications();
   const limit = Math.min(5, Math.max(1, Math.floor(options.limit ?? 1)));
   const deadline = Date.now() + Math.min(5000, Math.max(250, options.budgetMs ?? 2000));
@@ -343,7 +403,7 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
       await connection.beginTransaction();
       const [rows] = await connection.execute<(RowDataPacket & { id: string; payload: string; attempts: number })[]>(
         `SELECT id, payload, attempts FROM digimium_notification_outbox WHERE sent_at IS NULL AND cancelled_at IS NULL AND attempts < 5
-         AND ${config.actions ? "kind LIKE 'bot:%'" : config.topics
+         AND ${customerUpdates ? "kind = 'customer-order-status'" : config.actions ? "kind LIKE 'bot:%'" : config.topics
     ? "kind IN ('bot:order-created', 'bot:customer-created', 'bot:payment-proof-submitted')" : "kind IN ('order-created', 'customer-created')"}
          ${options.dedupeKey ? 'AND dedupe_key = ?' : ''}
          AND next_attempt_at <= UTC_TIMESTAMP(3) AND (lease_until IS NULL OR lease_until < UTC_TIMESTAMP(3))
@@ -358,26 +418,34 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
     finally { connection.release(); }
     if (!row) break;
     let ok = false;
+    let cancellation: string | null = null;
     try {
-      const payload = alertSchema.parse(JSON.parse(row.payload));
-      const cancellation = await alertCancellation(payload);
-      if (cancellation) {
-        // Erased entities must not cause a delayed alert or retain their copied display data.
-        await getPool().execute(`UPDATE digimium_notification_outbox SET cancelled_at = UTC_TIMESTAMP(3), payload = '{}',
-          lease_token = NULL, lease_until = NULL, last_error = ? WHERE id = ? AND lease_token = ?`, [cancellation, row.id, lease]);
-        continue;
-      }
-      if (config.actions && payload.kind === 'payment-proof-submitted') {
-        ok = await postReceiptAlert(config, payload, row.id, deadline);
+      const raw: unknown = JSON.parse(row.payload);
+      if (customerUpdates) {
+        ({ ok, cancellation } = await postCustomerOrderUpdate(config.token, raw, row.id, deadline));
       } else {
-        ok = await telegramPosted(await fetch('https://api.telegram.org/bot' + config.token + '/sendMessage', {
-        method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: config.chat, text: alertText(payload, Boolean(config.topics)), link_preview_options: { is_disabled: true },
-          ...(config.topics ? { message_thread_id: config.topics[payload.kind], protect_content: true, reply_markup: alertKeyboard(payload, config, row.id) } : {}) }),
-        signal: AbortSignal.timeout(Math.max(1, Math.min(2000, deadline - Date.now()))),
-        }));
+        const payload = alertSchema.parse(raw);
+        cancellation = await alertCancellation(payload);
+        if (!cancellation) {
+          if (config.actions && payload.kind === 'payment-proof-submitted') {
+            ok = await postReceiptAlert(config, payload, row.id, deadline);
+          } else {
+            ok = await telegramPosted(await fetch('https://api.telegram.org/bot' + config.token + '/sendMessage', {
+              method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: config.chat, text: alertText(payload, Boolean(config.topics)), link_preview_options: { is_disabled: true },
+                ...(config.topics ? { message_thread_id: config.topics[payload.kind], protect_content: true, reply_markup: alertKeyboard(payload, config, row.id) } : {}) }),
+              signal: AbortSignal.timeout(Math.max(1, Math.min(2000, deadline - Date.now()))),
+            }));
+          }
+        }
       }
     } catch { /* Store only a fixed error class; never a token, URL, body or provider response. */ }
+    if (cancellation) {
+      // Erased entities and obsolete updates must not retain their copied data or cause a delayed alert.
+      await getPool().execute(`UPDATE digimium_notification_outbox SET cancelled_at = UTC_TIMESTAMP(3), payload = '{}',
+        lease_token = NULL, lease_until = NULL, last_error = ? WHERE id = ? AND lease_token = ?`, [cancellation, row.id, lease]);
+      continue;
+    }
     if (ok) {
       await getPool().execute(`UPDATE digimium_notification_outbox SET sent_at = UTC_TIMESTAMP(3),
         lease_token = NULL, lease_until = NULL, last_error = NULL WHERE id = ? AND lease_token = ?`, [row.id, lease]); sent++;
@@ -388,6 +456,14 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
     }
   }
   return { sent, failed, configured: true };
+}
+
+export function drainAdminNotificationAlerts(options: DrainOptions = {}) {
+  return drainNotificationAlerts(options, false);
+}
+
+export function drainCustomerOrderUpdates(options: DrainOptions = {}) {
+  return drainNotificationAlerts(options, true);
 }
 
 type ExpiryRow = RowDataPacket & { id: string; customer_id: string; guest_key: null; snapshot: string; fulfillment: string | null };
@@ -468,5 +544,9 @@ export async function runScheduledNotifications() {
   const [claimed] = await getPool().execute<ResultSetHeader>(`UPDATE digimium_notification_jobs SET last_run_at = UTC_TIMESTAMP(3)
     WHERE name = 'runner' AND (last_run_at IS NULL OR last_run_at <= DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 30 SECOND))`);
   if (claimed.affectedRows !== 1) throw new CommerceError(429, 'The notification job was run recently. Retry in 30 seconds.');
-  return { expiry: await createExpiryNotifications(), alerts: await drainAdminNotificationAlerts({ limit: 5, budgetMs: 5000 }) };
+  const expiry = await createExpiryNotifications();
+  // The two kinds share the due-row index and use SKIP LOCKED. Drain them in order.
+  const alerts = await drainAdminNotificationAlerts({ limit: 5, budgetMs: 5000 });
+  const customerOrderUpdates = await drainCustomerOrderUpdates({ limit: 5, budgetMs: 5000 });
+  return { expiry, alerts, customerOrderUpdates };
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { test } from 'node:test';
-import { customerOrderStatusCommand, customerOrderStatusLabel, formatCustomerOrderStatus } from '../lib/customer-order-status.ts';
+import { customerOrderStatusCommand, customerOrderStatusLabel, formatCustomerOrderStatus, formatCustomerOrderUpdate } from '../lib/customer-order-status.ts';
 
 const senderId = '9999100000001';
 const id = 'a1234567-abcd-4000-8000-000000000001';
@@ -48,6 +48,17 @@ test('status replies stay bounded, protected and project only safe reference/sta
   for (const button of result.reply_markup.inline_keyboard.flat()) assert.equal(new URL(button.url).origin, 'https://test.buywith-digimium.store');
   const invalid = formatCustomerOrderStatus(senderId, { linked: true, orders: [{ id: 'https://evil.invalid', stage: 'completed' }] });
   assert.doesNotMatch(JSON.stringify(invalid), /evil/);
+});
+
+test('proactive order updates use a private recipient, catalog names and a protected order link', () => {
+  const order = { id, stage: 'awaiting_payment', rejected: false, apiKey: 'key-fixture-must-stay-private' };
+  const update = formatCustomerOrderUpdate(senderId, order, ['Fixture Service API Key · Monthly']);
+  assert.equal(update.chat_id, Number(senderId));
+  assert.equal(update.protect_content, true);
+  assert.equal(update.link_preview_options.is_disabled, true);
+  assert.match(update.text, /#A1234567\nFixture Service API Key · Monthly\n\nPending · ငွေပေးချေရန်/);
+  assert.doesNotMatch(JSON.stringify(update), /key-fixture-must-stay-private|message_thread_id|parse_mode/);
+  assert.equal(update.reply_markup.inline_keyboard[0][0].url, 'https://test.buywith-digimium.store/checkout?order=' + id);
 });
 
 test('unlinked, missing selected order, and empty website history have distinct recovery guidance', () => {

@@ -22,7 +22,7 @@ import type { CatalogSnapshot } from '../lib/storage-types';
 import { ensureCustomerSchema, presentCustomer, type CustomerIdentityRow } from './customer-auth';
 import { limitGuestCheckout } from './guest-checkout';
 import { getPool } from './mysql';
-import { drainAdminNotificationAlerts, enqueueNotificationAlert } from './notifications';
+import { drainAdminNotificationAlerts, drainCustomerOrderUpdates, enqueueCustomerOrderUpdate, enqueueNotificationAlert } from './notifications';
 import { orderBotActionSettings, orderBotTestEnvironment } from './order-bot-actions';
 
 const MAX_ORDER_LINES = 3000;
@@ -199,6 +199,10 @@ export function ensureOrders() {
     schemaReady = undefined;
     throw error;
   });
+}
+
+async function deliverCustomerOrderUpdate(dedupeKey?: string) {
+  if (dedupeKey) await drainCustomerOrderUpdates({ limit: 1, budgetMs: 2000, dedupeKey }).catch(() => {});
 }
 
 // The stable host secret never goes into MySQL. Bind each encrypted delivery to its owner and order.
@@ -526,6 +530,7 @@ export async function createWebsiteOrder(customerId: string, body: unknown): Pro
   let order: CommerceOrder;
   let createdKey: string;
   let readyKey: string | undefined;
+  let customerUpdateKey: string | undefined;
   try {
     await connection.beginTransaction();
     const [customers] = await connection.execute<RowDataPacket[]>('SELECT id, name FROM digimium_customers WHERE id = ? FOR UPDATE', [customerId]);
@@ -560,6 +565,7 @@ export async function createWebsiteOrder(customerId: string, body: unknown): Pro
       totalMmk: snapshot.totalMmk });
     const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ?', [id]);
     readyKey = await enqueueDeliveryReady(connection, rows[0], checkout);
+    customerUpdateKey = await enqueueCustomerOrderUpdate(connection, rows[0], checkout.stage);
     order = presentCheckout(rows[0]);
     await connection.commit();
   } catch (error) {
@@ -568,7 +574,10 @@ export async function createWebsiteOrder(customerId: string, body: unknown): Pro
   } finally {
     connection.release();
   }
-  await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: createdKey }).catch(() => {});
+  await Promise.all([
+    drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: createdKey }).catch(() => {}),
+    deliverCustomerOrderUpdate(customerUpdateKey),
+  ]);
   if (readyKey) await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: readyKey }).catch(() => {});
   return { order, created: true };
 }
@@ -640,11 +649,14 @@ export async function selectOrderPayment(customerId: string, id: string, body: u
   if (!parsed.success || !z.string().uuid().safeParse(id).success) throw new CommerceError(400, 'Choose a payment method and refresh the order.');
   await ensureOrders();
   const connection = await getPool().getConnection();
+  let order: CommerceOrder;
+  let customerUpdateKey: string | undefined;
   try {
     await connection.beginTransaction();
     const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ? AND customer_id = ? FOR UPDATE', [id, customerId]);
     const { row, checkout } = editableWebsiteOrder(rows[0], parsed.data.revision);
     if (!['awaiting_payment', 'payment_rejected'].includes(checkout.stage)) throw new CommerceError(409, 'Payment details can only change before review.');
+    const wasRejected = checkout.stage === 'payment_rejected';
     const snapshot: OrderSnapshot = JSON.parse(row.snapshot);
     if (snapshot.totalMmk === null || snapshot.totalMmk <= 0) throw new CommerceError(409, 'Wait for the order price before choosing payment.');
     const [catalogRows] = await connection.execute<(CatalogSnapshot & RowDataPacket)[]>(
@@ -659,12 +671,15 @@ export async function selectOrderPayment(customerId: string, id: string, body: u
     row.checkout_state = JSON.stringify(checkout);
     row.revision++;
     await connection.execute('UPDATE digimium_orders SET checkout_state = ?, revision = ? WHERE id = ?', [row.checkout_state, row.revision, id]);
+    if (wasRejected) customerUpdateKey = await enqueueCustomerOrderUpdate(connection, row, checkout.stage);
     await connection.commit();
-    return { order: present(row) };
+    order = present(row);
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally { connection.release(); }
+  await deliverCustomerOrderUpdate(customerUpdateKey);
+  return { order };
 }
 
 export async function submitOrderProof(customerId: string, id: string, body: unknown, bytes: Uint8Array<ArrayBuffer>, declaredMime: string) {
@@ -682,6 +697,7 @@ export async function submitOrderProof(customerId: string, id: string, body: unk
   await ensureOrders();
   const connection = await getPool().getConnection();
   let submittedOrder: CommerceOrder;
+  let customerUpdateKey: string | undefined;
   try {
     await connection.beginTransaction();
     const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ? AND customer_id = ? FOR UPDATE', [id, customerId]);
@@ -723,13 +739,17 @@ export async function submitOrderProof(customerId: string, id: string, body: unk
       demo: checkout.payment.method.demo === true,
       proofRequestId: parsed.data.requestId,
     });
+    customerUpdateKey = await enqueueCustomerOrderUpdate(connection, row, checkout.stage);
     submittedOrder = presentCheckout(row);
     await connection.commit();
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally { connection.release(); }
-  await drainAdminNotificationAlerts({ limit: 1, budgetMs: 5000, dedupeKey: alertKey }).catch(() => {});
+  await Promise.all([
+    drainAdminNotificationAlerts({ limit: 1, budgetMs: 5000, dedupeKey: alertKey }).catch(() => {}),
+    deliverCustomerOrderUpdate(customerUpdateKey),
+  ]);
   return { order: submittedOrder };
 }
 
@@ -913,6 +933,7 @@ export async function applyAdminOrderAction(id: string, body: unknown): Promise<
   const connection = await getPool().getConnection();
   let order: CommerceOrder;
   let readyKey: string | undefined;
+  let customerUpdateKey: string | undefined;
   try {
     await connection.beginTransaction();
     const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ', delivery_draft FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
@@ -956,11 +977,15 @@ export async function applyAdminOrderAction(id: string, body: unknown): Promise<
     await connection.execute('INSERT INTO digimium_order_actions (order_id, request_id, request_hash, action, created_at) VALUES (?, ?, ?, ?, ?)',
       [id, input.requestId, hash, input.action, new Date().toISOString()]);
     readyKey = await enqueueDeliveryReady(connection, row, checkout);
+    customerUpdateKey = await enqueueCustomerOrderUpdate(connection, row, checkout.stage);
     order = presentCheckout(row);
     await connection.commit();
   } catch (error) { await connection.rollback(); throw error; }
   finally { connection.release(); }
-  if (readyKey) await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: readyKey }).catch(() => {});
+  await Promise.all([
+    readyKey && drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: readyKey }).catch(() => {}),
+    deliverCustomerOrderUpdate(customerUpdateKey),
+  ]);
   return { order, applied: true };
 }
 
@@ -971,6 +996,7 @@ async function updateWebsiteOrder(id: string, body: unknown, action: unknown) {
   const connection = await getPool().getConnection();
   let order: CommerceOrder;
   let readyKey: string | undefined;
+  let customerUpdateKey: string | undefined;
   try {
     await connection.beginTransaction();
     const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ', delivery_draft FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
@@ -1003,13 +1029,17 @@ async function updateWebsiteOrder(id: string, body: unknown, action: unknown) {
     await connection.execute('UPDATE digimium_orders SET snapshot = ?, checkout_state = ?, revision = ? WHERE id = ?',
       [row.snapshot, row.checkout_state, row.revision, id]);
     readyKey = await enqueueDeliveryReady(connection, row, checkout);
+    customerUpdateKey = await enqueueCustomerOrderUpdate(connection, row, checkout.stage);
     order = present(row);
     await connection.commit();
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally { connection.release(); }
-  if (readyKey) await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: readyKey }).catch(() => {});
+  await Promise.all([
+    readyKey && drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: readyKey }).catch(() => {}),
+    deliverCustomerOrderUpdate(customerUpdateKey),
+  ]);
   return order;
 }
 
@@ -1042,6 +1072,8 @@ export async function saveFulfillment(id: string, body: unknown) {
   if (!input.success) throw new CommerceError(400, 'Check every item’s dates, optional account details and customer note (at most 1,000 characters).');
   await ensureOrders();
   const connection = await getPool().getConnection();
+  let order: CommerceOrder;
+  let customerUpdateKey: string | undefined;
   try {
     await connection.beginTransaction();
     const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
@@ -1049,6 +1081,7 @@ export async function saveFulfillment(id: string, body: unknown) {
     if (!row) throw new CommerceError(404, 'Order not found.');
     if (row.revision !== input.data.revision) throw new CommerceError(409, 'This order changed. Refresh before saving.');
     if (row.rejected_at) throw new CommerceError(409, 'A rejected order cannot be approved. Edit its customer note instead.');
+    const wasApproved = Boolean(row.approved_at);
     const checkout: WebsiteCheckout | undefined = row.checkout_state ? JSON.parse(row.checkout_state) : undefined;
     if (checkout && !await paymentConfirmed(connection, row, checkout)) {
       throw new CommerceError(409, 'Approve the payment before completing this order.');
@@ -1069,17 +1102,19 @@ export async function saveFulfillment(id: string, body: unknown) {
     row.fulfillment = encryptFulfillment(id, fulfillmentOwner(row), lines);
     if (input.data.customerNote !== undefined) row.customer_note = input.data.customerNote;
     row.revision++;
-    const order = present(row);
+    order = present(row);
     await connection.execute('UPDATE digimium_orders SET approved_at = ?, fulfillment = ?, customer_note = ?, revision = ?, checkout_state = ?, delivery_draft = NULL WHERE id = ?',
       [row.approved_at, row.fulfillment, row.customer_note, row.revision, row.checkout_state ?? null, id]);
+    if (!wasApproved && checkout) customerUpdateKey = await enqueueCustomerOrderUpdate(connection, row, checkout.stage);
     await connection.commit();
-    return order;
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally {
     connection.release();
   }
+  await deliverCustomerOrderUpdate(customerUpdateKey);
+  return order;
 }
 
 /** Explicit note edits never approve an order or modify encrypted delivery information. */
@@ -1089,6 +1124,8 @@ async function saveOrderDecision(id: string, body: unknown) {
   if (!input.success) throw new CommerceError(400, 'Enter a valid decision, current revision and customer note of at most 1,000 characters.');
   await ensureOrders();
   const connection = await getPool().getConnection();
+  let order: CommerceOrder;
+  let customerUpdateKey: string | undefined;
   try {
     await connection.beginTransaction();
     const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
@@ -1101,17 +1138,21 @@ async function saveOrderDecision(id: string, body: unknown) {
     }
     if (input.data.customerNote !== undefined) row.customer_note = input.data.customerNote;
     row.revision++;
-    const order = present(row);
+    order = present(row);
     await connection.execute('UPDATE digimium_orders SET rejected_at = ?, customer_note = ?, revision = ? WHERE id = ?',
       [row.rejected_at, row.customer_note, row.revision, id]);
+    if (input.data.action === 'reject' && order.checkout) {
+      customerUpdateKey = await enqueueCustomerOrderUpdate(connection, row, order.checkout.stage);
+    }
     await connection.commit();
-    return order;
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally {
     connection.release();
   }
+  await deliverCustomerOrderUpdate(customerUpdateKey);
+  return order;
 }
 
 /** Older callers still send fulfillment without an action; decisions are explicit new variants. */

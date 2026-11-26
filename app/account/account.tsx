@@ -387,7 +387,9 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
             <button className="customer-signout" type="button" onClick={logout} disabled={loggingOut}><LogOut size={16} aria-hidden />{loggingOut ? t("Signing out…", "ထွက်နေပါတယ်…") : t("Sign out", "အကောင့်ထွက်ရန်")}</button></div>
         </div>
         {!history && <AccountDetails customer={customer} lang={lang} t={t} />}
-        {!embedded && !history && <AccountConnections customer={customer} t={t} onUpdated={setCustomer} />}
+        {!embedded && !history && <AccountConnections customer={customer} t={t} onUpdated={setCustomer}>
+          <OrderTelegramStatus botUrl={orderBotUrl} linked={!!customer.telegram} lang={lang} />
+        </AccountConnections>}
         {!embedded && !history && customer.passwordAvailable !== false && <PasswordForm t={t} onUpdated={setCustomer} onSignedOut={() => { setCustomer(null); setOrders(null); refresh(); }} />}
         {!embedded && !history && customer.passwordAvailable === false && <p className="customer-google-connected">{customer.telegram ? t("Telegram account", "Telegram အကောင့်") : t("Google account", "Google အကောင့်")}</p>}
         {(embedded || history) && !orders && !failed && <p role="status">{t("Loading orders…", "အော်ဒါများကို ဖော်ပြနေပါတယ်…")}</p>}

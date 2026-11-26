@@ -2,3 +2,4 @@
 .order-telegram-status > a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--blue); font-size: .86rem; font-weight: 600; }
 .order-telegram-status > a > span { min-width: 0; overflow-wrap: anywhere; }
 .order-telegram-status a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.order-telegram-status > p { margin: 0; color: var(--account-muted); font-size: .82rem; line-height: 1.8; }

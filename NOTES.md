@@ -2,7 +2,9 @@
 
 ## Current status
 
-Testing order status is available through the dedicated bot for verified Telegram identities. Submitted receipts appear in the owning customer's website order and the owner's private Telegram Payment approval topic. Keep the original uploaded receipt and its metadata for the owner to review. Testing's customer Telegram connection capability currently reports disabled, so fresh linking on the hosted test site remains unverified.
+On testing, verified Telegram customers can open @DigimiumTestingOrdersBot from Account or checkout and press Start to receive order updates. New orders, quote and payment changes, delivery and rejection send a private message with the order reference, product and plan names, status and a protected website link. /status also shows current steps for earlier account-owned orders. The admin bot sends new website signups to Registration, new orders to Orders, and payment receipts to Payment approval. The original receipt and its metadata remain available to the owner.
+
+Testing's customer Telegram connection capability is disabled for new links. Previously verified identities can still use the testing order bot. The staging app does not yet have a configured notification job for retries. Production checkout promotion requires the owner's approval. The production-based Running HUB API Key Telegram heading change is prepared on its own feature branch.
 
 Signed-in website checkout on testing requires one order contact before payment. Telegram is selected by default and customers can choose Viber, Facebook or phone. The chosen contact is encrypted with the order and shown in full order details to the customer and Admin. The guest Telegram purchase path still starts a chat directly. Older orders can be opened without a recorded contact.
 
@@ -99,6 +101,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Added private Telegram updates for the general website checkout on testing. Verified that a hosted synthetic signup (#DCFE2248) and CapCut demo order (#6EC11A3E) generated alerts in the owner's separate Registration and Orders topics. The owner's previously linked Telegram identity received a live /status reply. The hosted browser session used a different, unlinked test account, so the automatic customer message was verified with isolated test data and an intercepted Telegram provider. No payment was submitted for the demo. Node 24 standalone build, typecheck, strict lint, 116 unit tests, the dedicated-bot checkout integration and the shared notifications integration passed. The integration covers retry, stale-event cancellation, separate Admin topics, recipient verification, product names and credential redaction.
 
 The owner confirmed that Admin Telegram should continue to receive the original receipt file, including its metadata. Recorded the decision on the testing branch.
 
@@ -266,7 +270,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Verify a newly linked Telegram customer on the hosted test site after a separate testing customer-login bot is configured. Review the notice about delivery to the private Telegram topic before using the test workflow with real payment screenshots.
+- With a separate testing customer-login bot or an authorized existing linked testing session, place a synthetic order and verify an automatic customer Telegram update on the hosted site. Configure a testing-only notification job to retry transient Telegram failures.
 
 - Use the next authorized testing purchase to confirm staff can use the selected contact from Admin → Orders. Keep production promotion pending the owner's approval.
 

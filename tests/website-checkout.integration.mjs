@@ -83,6 +83,18 @@ const proof = (id, revision, requestId, session, body = png, mime = 'image/png',
 const orderAlerts = () => messages.filter(message => message.type === 'order-alert');
 const alertsFor = (thread, id) => orderAlerts().filter(message => message.fields.message_thread_id === thread &&
   message.fields.text.includes(id.replaceAll('-', '').slice(0, 8).toUpperCase()));
+const customerUpdatesFor = id => messages.filter(message => message.type === 'customer-order-update' &&
+  message.fields.text.includes(id.slice(0, 8).toUpperCase()));
+async function expectCustomerUpdates(id, count) {
+  for (let attempt = 0; attempt < 100 && customerUpdatesFor(id).length < count; attempt++) await delay(10);
+  const updates = customerUpdatesFor(id);
+  assert.equal(updates.length, count);
+  for (const { fields } of updates) {
+    assert.equal(fields.chat_id, 987654330, 'Status goes to the verified owner of the website order');
+    assert.equal(fields.reply_markup.inline_keyboard[0][0].url, applicationOrigin + '/checkout?order=' + id);
+  }
+  return updates.map(update => update.fields.text);
+}
 const actionButton = (thread, orderId, label, index = 0) => {
   const button = alertsFor(thread, orderId)[index].fields.reply_markup.inline_keyboard.flat().find(item => item.text === label);
   assert.ok(button?.callback_data && Buffer.byteLength(button.callback_data) <= 64);
@@ -118,7 +130,7 @@ async function statusReply(response, recipient) {
   assert.equal(reply.protect_content, true);
   return reply;
 }
-async function alertMode(mode) {
+async function alertMode(mode, audience = 'admin') {
   const id = randomUUID();
   await new Promise((resolve, reject) => {
     const received = message => {
@@ -132,7 +144,7 @@ async function alertMode(mode) {
       reject(new Error('The notification fixture did not acknowledge its mode.'));
     }, 5000);
     server.on('message', received);
-    server.send({ type: 'order-alert-control', id, mode });
+    server.send({ type: 'order-alert-control', id, mode, audience });
   });
 }
 async function expectAlerts(thread, id, count) {
@@ -194,6 +206,8 @@ try {
       email: 'private-registration@example.invalid', password: 'private-registration-fixture-password' };
     const registered = await json(await mutate('/api/customer/session', 'POST', registration), 201);
     await expectAlerts(13, registered.customer.id, 1);
+    assert.match(alertsFor(13, registered.customer.id)[0].fields.text, /^New Digimium customer\nAccount #[\dA-F]{8}\nSign-in: email$/i);
+    assert.equal(alertsFor(12, registered.customer.id).length, 0, 'Registrations stay out of the Orders topic');
     await json(await mutate('/api/customer/session', 'POST', { ...registration, action: 'login' }));
     assert.equal(alertsFor(13, registered.customer.id).length, 1, 'Signing in does not create another registration alert');
     const [[registrationOutbox]] = await db.execute('SELECT kind, sent_at FROM digimium_notification_outbox WHERE dedupe_key = ?',
@@ -204,7 +218,7 @@ try {
   const original = await json(await get('/api/admin/catalog', owner));
   const fields = [{ id: 'email', label: 'Service email', type: 'email', required: true },
     { id: 'password', label: 'Service password', type: 'password', required: true }];
-  const product = { ...original.products[0], id: 'checkout-service', published: true, availability: 'available',
+  const product = { ...original.products[0], id: 'checkout-service', name: 'Fixture Service API Key', published: true, availability: 'available',
     checkoutFields: fields, plans: [
       { id: 'monthly', name: 'Monthly', price: '1234 MMK', duration: '1 month', published: true },
       { id: 'provided', name: 'Provided account', price: '2000 MMK', duration: '1 month', published: true, checkoutFields: [] },
@@ -238,6 +252,17 @@ try {
       requestId: randomUUID(), expectedCustomerId: alice.id, expectedCatalogRevision: demoCatalog.revision, contact,
       items: [{ productId: product.id, planId: 'provided', quantity: 1 }],
     }, alice.cookie), 201)).order;
+    if (orderBotMode) {
+      await expectAlerts(12, demoOrder.id, 1);
+      const orderAlert = alertsFor(12, demoOrder.id)[0].fields.text;
+      assert.match(orderAlert, /^New Digimium order\nOrder #/);
+      assert.ok(orderAlert.split('\n').includes('Items: Fixture Service API Key · Provided account × 1'));
+      assert.equal(alertsFor(13, demoOrder.id).length, 0, 'New orders stay out of the Registration topic');
+    }
+    if (orderBotActionMode) {
+      const [pending] = await expectCustomerUpdates(demoOrder.id, 1);
+      assert.match(pending, /Fixture Service API Key · Provided account\n\nPending · ငွေပေးချေရန်/);
+    }
     for (const methodId of ['kpay', 'aya', 'wave', 'binance']) {
       demoOrder = (await json(await mutate(orderPath(demoOrder.id) + '/payment', 'PATCH',
         { revision: demoOrder.revision, methodId }, alice.cookie))).order;
@@ -266,7 +291,6 @@ try {
         accountDetails: { account: 'demo-delivery@example.invalid', password: 'demo-delivery-fixture', manager: '', username: '' } })),
     };
     if (orderBotActionMode) {
-      await expectAlerts(12, demoOrder.id, 1);
       assert.ok(alertsFor(12, demoOrder.id)[0].fields.reply_markup.inline_keyboard.flat().every(button => !button.callback_data));
       const originalReceipt = { hash: createHash('sha256').update(exampleProof).digest('hex'), mime: 'image/png' };
       assert.deepEqual(alertsFor(11, demoOrder.id)[0].receipt, originalReceipt);
@@ -292,6 +316,7 @@ try {
       const command = '/start order_' + demoOrder.id;
       const reviewStatus = await statusReply(await askTelegramStatus(command), 987654330);
       assert.match(reviewStatus.text, /ငွေပေးချေမှု စစ်ဆေးနေသည်/);
+      assert.match((await expectCustomerUpdates(demoOrder.id, 2)).at(-1), /Pending · ငွေပေးချေမှု စစ်ဆေးနေသည်/);
       assert.ok(reviewStatus.reply_markup.inline_keyboard.flat().some(item => item.url.endsWith(demoOrder.id)));
       assert.ok(!(await statusReply(await askTelegramStatus(command, { sender: 987654331 }), 987654331)).text.includes(demoOrder.id.slice(0, 8).toUpperCase()));
       assert.equal(await (await askTelegramStatus(command, { chatId: 987654331 })).text(), '');
@@ -299,6 +324,7 @@ try {
       assert.equal((await askTelegramStatus(command, { secret: 'incorrect-secret' })).status, 403);
       await callbackReply(await clickOrderButton(paymentButton, 11), /Payment approved/);
       await expectAlerts(14, demoOrder.id, 1);
+      assert.match((await expectCustomerUpdates(demoOrder.id, 3)).at(-1), /Pending · ဝန်ဆောင်မှု ပြင်ဆင်နေသည်/);
       const previousSendButton = actionButton(14, demoOrder.id, 'Send order');
       assert.match((await statusReply(await askTelegramStatus('/status'), 987654330)).text, /ဝန်ဆောင်မှု ပြင်ဆင်နေသည်/);
       demoOrder = (await json(await get(adminPath(demoOrder.id) + '?view=status', owner))).order;
@@ -318,8 +344,10 @@ try {
       assert.equal(deliveredOrder.lines[0].accountInfo, 'Optional product note for the customer.');
       const finalStatus = await statusReply(await askTelegramStatus(command), 987654330);
       assert.match(finalStatus.text, /ဝန်ဆောင်မှု ပေးပြီး/);
+      const updates = await expectCustomerUpdates(demoOrder.id, 4);
+      assert.match(updates.at(-1), /Fixture Service API Key · Provided account\n\nPurchased · ဝန်ဆောင်မှု ပေးပြီး/);
       for (const privateValue of ['demo-delivery-fixture', 'demo-delivery@example.invalid', 'Optional product note', demoOrder.customerNote]) {
-        assert.ok(!JSON.stringify({ alerts: alertsFor(14, demoOrder.id), finalStatus }).includes(privateValue));
+        assert.ok(!JSON.stringify({ alerts: alertsFor(14, demoOrder.id), finalStatus, updates }).includes(privateValue));
       }
     } else {
       demoOrder = (await json(await mutate(adminPath(demoOrder.id), 'PATCH',
@@ -404,6 +432,7 @@ try {
   const saved = await Promise.all(concurrent.map(response => json(response, response.status)));
   let order = saved[0].order;
   if (orderBotMode) await expectAlerts(12, order.id, 1);
+  if (orderBotActionMode) await expectCustomerUpdates(order.id, 1);
   assert.equal(saved[1].order.id, order.id);
   assert.equal(order.totalMmk, 2468);
   assert.equal(order.checkout.stage, 'awaiting_payment');
@@ -421,7 +450,7 @@ try {
   assert.equal((await json(await create({ ...input, contact: { method: 'telegram', value: 'https://t.me/Checkout_Contact_Fixture' } }))).order.id, order.id);
   await json(await create({ ...input, contact: { ...contact, value: '@changed_contact_fixture' } }), 409);
   await json(await create({ ...input, contact: undefined }), 409);
-  safe(orderAlerts());
+  safe(messages.filter(message => message.type === 'order-alert' || message.type === 'customer-order-update'));
   await json(await get(orderPath(order.id), bob.cookie), 404);
   await json(await get(adminPath(order.id), alice.cookie), 401);
   safe(await json(await get(orderPath(order.id) + '?view=status', alice.cookie)));
@@ -518,6 +547,7 @@ try {
   order = (await json(await mutate(adminPath(order.id), 'PATCH', { action: 'payment-reject', revision: order.revision, note: 'Please upload a clear receipt.' }, owner))).order;
   assert.equal(order.checkout.stage, 'payment_rejected');
   assert.equal(order.checkout.payment.note, 'Please upload a clear receipt.');
+  if (orderBotActionMode) assert.match((await expectCustomerUpdates(order.id, 3)).at(-1), /Pending · ငွေလွှဲ screenshot ပြန်စစ်ရန်/);
   const replacementId = randomUUID();
   order = (await json(await proof(order.id, order.revision, replacementId, alice.cookie, anotherPng))).order;
   assert.equal(order.checkout.stage, 'payment_review');
@@ -534,6 +564,11 @@ try {
   assert.equal(order.checkout.stage, 'completed');
   assert.equal(order.status, 'approved');
   assert.equal((await json(await get(orderPath(order.id), alice.cookie))).order.lines[0].accountDetails.password, 'delivered-fixture-secret');
+  if (orderBotActionMode) {
+    const updates = await expectCustomerUpdates(order.id, 6);
+    assert.match(updates.at(-1), /Purchased/);
+    assert.doesNotMatch(JSON.stringify(updates), /delivered-fixture-secret|Please upload a clear receipt|Payment checked|fixture-kpay/);
+  }
   const retried = await json(await create());
   assert.equal(retried.order.id, order.id);
   assert.ok(!JSON.stringify(retried).includes('delivered-fixture-secret'), 'Checkout replay never exposes delivery credentials');
@@ -578,6 +613,11 @@ try {
     lines: [{ id: quoted.lines[0].id, unitPriceMmk: 3333 }] }, owner))).order;
   assert.equal(quoted.totalMmk, 6666);
   assert.equal(quoted.checkout.stage, 'awaiting_payment');
+  if (orderBotActionMode) {
+    const updates = await expectCustomerUpdates(quoted.id, 2);
+    assert.match(updates[0], /Pending · ဈေးနှုန်း အတည်ပြုရန် စောင့်နေသည်/);
+    assert.match(updates[1], /Pending · ငွေပေးချေရန်/);
+  }
   const complimentary = (await json(await create({ requestId: randomUUID(), expectedCatalogRevision: catalog.revision,
     items: [{ productId: free.id, planId: null, quantity: 1 }] }), 201)).order;
   assert.equal(complimentary.checkout.stage, 'processing');
@@ -596,6 +636,7 @@ try {
   const removable = await addCustomer('PaymentCascadeFixture');
   let removalOrder = (await json(await create({ requestId: randomUUID(), expectedCustomerId: removable.id, expectedCatalogRevision: catalog.revision,
     items: [{ productId: product.id, planId: 'provided', quantity: 1 }] }, removable.cookie), 201)).order;
+  assert.equal(customerUpdatesFor(removalOrder.id).length, 0, 'An entered Telegram contact does not establish a verified identity');
   removalOrder = (await json(await mutate(orderPath(removalOrder.id) + '/payment', 'PATCH',
     { revision: removalOrder.revision, methodId: 'kpay' }, removable.cookie))).order;
   removalOrder = (await json(await proof(removalOrder.id, removalOrder.revision, randomUUID(), removable.cookie))).order;
@@ -628,6 +669,7 @@ try {
     const retryRevision = retryOrder.revision;
     const retryKey = 'payment-proof-submitted:' + retryOrder.id + ':' + retryProofId;
     await alertMode('http-error');
+    if (orderBotActionMode) await alertMode('http-error', 'customer');
     retryOrder = (await json(await proof(retryOrder.id, retryRevision, retryProofId, alice.cookie))).order;
     assert.equal(retryOrder.checkout.stage, 'payment_review', 'A provider failure cannot discard saved payment proof');
     await expectAlerts(11, retryOrder.id, 1);
@@ -639,8 +681,17 @@ try {
     await json(await proof(retryOrder.id, retryRevision, retryProofId, alice.cookie));
     await expectAlerts(11, retryOrder.id, 1);
     await alertMode('success');
+    if (orderBotActionMode) await alertMode('success', 'customer');
     await db.execute('UPDATE digimium_notification_outbox SET next_attempt_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 SECOND) WHERE dedupe_key = ?', [retryKey]);
-    assert.equal((await runNotificationJob()).alerts.sent, 1);
+    if (orderBotActionMode) await db.execute(`UPDATE digimium_notification_outbox SET next_attempt_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 SECOND)
+      WHERE kind = 'customer-order-status' AND entity_id = ? AND sent_at IS NULL`, [retryOrder.id]);
+    const retryResult = await runNotificationJob();
+    assert.equal(retryResult.alerts.sent, 1);
+    if (orderBotActionMode) {
+      assert.equal(retryResult.customerOrderUpdates.sent, 1);
+      await expectCustomerUpdates(retryOrder.id, 3);
+      assert.deepEqual(customerUpdatesFor(retryOrder.id).map(message => message.delivery), ['success', 'http-error', 'success']);
+    }
     await expectAlerts(11, retryOrder.id, 2);
     [[retryRow]] = await db.execute('SELECT attempts, sent_at, last_error FROM digimium_notification_outbox WHERE dedupe_key = ?', [retryKey]);
     assert.equal(retryRow.attempts, 2);
@@ -652,24 +703,39 @@ try {
     const staleProofId = randomUUID();
     const staleKey = 'payment-proof-submitted:' + retryOrder.id + ':' + staleProofId;
     await alertMode('ok-false');
+    if (orderBotActionMode) await alertMode('ok-false', 'customer');
     retryOrder = (await json(await proof(retryOrder.id, retryOrder.revision, staleProofId, alice.cookie))).order;
     await expectAlerts(11, retryOrder.id, 3);
     const [[falseResponse]] = await db.execute('SELECT sent_at, last_error FROM digimium_notification_outbox WHERE dedupe_key = ?', [staleKey]);
     assert.equal(falseResponse.sent_at, null, 'HTTP 200 with Telegram ok:false remains a failed delivery');
     assert.equal(falseResponse.last_error, 'delivery-failed');
+    if (orderBotActionMode) await alertMode('success', 'customer');
     retryOrder = (await json(await mutate(adminPath(retryOrder.id), 'PATCH',
       { action: 'payment-approve', revision: retryOrder.revision }, owner))).order;
     assert.equal(retryOrder.checkout.stage, 'processing');
     await alertMode('success');
     await db.execute('UPDATE digimium_notification_outbox SET next_attempt_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 SECOND) WHERE dedupe_key = ?', [staleKey]);
+    if (orderBotActionMode) await db.execute(`UPDATE digimium_notification_outbox SET next_attempt_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 SECOND)
+      WHERE kind = 'customer-order-status' AND entity_id = ? AND sent_at IS NULL`, [retryOrder.id]);
     await db.query("UPDATE digimium_notification_jobs SET last_run_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 31 SECOND) WHERE name = 'runner'");
     const callsBeforeCancellation = orderAlerts().length;
-    assert.equal((await runNotificationJob()).alerts.sent, 0);
+    const beforeStaleUpdate = customerUpdatesFor(retryOrder.id).length;
+    const cancelledResult = await runNotificationJob();
+    assert.equal(cancelledResult.alerts.sent, 0);
+    assert.equal(cancelledResult.customerOrderUpdates.sent, 0);
+    assert.equal(customerUpdatesFor(retryOrder.id).length, beforeStaleUpdate, 'A stale customer status never reaches Telegram twice');
     assert.equal(orderAlerts().length, callsBeforeCancellation, 'Already-reviewed proof does not produce a delayed review alert');
     const [[cancelled]] = await db.execute('SELECT cancelled_at, payload, last_error FROM digimium_notification_outbox WHERE dedupe_key = ?', [staleKey]);
     assert.ok(cancelled.cancelled_at);
     assert.equal(cancelled.payload, '{}');
     assert.equal(cancelled.last_error, 'proof-superseded');
+    if (orderBotActionMode) {
+      const [[staleUpdate]] = await db.execute(`SELECT cancelled_at, payload, last_error FROM digimium_notification_outbox
+        WHERE kind = 'customer-order-status' AND entity_id = ? AND cancelled_at IS NOT NULL`, [retryOrder.id]);
+      assert.ok(staleUpdate.cancelled_at);
+      assert.equal(staleUpdate.payload, '{}');
+      assert.equal(staleUpdate.last_error, 'status-superseded');
+    }
 
     const [[legacyAlert]] = await db.execute('SELECT attempts, sent_at FROM digimium_notification_outbox WHERE id = ?', [legacyAlertId]);
     assert.equal(legacyAlert.attempts, 0, 'Dedicated routing never drains the legacy bot queue');
@@ -700,12 +766,40 @@ try {
     assert.ok(orderAlerts().some(alert => alert.fields.message_thread_id === 12));
     assert.equal(orderAlerts().filter(alert => alert.fields.message_thread_id === 13).length, 1);
   }
+  if (orderBotActionMode) {
+    const manualId = randomUUID();
+    await db.execute(`INSERT INTO digimium_orders (id, customer_id, request_id, request_hash, created_at, snapshot)
+      VALUES (?, ?, ?, ?, ?, ?)`, [manualId, alice.id, randomUUID(), randomBytes(32), new Date().toISOString(), oldSnapshot]);
+    const manualStatus = await statusReply(await askTelegramStatus('/start order_' + manualId), 987654330);
+    assert.match(manualStatus.text, /အော်ဒါ အတည်ပြုရန် စောင့်နေသည်/);
+    assert.equal(manualStatus.reply_markup.inline_keyboard.flat().length, 1);
+    assert.equal(new URL(manualStatus.reply_markup.inline_keyboard[0][0].url).pathname, '/order-history');
+    const missing = await statusReply(await askTelegramStatus('/start order_' + manualId, { sender: 987654331 }), 987654331);
+    assert.doesNotMatch(missing.text, new RegExp(manualId.slice(0, 8), 'i'));
+
+    await alertMode('forbidden', 'customer');
+    const unopenedBotOrder = (await json(await create({ requestId: randomUUID(), expectedCatalogRevision: catalog.revision,
+      items: [{ productId: product.id, planId: 'provided', quantity: 1 }] }), 201)).order;
+    await expectCustomerUpdates(unopenedBotOrder.id, 1);
+    const [[unavailable]] = await db.execute(`SELECT cancelled_at, attempts, last_error FROM digimium_notification_outbox
+      WHERE kind = 'customer-order-status' AND entity_id = ?`, [unopenedBotOrder.id]);
+    assert.equal(unavailable.attempts, 1);
+    assert.ok(unavailable.cancelled_at);
+    assert.equal(unavailable.last_error, 'chat-unavailable');
+    const latest = await statusReply(await askTelegramStatus('/start order_' + unopenedBotOrder.id), 987654330);
+    assert.match(latest.text, /ငွေပေးချေရန်/);
+    await alertMode('success', 'customer');
+    await json(await mutate(adminPath(unopenedBotOrder.id), 'PATCH',
+      { action: 'reject', revision: unopenedBotOrder.revision }, owner));
+    assert.match((await expectCustomerUpdates(unopenedBotOrder.id, 2)).at(-1), /Rejected · အော်ဒါ ငြင်းပယ်ထားသည်/);
+  }
   const [[guest]] = await db.execute('SELECT snapshot, fulfillment, checkout_state, customer_inputs FROM digimium_orders WHERE id = ?', [guestId]);
   assert.equal(guest.snapshot, oldSnapshot);
   assert.equal(guest.fulfillment, null);
   assert.equal(guest.checkout_state, null);
   assert.equal(guest.customer_inputs, null);
-  assert.deepEqual(messages.filter(message => !['order-alert', 'order-alert-control'].includes(message.type)).map(message => message.type), ['otp-mail']);
+  assert.deepEqual(messages.filter(message => !['order-alert', 'order-alert-control', 'customer-order-update'].includes(message.type))
+    .map(message => message.type), ['otp-mail']);
   if (!orderBotMode) assert.equal(orderAlerts().length, 0);
   console.log('Website checkout integration passed: old schema/catalog, per-product/plan and unit fields, encryption/redaction, strict auth/origin, retries, quotes, four methods/USDT rate snapshots, private bounded proofs, reject/resubmit/review, fulfillment and deletion cascade.');
 } finally {

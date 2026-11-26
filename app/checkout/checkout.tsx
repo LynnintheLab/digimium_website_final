@@ -291,6 +291,7 @@ export default function Checkout({ lang, orderBotUrl }: { lang: ShopLanguage; or
           <div className="checkout-panel"><h2>{t('Review your order', 'အော်ဒါ ပြန်စစ်ပါ')}</h2>
             <ul className="checkout-summary">{rows.map((row, index) => <li key={index}><div><strong>{row.product.name}</strong><span>{[row.plan && planName(row.plan, lang), t(`Qty ${row.quantity}`, `${row.quantity} ခု`)].filter(Boolean).join(' · ')}</span></div><OfferPrice offer={row.plan || row.product} lang={lang} /></li>)}</ul>
             <div className="customer-total"><span>{t('Order total', 'စုစုပေါင်း')}</span><strong>{total === undefined ? t('Awaiting a quote', 'ဈေးနှုန်း အတည်ပြုရန်') : priceText(`${total.toLocaleString('en-US')} MMK`, lang)}</strong></div>
+            <OrderTelegramStatus botUrl={orderBotUrl} linked={!!customer.telegram} lang={lang} />
           </div>
           <section className="checkout-panel checkout-contact" aria-labelledby="checkout-contact-title">
             <h2 id="checkout-contact-title">{t('How can we reach you?', 'ဘယ်နည်းလမ်းနဲ့ ဆက်သွယ်ရမလဲ?')}</h2>

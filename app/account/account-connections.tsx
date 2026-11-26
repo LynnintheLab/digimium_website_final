@@ -1,7 +1,7 @@
 'use client';
 
 import { Check, Link2, Mail, Send, Settings } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CommerceCustomer } from '../../lib/commerce-types';
 import { useTelegramLogin } from './use-telegram-login';
 import { TelegramLogin } from './telegram-login';
@@ -28,7 +28,7 @@ function ConnectionGuide({ t }: { t: Translate }) {
   </details>;
 }
 
-export function AccountConnections({ customer, onUpdated, t }: { customer: CommerceCustomer; onUpdated: (customer: CommerceCustomer) => void; t: Translate }) {
+export function AccountConnections({ customer, onUpdated, t, children }: { customer: CommerceCustomer; onUpdated: (customer: CommerceCustomer) => void; t: Translate; children?: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const telegram = useTelegramLogin('account', { onSuccess(person) {
     onUpdated(person); setConnected(true);
@@ -46,6 +46,7 @@ export function AccountConnections({ customer, onUpdated, t }: { customer: Comme
     {connected && <p className="account-link-success" role="status"><Check size={17} aria-hidden/>{t('Telegram connected. Your previous orders and plans belong to this same account.', 'Telegram ချိတ်ဆက်ပြီးပါပြီ။ ယခင်အော်ဒါနဲ့ plan တွေ ဒီအကောင့်မှာပဲ ရှိနေပါတယ်။')}</p>}
     {telegram.active && <TelegramLogin login={telegram} t={t}/>}
     {telegram.enabled === false && !methods?.telegram && <p className="account-guide-note">{t('Telegram connection is not available on this environment yet.', 'ဒီ website environment မှာ Telegram ချိတ်ဆက်မှု မဖွင့်ရသေးပါ။')}</p>}
+    {children}
     <ConnectionGuide t={t}/>
   </section>;
 }

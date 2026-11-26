@@ -4,10 +4,10 @@ Use the dedicated bot with the owner’s private Telegram chat on the testing en
 
 | Topic | Workflow |
 | --- | --- |
-| **Orders** | Read new order alerts. |
+| **Orders** | See new orders as soon as the website saves them. Alerts include the order reference, items, total and a protected Admin link. |
 | **Payment approval** | View the submitted website receipt in the private topic and tap **Approve payment**. The protected Admin link opens the same order. |
 | **Order send** | Tap **Send order** after payment approval, or as soon as a zero-total order is ready. Delivery appears in the customer’s website Order History. |
-| **Registration** | Read new customer alerts. |
+| **Registration** | See first-time website account registrations by email, Google or Telegram. Alerts include the account reference, sign-in method and a protected Admin link. |
 
 When a delivery needs account details, open **Add or edit delivery details in Admin** from the Order send alert. Save dates, email, password, username, manager, a per-product note or an order note as needed. After saving, use the newest **Send order** button. The website encrypts delivery details and displays them in the owning customer's Order History. Sending without a draft starts the term on the send date in Myanmar time and uses its saved duration when available.
 
@@ -76,7 +76,9 @@ For **the dedicated testing bot**, configure `setWebhook` with URL `https://test
 
 Buttons bind the owner, private topic and exact proof or delivery draft. An earlier button cannot act on a newer screenshot or a changed draft. Alerts created under the earlier workflow may still show an Approve order button. Review the payment and use the current Send order alert.
 
-Customers with a linked Telegram identity can open **Check this order in Telegram** from checkout or Order History, then press **Start**. `/status` shows the latest current steps for that identity's website orders. The reply includes the order reference, status and a link to its protected website page.
+Customers with a verified linked Telegram identity can open the testing order bot from Account, checkout or Order History and press **Start** once. The bot sends a private message when a website order is created, its payment or quote status changes, it is delivered, or it is rejected. Each message includes the order reference, product and plan names, the current status and a link to the protected website. Delivery credentials and API key values are available in the customer’s website Order History.
+
+Customers can send `/status` at any time to see the current status of their latest orders, including existing orders added by Admin. If the bot could not reach a private chat before **Start**, the command shows the current state and future status changes can arrive automatically. When the testing [notification job](NOTIFICATIONS.md#schedule-every-five-minutes) is configured, it retries recoverable delivery failures. Superseded status updates are discarded.
 
 During implementation, verify routing with intercepted Telegram responses and disposable local data. Record actual hosted delivery separately when the owner authorizes a real alert. The production customer-login configuration continues to use its existing `TELEGRAM_BOT_*` and webhook settings.
 
