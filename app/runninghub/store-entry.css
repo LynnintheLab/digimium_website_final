@@ -1,6 +1,35 @@
-.runninghub-store-entry { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 24px 0; padding: 20px 24px; border: 1px solid var(--brand-line-strong); border-radius: 12px; background: var(--brand-selected); color: var(--ink); }
-.runninghub-store-entry strong { font-size: 20px; font-weight: 600; }
-.runninghub-store-entry p { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 8px; color: var(--muted); font-size: 14px; line-height: 1.8; }
-.runninghub-store-entry > span { display: flex; align-items: center; gap: 10px; color: var(--blue); font-size: 14px; font-weight: 600; }
-.runninghub-store-entry:hover { border-color: var(--blue); background: var(--soft); }
-@media (max-width: 620px) { .runninghub-store-entry { align-items: flex-start; flex-direction: column; padding: 20px 16px; gap: 14px; } .runninghub-store-entry strong { font-size: 18px; } }
+a.runninghub-store-entry {
+  text-decoration: none;
+  border-color: var(--brand-line-strong);
+}
+
+.runninghub-store-mark {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--brand-selected);
+  color: var(--blue);
+}
+
+.runninghub-store-packs {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+
+.runninghub-store-packs > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 8px;
+}
+
+.runninghub-store-packs dd {
+  margin: 0;
+  color: var(--blue);
+  font-weight: 700;
+}

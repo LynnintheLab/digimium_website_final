@@ -19,7 +19,7 @@ import { MobileDock } from "./mobile-dock";
 import { ThemeToggle } from "./theme-toggle";
 import { CustomerNotifications } from "./customer-notifications";
 import { PaymentMethods } from "./payment-methods";
-import { RunningHubEntry } from "./runninghub/store-entry";
+import { RunningHubEntry, runningHubMatchesCatalog } from "./runninghub/store-entry";
 import { GiveawayBanner, GiveawayDetails, GiveawayPromo, useGiveaway } from "./giveaway";
 import type { GiveawayView } from "../lib/giveaway-types";
 import "./storefront-order.css";
@@ -76,6 +76,8 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my', ini
   const browsingAll = all || category !== 0 || terms.length > 0;
   const preview = [...featured, ...matches.filter(product => !product.featured)].slice(0, 8);
   const visible = browsingAll ? matches : preview;
+  const showRunningHub = commerceEnabled && runningHubMatchesCatalog(category, terms);
+  const runningHubCount = Number(showRunningHub);
   const cartLabel = t('Cart', 'ဈေးခြင်း');
 
   const selectDockSection = useCallback((section: 'services' | 'help') => {
@@ -260,31 +262,33 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my', ini
       {commerceEnabled && <GiveawayDetails controller={giveaway} lang={lang}/>}
       <section id="services" className="services wrap" aria-labelledby="services-title">
         <div className="section-heading"><h2 id="services-title">{t('Find your next upgrade', 'သင့်အတွက် ဝန်ဆောင်မှုများ')}{lang === 'en' && <span className="blue">.</span>}</h2></div>
-        {commerceEnabled && <RunningHubEntry lang={lang} />}
         <div className="catalog-tools">
           <div className="filters" role="group" aria-label={t('Filter services', 'အမျိုးအစား ရွေးရန်')}>{categories.map((name, i) => <button key={name} aria-pressed={category === i} onClick={() => { setCategory(i); setAll(i === 0); }}>{i === 0 && <LayoutGrid size={14} />} {categoryName(i, lang)}</button>)}</div>
           <label className="search"><Search size={19} /><input type="search" enterKeyHint="search" autoComplete="off" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} placeholder={t('Find a product or plan', 'Product (သို့) Plan ရှာမယ်')} aria-label={t('Search products and plans', 'Product (သို့) Plan ရှာမယ်')} />{query && <button className="clear-search" type="button" aria-label={t('Clear search', 'ရှာဖွေမှု ရှင်းရန်')} onClick={() => setQuery('')}><X size={18}/></button>}</label>
         </div>
-        <div className="catalog-grid">{visible.map(product => {
-          const firstPlan = product.plans?.find(plan => plan.published);
-          const bestSellerPlan = product.plans?.find(plan => plan.published && plan.bestSeller);
-          const badgeId = product.bestSeller ? `product-badge-${product.id}` : undefined;
-          const summaryId = firstPlan ? `product-summary-${product.id}` : undefined;
-          return <button className="product" type="button" key={product.id} onClick={() => shop.current?.openProduct(product)} aria-label={product.name + ' · ' + t('View plans', 'Plan များ ကြည့်ရန်')}
-            aria-describedby={[badgeId, summaryId].filter(Boolean).join(' ') || undefined}>
-            <div className="product-top"><Mark product={product} />{product.bestSeller && <BestSellerBadge lang={lang} id={badgeId} />}<ArrowUpRight size={20} /></div>
-            <h3>{product.name}</h3><span className="product-category">{categoryName(product.category, lang)}</span>
-            {!hideShortDescriptions && <p>{productDescription(product, lang)}</p>}
-            {firstPlan && summaryId ? <PlanSummary plan={firstPlan} bestSeller={bestSellerPlan} id={summaryId} lang={lang} /> : (product.price || product.duration) && <div className="product-price">
-              <OfferPrice offer={product} lang={lang}/>{product.duration && <span> / {durationText(product.duration, lang)}</span>}
-            </div>}
-            {product.availability === 'unavailable' && <span className="availability availability-unavailable">{t('Currently unavailable', 'လောလောဆယ် မရနိုင်ပါ')}</span>}
-            <span className="product-action">{t('View plans', 'Plan များ ကြည့်ရန်')} <ArrowRight size={15} /></span>
-          </button>;
-        })}</div>
-        {!matches.length && <div className="empty"><Search size={30} /><h3>{t('No matching services', 'ကိုက်ညီသော Product မတွေ့ပါ')}</h3><button className="button secondary" onClick={() => { setQuery(''); setCategory(0); setAll(true); }}>{t('Show all services', 'Product အားလုံး ကြည့်ရန်')}</button></div>}
-        <div className="catalog-footer"><p aria-live="polite" lang="en">{visible.length} of {matches.length} services</p>
-          {category === 0 && !query && matches.length > preview.length && <button className="text-link" onClick={() => setAll(!all)}>{all ? t('Show fewer services', 'Product အနည်းငယ်သာ ပြရန်') : t(`Browse all ${products.length} services`, `Product ${products.length} ခုလုံး ကြည့်ရန်`)}<ChevronDown size={17} className={all ? 'rotate' : ''} /></button>}
+        <div className="catalog-grid">
+          {showRunningHub && <RunningHubEntry lang={lang} />}
+          {visible.map(product => {
+            const firstPlan = product.plans?.find(plan => plan.published);
+            const bestSellerPlan = product.plans?.find(plan => plan.published && plan.bestSeller);
+            const badgeId = product.bestSeller ? `product-badge-${product.id}` : undefined;
+            const summaryId = firstPlan ? `product-summary-${product.id}` : undefined;
+            return <button className="product" type="button" key={product.id} onClick={() => shop.current?.openProduct(product)} aria-label={product.name + ' · ' + t('View plans', 'Plan များ ကြည့်ရန်')}
+              aria-describedby={[badgeId, summaryId].filter(Boolean).join(' ') || undefined}>
+              <div className="product-top"><Mark product={product} />{product.bestSeller && <BestSellerBadge lang={lang} id={badgeId} />}<ArrowUpRight size={20} /></div>
+              <h3>{product.name}</h3><span className="product-category">{categoryName(product.category, lang)}</span>
+              {!hideShortDescriptions && <p>{productDescription(product, lang)}</p>}
+              {firstPlan && summaryId ? <PlanSummary plan={firstPlan} bestSeller={bestSellerPlan} id={summaryId} lang={lang} /> : (product.price || product.duration) && <div className="product-price">
+                <OfferPrice offer={product} lang={lang}/>{product.duration && <span> / {durationText(product.duration, lang)}</span>}
+              </div>}
+              {product.availability === 'unavailable' && <span className="availability availability-unavailable">{t('Currently unavailable', 'လောလောဆယ် မရနိုင်ပါ')}</span>}
+              <span className="product-action">{t('View plans', 'Plan များ ကြည့်ရန်')} <ArrowRight size={15} /></span>
+            </button>;
+          })}
+        </div>
+        {!matches.length && !showRunningHub && <div className="empty"><Search size={30} /><h3>{t('No matching services', 'ကိုက်ညီသော Product မတွေ့ပါ')}</h3><button className="button secondary" onClick={() => { setQuery(''); setCategory(0); setAll(true); }}>{t('Show all services', 'Product အားလုံး ကြည့်ရန်')}</button></div>}
+        <div className="catalog-footer"><p aria-live="polite" lang="en">{visible.length + runningHubCount} of {matches.length + runningHubCount} services</p>
+          {category === 0 && !query && matches.length > preview.length && <button className="text-link" onClick={() => setAll(!all)}>{all ? t('Show fewer services', 'Product အနည်းငယ်သာ ပြရန်') : t(`Browse all ${matches.length + runningHubCount} services`, `Product ${matches.length + runningHubCount} ခုလုံး ကြည့်ရန်`)}<ChevronDown size={17} className={all ? 'rotate' : ''} /></button>}
         </div>
       </section>
       <section id="about" className="about">

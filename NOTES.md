@@ -2,6 +2,8 @@
 
 ## Current status
 
+The production storefront lists Running HUB API Key as the first product card under All services and AI & productivity. Storefront search finds Running HUB, RunningHub and API Key. This card opens the dedicated checkout, with both bundle prices coming from the checkout definitions. The subscription catalog data is separate.
+
 The Main site uses the shared `@DigimiumAdminOrdersBot` connection for private receipt delivery and payment approval. Running HUB is the first connected checkout flow and issues its reserved key when the owner replies with the checked wallet reference. Future website checkout products can use the same bot. See [Admin Orders bot setup](docs/ADMIN-ORDERS-BOT.md).
 
 Running HUB API Key is a separate Hostinger storefront purchase flow on the production branch. It offers 10 USD for 70,000 MMK and 20 USD for 138,000 MMK. Admin can set up KPay and AYA Pay, import encrypted stock, verify original receipts and issue the reserved key by approving payment. Buyers see their assigned key in the Running HUB checkout and can recover it in their dedicated order history. Admin Orders records the customer and issued stock ID. See [Running HUB setup](docs/RUNNINGHUB.md).
@@ -89,6 +91,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Moved the Running HUB purchase entry into the storefront product grid, added category and search matching, and updated the results count and empty state.
 
 Implemented the shared Admin Orders webhook and the isolated Running HUB approval and receipt queue. Disposable integration passed for photo and document delivery, owner/chat/topic checks, receipt and revision binding, replay and payment deduplication, private key delivery, and website Admin approval. Clean Node 24 build, typecheck and strict lint passed.
 
@@ -237,6 +241,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+- Buyers can use Products → Running HUB API Key or open `/runninghub` directly. In a signed-in production check, both packages were unavailable and checkout reported that receiving accounts needed setup. Recheck after valid keys and the receiving accounts are saved.
 
 - Use the shared Digimium Admin Orders bot with the verified store owner's private Telegram chat. The setup helper checks the bot identity and registered webhook. Use a synthetic receipt for local approval checks.
 
