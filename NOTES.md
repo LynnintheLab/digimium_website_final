@@ -2,6 +2,8 @@
 
 ## Current status
 
+Running HUB API Key is a separate Hostinger storefront purchase flow on the production branch. It offers 10 USD for 70,000 MMK and 20 USD for 138,000 MMK. Admin can set up KPay and AYA Pay, import encrypted stock, verify original receipts and issue the reserved key by approving payment. Buyers see their assigned key in the Running HUB checkout and can recover it in their dedicated order history. Admin Orders records the customer and issued stock ID. See [Running HUB setup](docs/RUNNINGHUB.md).
+
 Admin can now record an earlier guest purchase for a selected registered customer through Customers, Customer details or Orders → Create order. The server creates an idempotent pending owner record from the saved catalog revision, allows validated actual whole-MMK unit prices, and keeps every old guest row unchanged. The existing approval editor supplies historical dates, optional encrypted credentials and the customer-visible note. Manual recording sends no checkout/Telegram alert. Clean Node 24 release-source lint (zero warnings), typecheck/build, 103 unit tests, the new manual-order integration and existing commerce/customer-administration integrations pass. Browser checks at 1440px, 390px and 320px cover customer/profile/global entry points, two-line totals, negotiated prices, duplicate validation, historical approval, Telegram-only identity, price-on-request amounts and an offline retry producing only one order. The phone form footer now scrolls below the fields. Native browser testing also found an existing Admin sign-in problem: no-referrer made form POST Origin opaque; Admin pages now use same-origin (external referrers still suppressed), while customer/API responses keep no-referrer and strict missing/null/foreign Origin rejection remains. Local tests used only isolated synthetic data; Kosai Namti and all live records were not touched. Release promotion and bounded hosted verification are next.
 
 The giveaway is postponed and hidden live at the owner's request on 16 November 2026. Release `8d1d847` reached Hostinger Completed/Current on testing and production. Admin → Giveaways offers Hide giveaway / Show giveaway. The live campaign is paused: the public API returns JSON null and browser inspection finds zero banner, promotion or prize/countdown sections. Both existing participants, ownership and the original schedule are preserved; no customer/order/catalog was edited. Production still exposes 51 published products. Account connection copy is neutral. Node 24.22.3 lint/typecheck/build, 103 units and the disposable giveaway integration pass, covering additive migration, auth/origin/revision checks, public null, denied joins and participant/date preservation. The independent OTP Link banner-off release `9290c3f` was uploaded as index.php; its live worker source hash matches the reviewed file. See `docs/GIVEAWAY-PAUSE-QA.md`. Promo artwork omits the postponed giveaway.
@@ -85,6 +87,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Built Running HUB from the production baseline. Tests verified protected receipt access, correct prices, payment-reference deduplication, concurrent reservations, atomic delivery, customer ownership and isolated legacy catalog/order data. Node 24 build, typecheck, strict lint, 103 units, Running HUB integration and legacy Admin orders integration passed. A loopback browser test verified automatic display after simulated approval and the protected Admin stock and receipt screens.
 
 Deployed and verified reversible giveaway visibility, hid the production campaign and disabled the independent OTP banner. Live admin proof shows Paused and Show giveaway; the two original participants and campaign times are unchanged.
 
@@ -229,6 +233,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+- In Admin → Running HUB, save the verified wallet details and import valid keys into the matching bundle to open sales. Both a payment method and available stock are required to create a purchase.
 
 - Keep the production campaign hidden until the owner explicitly resumes it. Before reopening, review the schedule and separately update/enable the OTP banner. Do not invent new campaign dates. The website promo carousel uses payment methods in place of giveaway.
 

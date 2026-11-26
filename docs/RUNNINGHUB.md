@@ -1,0 +1,19 @@
+# Running HUB API Key
+
+Running HUB has its own checkout at `/runninghub` on the Hostinger storefront. It uses the existing website account. The two packs are 10 USD for 70,000 MMK and 20 USD for 138,000 MMK. The checkout supports KPay and AYA Pay.
+
+## Prepare sales
+
+1. Open **Admin → Running HUB → Payment settings**. Save the verified account name and receiving number for each wallet and enable the methods you want to show.
+2. Open **Inventory**, select the matching pack, and enter one valid, funded Running HUB API key per line. Import the keys through this form so the website stores them encrypted. Available stock and a saved payment destination are required before checkout will accept an order.
+3. Confirm the two pack prices and review the purchase flow using synthetic stock and receipts in a disposable local database. Run `npm run build`, then `npm run test:runninghub` with the same empty loopback database setup used by the other Hostinger integrations.
+
+## Review and deliver
+
+The signed-in buyer chooses a pack and wallet. Their order holds one key for 30 minutes while they pay and upload the original receipt. A submitted receipt keeps the key reserved until payment review finishes.
+
+Open a pending receipt in **Admin → Running HUB → Orders**. Check the amount, payee and transaction against the actual wallet record. Enter the transaction reference and approve. Approval and key assignment happen in the same database transaction. A wallet reference can be used once per method. Rejection releases the key for another order.
+
+The customer can open the completed order and copy the assigned key in the same checkout page. Admin Orders shows the customer and assigned stock ID. The Admin reveal control opens the exact key for a single issued order if needed. The regular lists show stock IDs and counts.
+
+The Hostinger app uses the dedicated `hostinger/runninghub-schema.sql` tables with the existing website database, authentication and fulfillment encryption secret. Back up the database and keep that secret available for previously imported stock and delivered keys.

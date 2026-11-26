@@ -3,10 +3,11 @@
 /* Brand assets are served locally, without image optimization. */
 /* eslint-disable @next/next/no-img-element */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleAlert, Eye, EyeOff,
   LayoutGrid, LoaderCircle, LogOut, Mail, Plus, RotateCcw, Save, Search,
-  Settings, ShoppingBag, Sparkles, Users, X, Gift,
+  Settings, ShoppingBag, Sparkles, Users, X, Gift, KeyRound,
 } from 'lucide-react';
 import { categories, type Catalog, type CatalogSettings, type Product } from '@/lib/catalog';
 
@@ -70,6 +71,7 @@ function validateCatalog(catalog: Catalog): ValidationIssue | null {
 }
 
 export default function AdminCatalog({ identity, signOutHref, postSignOut }: { identity: Identity; signOutHref: string; postSignOut: boolean }) {
+  const router = useRouter();
   const [saved, setSaved] = useState<Catalog | null>(null);
   const [draft, setDraft] = useState<Catalog | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -256,6 +258,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
           <button type="button" onClick={() => navigate('orders')} aria-current={view === 'orders' ? 'page' : undefined}><ShoppingBag size={18} />Orders</button>
           <button type="button" onClick={() => navigate('customers')} aria-current={view === 'customers' ? 'page' : undefined}><Users size={18} />Customers</button>
           <button type="button" onClick={() => navigate('giveaway')} aria-current={view === 'giveaway' ? 'page' : undefined}><Gift size={18} />Giveaways</button>
+          <button type="button" onClick={() => { if (uploadPending.current) return; if ((dirty || orderDirty) && !window.confirm('Open Running HUB and discard unsaved changes?')) return; router.push('/admin/runninghub'); }}><KeyRound size={18} />Running HUB</button>
         </>}
         <button type="button" onClick={() => navigate('settings')} aria-current={view === 'settings' ? 'page' : undefined}><Settings size={18} />Contact settings</button>
       </nav>

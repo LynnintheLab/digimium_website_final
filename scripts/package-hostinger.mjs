@@ -11,7 +11,7 @@ await mkdir(join(bundle, 'hostinger'), { recursive: true });
 await mkdir(join(bundle, 'scripts'), { recursive: true });
 await cp('scripts/run-notifications.mjs', join(bundle, 'scripts', 'run-notifications.mjs'));
 await cp('hostinger/data', join(bundle, 'hostinger/data'), { recursive: true });
-for (const schema of ['customer-auth-schema.sql', 'order-schema.sql', 'google-identity-schema.sql', 'google-auth-schema.sql', 'telegram-identity-schema.sql', 'telegram-auth-schema.sql', 'giveaway-schema.sql', 'notification-schema.sql']) {
+for (const schema of ['customer-auth-schema.sql', 'order-schema.sql', 'google-identity-schema.sql', 'google-auth-schema.sql', 'telegram-identity-schema.sql', 'telegram-auth-schema.sql', 'giveaway-schema.sql', 'notification-schema.sql', 'runninghub-schema.sql']) {
   await cp(join('hostinger', schema), join(bundle, 'hostinger', schema));
 }
 

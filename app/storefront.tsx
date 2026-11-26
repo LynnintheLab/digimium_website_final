@@ -19,6 +19,7 @@ import { MobileDock } from "./mobile-dock";
 import { ThemeToggle } from "./theme-toggle";
 import { CustomerNotifications } from "./customer-notifications";
 import { PaymentMethods } from "./payment-methods";
+import { RunningHubEntry } from "./runninghub/store-entry";
 import { GiveawayBanner, GiveawayDetails, GiveawayPromo, useGiveaway } from "./giveaway";
 import type { GiveawayView } from "../lib/giveaway-types";
 import "./storefront-order.css";
@@ -259,6 +260,7 @@ export default function Storefront({ initialCatalog, initialLanguage = 'my', ini
       {commerceEnabled && <GiveawayDetails controller={giveaway} lang={lang}/>}
       <section id="services" className="services wrap" aria-labelledby="services-title">
         <div className="section-heading"><h2 id="services-title">{t('Find your next upgrade', 'သင့်အတွက် ဝန်ဆောင်မှုများ')}{lang === 'en' && <span className="blue">.</span>}</h2></div>
+        {commerceEnabled && <RunningHubEntry lang={lang} />}
         <div className="catalog-tools">
           <div className="filters" role="group" aria-label={t('Filter services', 'အမျိုးအစား ရွေးရန်')}>{categories.map((name, i) => <button key={name} aria-pressed={category === i} onClick={() => { setCategory(i); setAll(i === 0); }}>{i === 0 && <LayoutGrid size={14} />} {categoryName(i, lang)}</button>)}</div>
           <label className="search"><Search size={19} /><input type="search" enterKeyHint="search" autoComplete="off" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} placeholder={t('Find a product or plan', 'Product (သို့) Plan ရှာမယ်')} aria-label={t('Search products and plans', 'Product (သို့) Plan ရှာမယ်')} />{query && <button className="clear-search" type="button" aria-label={t('Clear search', 'ရှာဖွေမှု ရှင်းရန်')} onClick={() => setQuery('')}><X size={18}/></button>}</label>
