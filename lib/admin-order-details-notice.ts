@@ -1,4 +1,5 @@
 import { cleanAdminTelegramValue, formatAdminTelegramNotice, formatAdminTimestamp } from './admin-telegram-message.ts';
+import type { CheckoutContact } from './order-checkout-contact.ts';
 
 type OrderNoticeLine = {
   productName: string;
@@ -17,12 +18,18 @@ type OrderNoticeDetails = {
   customerName?: string | null;
   customerEmail?: string | null;
   telegramUsername?: string | null;
+  checkoutContact?: CheckoutContact | null;
   guest?: boolean;
   historical?: boolean;
 };
 
 const messageLimit = 3500;
 const statusLabels = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' };
+const checkoutContactLabels = {
+  'telegram-username': 'Telegram username',
+  'telegram-phone': 'Telegram phone',
+  'viber-phone': 'Viber phone',
+};
 
 export function formatAdminOrderDetailsNotice(order: OrderNoticeDetails) {
   const time = formatAdminTimestamp(order.createdAt);
@@ -35,8 +42,13 @@ export function formatAdminOrderDetailsNotice(order: OrderNoticeDetails) {
   const name = order.guest ? 'Guest' : cleanAdminTelegramValue(order.customerName, 100);
   const email = order.guest ? '' : cleanAdminTelegramValue(order.customerEmail, 254);
   const username = !order.guest && /^[A-Za-z0-9_]{5,32}$/.test(order.telegramUsername ?? '') ? order.telegramUsername : '';
-  const buyer = [name && 'Customer: ' + name, email && 'Email: ' + email, username && 'Telegram: @' + username]
-    .filter(Boolean).join('\n');
+  const contact = order.guest ? null : order.checkoutContact;
+  const buyer = [
+    name && 'Customer: ' + name,
+    email && 'Email: ' + email,
+    username && 'Telegram: @' + username,
+    contact && 'Checkout contact: ' + checkoutContactLabels[contact.method] + ' · ' + contact.value,
+  ].filter(Boolean).join('\n');
   const total = 'Total: ' + (order.totalMmk == null ? 'Price on request' : order.totalMmk.toLocaleString('en-US') + ' MMK');
 
   // Keep every rendered item complete, with space for the total and an omission notice for very large carts.

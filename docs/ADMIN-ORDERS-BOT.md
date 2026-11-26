@@ -10,7 +10,9 @@ Use [Digimium Admin Orders](https://t.me/DigimiumAdminOrdersBot) as the private 
 
 Each alert starts with one icon and a bold heading. The account or order ID and original timestamp are grouped at the top. The relevant account or order details follow underneath.
 
-Website Telegram order drafts show the customer's verified `@username` if available. The order reference can be used to look up the record in Admin.
+The customer’s Telegram draft shows the short Order ID searchable in Admin, a verified Telegram username when available, and the email linked to Google sign-in when available. Each purchased unit has its own line for regular-size orders, followed by the saved total.
+
+The private Orders topic shows the checkout contact method and saved value for Google-linked customers who supplied a Telegram username, Telegram phone number, or Viber phone number.
 
 Enable Threaded mode and the topic sidebar for the dedicated bot in Telegram. Create the topics in the store owner's existing private chat and retain their IDs. Keep `callback_query_mode` set to `default` for the existing approval buttons. [Telegram bot settings](https://core.telegram.org/bots/api#setmysettings)
 

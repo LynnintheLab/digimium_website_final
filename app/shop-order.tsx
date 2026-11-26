@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { ArrowUpRight, Check, CheckCircle2, Copy, Minus, Plus, RefreshCw, ShoppingBag, Trash2, X } from 'lucide-react';
 import type { Product } from '../lib/catalog';
 import { CART_KEY, orderMessages, resolveOrder, restoreCart, sameItem, telegramDraft, totalMmk, withSelection, type CartItem, type OrderLine } from '../lib/cart-order';
-import { orderTelegramMessages } from '../lib/order-telegram';
+import { orderTelegramIdentity, orderTelegramMessages, type OrderTelegramIdentity } from '../lib/order-telegram';
 import type { CommerceCustomer, TelegramCheckout, TelegramOrder } from '../lib/commerce-types';
 import type { CheckoutContact } from '../lib/order-checkout-contact';
 import { ORDER_RECEIPT_KEY, createOrderReceipt, parseOrderReceipt, receiptCanResume, type OrderReceipt } from '../lib/order-receipt';
@@ -26,12 +26,16 @@ type Locale = 'en' | 'my';
 export type ShopOrderHandle = { openProduct(product: Product, planId?: string): void; openCart(): void };
 type Props = { products: Product[]; lang: Locale; telegram: string; hideShortDescriptions?: boolean; onCountChange: (count: number) => void; onOpenChange?: (open: boolean) => void };
 type Screen = 'product' | 'cart' | 'contact' | 'auth' | 'guest' | 'handoff' | null;
-type CheckoutIdentity = Pick<CommerceCustomer, 'id' | 'telegram' | 'signInMethods'>;
-type CheckoutSession = { status: 'signed-in'; customerId: string; telegramLinked: boolean } |
+type CheckoutIdentity = Pick<CommerceCustomer, 'id' | 'email' | 'telegram' | 'signInMethods'>;
+type CheckoutSession = { status: 'signed-in'; customerId: string; telegramLinked: boolean; draftIdentity: OrderTelegramIdentity } |
   { status: 'checking' | 'signed-out' | 'failed'; customerId: null };
 
 function signedInSession(customer: CheckoutIdentity): Extract<CheckoutSession, {status: 'signed-in'}> {
-  return {status: 'signed-in', customerId: customer.id, telegramLinked: Boolean(customer.telegram?.id || customer.signInMethods?.telegram === true)};
+  return {
+    status: 'signed-in', customerId: customer.id,
+    telegramLinked: Boolean(customer.telegram?.id || customer.signInMethods?.telegram === true),
+    draftIdentity: orderTelegramIdentity(customer),
+  };
 }
 
 function orderDescription({product, plan}: OrderLine, lang: Locale) {
@@ -151,11 +155,12 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   const clearHandoff = useCallback(() => {
     setHandoff([]); setOrderId(''); setHandoffOwner(null); setHandoffOrder(null); setGuestOrder(false);
   }, []);
-  const showReceipt = useCallback((receipt: OrderReceipt) => {
-    setHandoff(receipt.messages); setHandoffContact(receipt.telegram); setOrderId(receipt.order.id);
+  const showReceipt = useCallback((receipt: OrderReceipt, identity: OrderTelegramIdentity = {}) => {
+    setHandoff(orderTelegramMessages(receipt.order, identity, lang));
+    setHandoffContact(receipt.telegram); setOrderId(receipt.order.id);
     setGuestOrder(receipt.customerId === null); setHandoffOwner(receipt.customerId); setHandoffOrder(receipt.order);
     setCopyStatus('idle'); setOrderError(''); setScreen('handoff');
-  }, []);
+  }, [lang]);
   const resumeReceipt = useCallback(async () => {
     const sequence = ++receiptRead.current;
     let receipt: OrderReceipt | null = null;
@@ -166,12 +171,12 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     const identity = await checkSession();
     if (!live.current || sequence !== receiptRead.current) return;
     if (identity.status === 'failed') return;
-    if (!receiptCanResume(receipt, identity.customerId, telegram)) {
+    if (identity.status !== 'signed-in' || !receiptCanResume(receipt, identity.customerId, telegram)) {
       forgetReceipt(); clearHandoff(); setScreen('cart');
       setOrderError(lang === 'my' ? 'သိမ်းထားတဲ့ အော်ဒါကို ကြည့်ရန် မူလအကောင့်ဖြင့် ဝင်ပါ။' : 'Sign in with the original account to view its saved order.');
       return;
     }
-    showReceipt(receipt);
+    showReceipt(receipt, identity.draftIdentity);
   }, [checkSession, clearHandoff, forgetReceipt, lang, showReceipt, telegram]);
   const initialized = useRef(false);
   const initialCheckout = useRef<boolean | null>(null);
@@ -416,7 +421,9 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       }
       if (!response.ok || typeof data.id !== 'string' || !data.order || data.order.id !== data.id || !data.customer ||
         (data.customer.guest === true ? data.customerId !== null : typeof data.customerId !== 'string' || !/^[0-9a-f-]{36}$/i.test(data.customerId))) throw new Error(data.error || '');
-      const messages = orderTelegramMessages(data.order, data.customer, lang);
+      const messages = orderTelegramMessages(data.order, data.customer.guest ? {} : {
+        telegramUsername: data.customer.telegram?.username, googleEmail: data.customer.googleEmail,
+      }, lang);
       const sellerContact = telegramDraft(data.telegram, '') ? data.telegram : telegram;
       const url = telegramDraft(sellerContact, messages[0]);
       const receipt = createOrderReceipt({customerId: data.customerId, telegram: sellerContact, messages, order: data.order});

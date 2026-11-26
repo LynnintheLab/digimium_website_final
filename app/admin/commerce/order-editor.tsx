@@ -112,7 +112,7 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
         <dt><contactMethod.Icon size={16} aria-hidden />{contactMethod.label}</dt>
         <dd dir="ltr">{checkoutContact.value}</dd>
       </dl>}
-      {pending && <p>{order.customerId === null ? 'Match the order reference with the Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.' : customer?.telegram ? 'Match the order reference and Telegram username if one is shown. Confirm payment and deliver access in that chat, then approve the dates here.' : 'Match the reference, name and email with the customer’s Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.'}</p>}
+      {pending && <p>Match the Order ID in the customer’s Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.</p>}
       {rejected && <p>This order was rejected. You can update the customer note; no subscription dates or account details are assigned.</p>}
     </div>
     <form onSubmit={submit}>

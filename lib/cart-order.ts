@@ -63,17 +63,18 @@ function telegramTextQuery(text: string) {
 }
 
 // Keep whole order lines together. Leave room for the part number in each message.
-export function orderMessages(header: string, rows: string[], finalLine: string, partLabel: (index: number, total: number) => string) {
+export function orderMessages(header: string, rows: string[], finalLine: string, partLabel: (index: number, total: number) => string, headerSeparator = '\n') {
   const batches: string[][] = [[]];
-  let used = header.length + 2;
+  let used = header.length + headerSeparator.length + 1;
   // Myanmar glyphs use several percent-encoded bytes in a DM link.
-  let encoded = telegramTextQuery(header).length;
+  const headerSize = telegramTextQuery(header + headerSeparator).length;
+  let encoded = headerSize;
   for (const row of [...rows, finalLine].filter(Boolean)) {
     const rowSize = telegramTextQuery(row).length + 3;
     if (batches[batches.length - 1].length && (used + row.length + 1 > 3200 || encoded + rowSize > 7000)) {
       batches.push([]);
-      used = header.length + 2;
-      encoded = telegramTextQuery(header).length;
+      used = header.length + headerSeparator.length + 1;
+      encoded = headerSize;
     }
     batches[batches.length - 1].push(row);
     used += row.length + 1;
@@ -81,7 +82,7 @@ export function orderMessages(header: string, rows: string[], finalLine: string,
   }
   return batches.map((batch, index) => {
     const title = batches.length === 1 ? header : `${header} (${partLabel(index + 1, batches.length)})`;
-    return [title, ...batch].join('\n');
+    return batch.length ? title + headerSeparator + batch.join('\n') : title;
   });
 }
 

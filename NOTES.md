@@ -2,6 +2,8 @@
 
 ## Current status
 
+Standard checkout drafts for customers use a short Order ID searchable in Admin, the verified Telegram username when available, and the Google sign-in email when available. The draft lists each unit on its own line for regular orders and uses the order's saved total. The private Orders topic includes the saved checkout contact method and value when a Google-linked buyer provides one.
+
 The private Digimium Admin Orders bot shows the account name, available email and verified Telegram username, Telegram display name for Telegram sign-ups, and registration time in the Account Registration topic. The Orders and Running HUB Orders topics show a labeled Order ID and the original order time. Running HUB receipt and approval messages use the same order reference and time. All timestamps use Myanmar time.
 
 Registration, new-order, receipt and approval alerts start with one icon and a bold heading, followed by the ID, original timestamp and grouped details.
@@ -125,6 +127,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Updated customer Telegram drafts for new checkouts, saved checkout receipts and pending order history. Added Google checkout contact to the dedicated private Orders alert and verified all three contact methods with fixture data. Node 24 production build, strict lint, typecheck, 104 unit tests, and the commerce and notification integrations passed.
 
 Reposted five historical standard orders from the owner's screenshot and one consolidated Running HUB order on November 27, 2026. Verified six protected messages in their correct Telegram topics with the original timestamps and saved prices. Tested the detailed Orders template, queued orders, account and guest handling, and notification privacy in a disposable fixture. Node 24 build, typecheck, strict lint and 103 unit tests passed.
 

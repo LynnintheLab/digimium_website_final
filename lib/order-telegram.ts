@@ -1,25 +1,37 @@
 import { orderMessages } from './cart-order.ts';
-import type { TelegramCheckout, TelegramOrder } from './commerce-types';
+import type { CommerceCustomer, TelegramOrder } from './commerce-types';
 import { durationDetail, priceText, type ShopLanguage } from './shop-language.ts';
 
-export function orderTelegramMessages(order: TelegramOrder, customer: TelegramCheckout['customer'], lang: ShopLanguage): string[] {
-  const my = lang === 'my';
+export type OrderTelegramIdentity = { telegramUsername?: string | null; googleEmail?: string | null };
+
+export function orderTelegramIdentity(customer: Pick<CommerceCustomer, 'telegram' | 'email' | 'signInMethods'>): OrderTelegramIdentity {
+  return { telegramUsername: customer.telegram?.username, googleEmail: customer.signInMethods?.google ? customer.email : undefined };
+}
+
+export function orderTelegramMessages(order: TelegramOrder, identity: OrderTelegramIdentity, lang: ShopLanguage): string[] {
+  const username = identity.telegramUsername ?? '';
+  const googleEmail = identity.googleEmail?.trim() ?? '';
   const header = [
-    my ? 'မင်္ဂလာပါ Digimium၊ ဒီဝန်ဆောင်မှုတွေကို မှာယူချင်ပါတယ်။' : 'Hi Digimium, I’d like to order the following.',
-    (my ? 'အော်ဒါအမှတ်' : 'Order') + ' #' + order.id.toUpperCase(),
-    customer.guest || !customer.telegram
-      ? customer.name && (customer.guest ? (my ? 'နာမည်' : 'Name') : (my ? 'အကောင့်နာမည်' : 'Account name')) + ' — ' + customer.name
-      : customer.telegram.username && 'Telegram — @' + customer.telegram.username,
-    customer.guest ? (my ? 'အကောင့်မသုံးဘဲ မှာယူခြင်း' : 'Guest order')
-      : !customer.telegram && customer.email ? (my ? 'အီးမေးလ်' : 'Email') + ' — ' + customer.email : '',
+    '📦 Order ID — #' + order.id.slice(0, 8).toUpperCase(),
+    /^[A-Za-z0-9_]{5,32}$/.test(username) && '💬 Telegram — @' + username,
+    googleEmail && (/@gmail\.com$/i.test(googleEmail) ? '📧 Gmail — ' : '📧 Email — ') + googleEmail,
   ].filter(Boolean).join('\n');
-  const rows = order.lines.map(line => {
-    const duration = durationDetail(line.duration, line.planName || '', lang);
-    const offer = [line.productName, line.planName, duration].filter(Boolean).join(' · ');
-    return line.quantity + ' × ' + offer + ' — ' + priceText(line.price, lang);
+  // Keep large bulk orders bounded while still representing the exact purchased quantity.
+  const repeatUnits = order.lines.reduce((sum, line) => sum + line.quantity, 0) <= 3000;
+  const rows = order.lines.flatMap(line => {
+    const product = line.productName.trim();
+    const plan = line.planName?.trim();
+    const lowerProduct = product.toLowerCase();
+    const lowerPlan = plan?.toLowerCase();
+    const planStartsWithProduct = lowerPlan === lowerProduct || lowerPlan?.startsWith(lowerProduct + ' ');
+    const title = plan && planStartsWithProduct ? plan : [product, plan].filter(Boolean).join(' · ');
+    const duration = durationDetail(line.duration, title, lang);
+    const offer = [title, duration].filter(Boolean).join(' · ');
+    const row = offer + ' — ' + priceText(line.price, lang);
+    if (repeatUnits) return Array<string>(line.quantity).fill(row);
+    return [line.quantity === 1 ? row : line.quantity.toLocaleString('en-US') + ' × ' + row];
   });
-  const total = order.totalMmk === null
-    ? my ? 'စုစုပေါင်းဈေးနှုန်းကို အတည်ပြုပေးပါ။' : 'Please confirm the total price.'
-    : (my ? 'စုစုပေါင်း — ' : 'Total — ') + priceText(order.totalMmk.toLocaleString('en-US') + ' MMK', lang);
-  return orderMessages(header, rows, total, (part, count) => my ? `အပိုင်း ${part} / ${count}` : `Part ${part} of ${count}`);
+  const total = '\n─────\n\n🧾 Total — ' + priceText(order.totalMmk === null ? '' : order.totalMmk.toLocaleString('en-US') + ' MMK', lang);
+  return orderMessages(header, rows, total, (part, count) => lang === 'my'
+    ? 'အပိုင်း ' + part + ' / ' + count : 'Part ' + part + ' of ' + count, '\n\n');
 }

@@ -469,18 +469,26 @@ try {
   const googleOnlyCookie = 'digimium_local_customer=' + googleOnlyToken;
   await db.execute('INSERT INTO digimium_customers (id, name, email, password_hash, created_at) VALUES (?, ?, ?, NULL, UTC_TIMESTAMP())',
     [googleOnlyId, 'Google customer fixture', googleOnlyEmail]);
+  await db.execute('INSERT INTO digimium_google_identities (google_sub, customer_id, created_at) VALUES (?, ?, UTC_TIMESTAMP())',
+    ['checkout-google-fixture', googleOnlyId]);
   await db.execute('INSERT INTO digimium_customer_sessions (token_hash, customer_id, expires_at) VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 HOUR))',
     [createHash('sha256').update(googleOnlyToken).digest(), googleOnlyId]);
   assert.deepEqual(await json(await mutate(customerEmailStep, 'POST', { email: googleOnlyEmail })), { next: 'google' });
   const googleOnlySession = await json(await get(customerSession, googleOnlyCookie));
   assert.equal(googleOnlySession.customer.id, googleOnlyId);
   assert.equal(googleOnlySession.customer.passwordAvailable, false);
+  assert.equal(googleOnlySession.customer.signInMethods.google, true);
   assert.ok(!Object.hasOwn(googleOnlySession.customer, 'password_hash'));
   assert.equal((await mutate(customerSession, 'POST', { action: 'login', email: googleOnlyEmail, password: randomUUID() })).status, 401);
   assert.deepEqual(await json(await mutate(customerSession, 'PATCH', { currentPassword: 'not-a-real-password', newPassword: randomUUID() }, googleOnlyCookie), 400),
     { error: 'provider_password' });
+  const googleCheckout = await json(await submit({ requestId: randomUUID(), items: [custom],
+    expectedCustomerId: googleOnlyId, contact: { method: 'viber-phone', value: '09777000222' } }, googleOnlyCookie), 201);
+  assert.equal(googleCheckout.customer.googleEmail, googleOnlyEmail);
+  assert.doesNotMatch(JSON.stringify(googleCheckout), /09777000222|checkout-google-fixture/);
   await json(await mutate(customerSession, 'DELETE', {}, googleOnlyCookie));
   assert.equal((await json(await get(customerSession, googleOnlyCookie))).customer, null);
+  await db.execute('DELETE FROM digimium_orders WHERE id = ?', [googleCheckout.id]);
   await db.execute('DELETE FROM digimium_customers WHERE id = ?', [googleOnlyId]);
 
   // Telegram customers retain real account ownership/history with no fabricated email or password.

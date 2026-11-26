@@ -70,7 +70,11 @@ export async function POST(request: Request) {
     }
     const result = await submitOrder(customer, body);
     return commerceJson({ id: result.order.id, customerId: result.customerId, order: result.order, telegram: result.telegram,
-      customer: { name: customer.name, email: customer.email, ...(customer.telegram ? { telegram: { username: customer.telegram.username } } : {}) } }, result.created ? 201 : 200);
+      customer: {
+        name: customer.name, email: customer.email,
+        ...(customer.signInMethods?.google && customer.email ? { googleEmail: customer.email } : {}),
+        ...(customer.telegram ? { telegram: { username: customer.telegram.username } } : {}),
+      } }, result.created ? 201 : 200);
   } catch (error) {
     return commerceErrorResponse(error);
   }

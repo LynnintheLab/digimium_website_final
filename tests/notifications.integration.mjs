@@ -432,8 +432,50 @@ try {
     product.name + ' — ' + product.plans[0].name + ' × 1\n1 month · 16,000 MMK each'));
   assert.match(newOrder.fields.text, /\n\nTotal: 96,000 MMK$/);
   assert.doesNotMatch(newOrder.fields.text, /Items:|New Digimium order/);
-  assert.ok(!JSON.stringify(newOrder.fields).includes(contact.value), 'Telegram alerts omit the buyer’s manual contact');
+  assert.ok(!JSON.stringify(newOrder.fields).includes(contact.value), 'Orders without a verified Google account omit manual contact');
   assert.equal(newOrder.fields.reply_markup.inline_keyboard[0][0].url, base.origin + '/admin?order=' + checkout.id);
+
+  const { issueCustomerSession } = await import('../hostinger/customer-auth.ts');
+  const googleSession = await issueCustomerSession(new Request(base.origin), googleSignup.customer);
+  const googleCookie = cookie(googleSession, 'digimium_local_customer');
+  const googleContacts = [
+    [{ method: 'telegram-username', value: '@fixture_google_checkout' }, 'Telegram username'],
+    [{ method: 'telegram-phone', value: '+959777000124' }, 'Telegram phone'],
+    [{ method: 'viber-phone', value: '09777000125' }, 'Viber phone'],
+  ];
+  let googleOrderId;
+  for (const [googleContact, label] of googleContacts) {
+    const googleCheckout = await json(await mutate('/api/customer/orders', 'POST', {
+      requestId: randomUUID(), expectedCustomerId: googleSignup.customer.id, items: [cart.items[0]], contact: googleContact,
+    }, googleCookie), 201);
+    googleOrderId = googleCheckout.id;
+    const googleOrder = (await calls()).at(-1);
+    assert.equal(googleOrder.shared, true);
+    assert.equal(googleOrder.fields.message_thread_id, 21);
+    assert.equal(googleOrder.fields.protect_content, true);
+    assert.equal(googleOrder.fields.text.split('\n\n')[1], [
+      'Customer: Topic Google Fixture',
+      'Email: topic-google@example.invalid',
+      'Checkout contact: ' + label + ' · ' + googleContact.value,
+    ].join('\n'));
+    const [[googleOutbox]] = await db.execute('SELECT payload FROM digimium_notification_outbox WHERE dedupe_key = ?',
+      ['order-created:' + googleOrderId]);
+    assert.ok(!googleOutbox.payload.includes(googleContact.value), 'The outbox does not store manual contact');
+  }
+  const googleFallback = { kind: 'order-created', dedupeKey: 'fixture:' + randomUUID(), entityId: googleOrderId };
+  await enqueue(notifications, googleFallback);
+  try {
+    process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID = '';
+    process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_REGISTRATION_TOPIC_ID = '';
+    assert.equal((await notifications.drainAdminNotificationAlerts({ dedupeKey: googleFallback.dedupeKey })).sent, 1);
+  } finally {
+    Object.assign(process.env, sharedBotEnvironment);
+  }
+  const googleFallbackOrder = (await calls()).at(-1);
+  assert.equal(googleFallbackOrder.shared, false);
+  assert.match(googleFallbackOrder.fields.text, /^New Digimium order\n/);
+  assert.doesNotMatch(googleFallbackOrder.fields.text, /Checkout contact:|09777000125/);
+
   const legacyOrder = await seedOrder(telegramSignup.id, 'Queued order fixture', { status: 'approved' });
   await db.execute('UPDATE digimium_orders SET created_at = ?, customer_note = ? WHERE id = ?',
     ['2026-11-26T18:45:35.000Z', 'PRIVATE-CUSTOMER-NOTE-SENTINEL', legacyOrder.id]);

@@ -8,6 +8,7 @@ import { cleanAdminTelegramValue as cleanAlert, formatAdminRegistrationNotice, f
 import { CommerceError } from '../lib/commerce-http';
 import type { CustomerNotification, CustomerNotificationPage } from '../lib/notification-types';
 import { normalizeNotificationActionLabel, normalizeNotificationActionUrl } from '../lib/notification-action';
+import { normalizeCheckoutContact } from '../lib/order-checkout-contact';
 import { getSubscriptionTerm, todayInMyanmar } from '../lib/subscription-term';
 import { adminOrdersNotificationTopics, adminOrdersNotificationTopicsConfigured } from './admin-orders-telegram';
 import { getPool } from './mysql';
@@ -191,6 +192,7 @@ function telegramConfiguration(): AlertConfig | null {
 type AlertEntity = RowDataPacket & {
   createdAt?: string; name?: string; email?: string | null; telegramUsername?: string | null;
   customerId?: string | null; orderStatus?: 'pending' | 'approved' | 'rejected'; orderSnapshot?: string;
+  googleCheckoutContact?: string | null;
 };
 const orderAlertSnapshot = z.object({
   lines: z.array(z.object({
@@ -226,6 +228,7 @@ function alertMessage(payload: NotificationAlertInput, dedicated: boolean, entit
       customerName: entity.name,
       customerEmail: entity.email,
       telegramUsername: entity.telegramUsername,
+      checkoutContact: entity.googleCheckoutContact ? normalizeCheckoutContact(JSON.parse(entity.googleCheckoutContact)) : null,
       guest: entity.customerId === null,
     });
   }
@@ -267,6 +270,9 @@ const registrationProfileQuery = `SELECT c.name, c.email, t.username AS telegram
 
 const orderDetailsQuery = `SELECT o.created_at AS createdAt, o.snapshot AS orderSnapshot, o.customer_id AS customerId,
   CASE WHEN o.rejected_at IS NOT NULL THEN 'rejected' WHEN o.approved_at IS NOT NULL THEN 'approved' ELSE 'pending' END AS orderStatus,
+  CASE WHEN JSON_VALID(o.checkout_contact) AND EXISTS (
+    SELECT 1 FROM digimium_google_identities g WHERE g.customer_id = o.customer_id
+  ) THEN o.checkout_contact END AS googleCheckoutContact,
   c.name, c.email, t.username AS telegramUsername
   FROM digimium_orders o LEFT JOIN digimium_customers c ON c.id = o.customer_id
   LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id WHERE o.id = ?`;

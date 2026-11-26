@@ -6,7 +6,7 @@ import Image from "next/image";
 import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, Eye, EyeOff, LogOut, RefreshCw, Settings } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { telegramDraft } from "@/lib/cart-order";
-import { orderTelegramMessages } from "@/lib/order-telegram";
+import { orderTelegramIdentity, orderTelegramMessages } from "@/lib/order-telegram";
 import type { CommerceCustomer as Customer, CommerceOrder, CommerceOrderLine } from "@/lib/commerce-types";
 import type { Product } from "@/lib/catalog";
 import type { ShopLanguage } from "@/lib/shop-language";
@@ -103,7 +103,7 @@ function formatDate(value: string, lang: ShopLanguage, dateOnly = false) {
 function PendingTelegram({ order, customer, telegram, lang, t, embedded, onClose }: {
   order: CommerceOrder; customer: Customer; telegram: string; lang: ShopLanguage; t: Translate; embedded: boolean; onClose?: () => void;
 }) {
-  const messages = orderTelegramMessages(order, customer, lang);
+  const messages = orderTelegramMessages(order, orderTelegramIdentity(customer), lang);
   const fullText = messages.join("\n\n");
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "manual">("idle");
 

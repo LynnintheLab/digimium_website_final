@@ -1,4 +1,4 @@
-import { orderTelegramMessages } from '../lib/order-telegram.ts';
+import { orderTelegramIdentity, orderTelegramMessages } from '../lib/order-telegram.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { discountPriceError, effectivePrice } from '../lib/pricing.ts';
@@ -97,56 +97,83 @@ test('discounts require a lower whole MMK amount and preserve ordinary quotes an
   assert.equal(effectivePrice({ price: '၃၀,၀၀၀ ကျပ်', discountPrice: '၂၅၀၀၀' }), '25,000 MMK');
 });
 
-test('Telegram checkout identifies the account and order in each draft without including delivery details', () => {
-  const customer = { name: 'မောင် & Co', email: 'buyer+test@example.invalid' };
-  const id = 'aa2d6549-fbd2-4602-a445-c6d99526afcb';
-  const line = { productName: 'Creative', planName: 'Monthly', duration: '1 month', price: '3,000 MMK',
-    quantity: 2, accountInfo: 'private credential must stay off Telegram' };
-  const order = { id, lines: Array.from({ length: 200 }, () => line), totalMmk: 1200000 };
-  for (const lang of ['en', 'my']) {
-    const parts = orderTelegramMessages(order, customer, lang);
+const telegramOrderLine = {
+  productName: 'ChatGPT', planName: 'ChatGPT Plus Share - 1 Device', duration: '1 month', price: '38,000 MMK',
+  quantity: 1, accountInfo: 'private delivery credential',
+};
+const telegramOrder = {
+  id: '22ced3c4-b727-44e2-b3ab-9d25ce2a64db', lines: [telegramOrderLine], totalMmk: 38000,
+};
+
+test('the customer Telegram draft uses the short reference and repeats each purchased unit', () => {
+  const identity = { telegramUsername: 'real_buyer', googleEmail: 'buyer+shop@gmail.com',
+    name: 'private account name', checkoutContact: 'private manual contact' };
+  const item = 'ChatGPT Plus Share - 1 Device · 1 လ — 38,000 ကျပ်';
+  const header = ['📦 Order ID — #22CED3C4', '💬 Telegram — @real_buyer', '📧 Gmail — buyer+shop@gmail.com', ''];
+  const [single] = orderTelegramMessages(telegramOrder, identity, 'my');
+  assert.equal(single, [...header, item, '', '─────', '', '🧾 Total — 38,000 ကျပ်'].join('\n'));
+  const [two] = orderTelegramMessages({
+    ...telegramOrder, lines: [{ ...telegramOrderLine, quantity: 2 }], totalMmk: 76000,
+  }, identity, 'my');
+  assert.equal(two, [...header, item, item, '', '─────', '', '🧾 Total — 76,000 ကျပ်'].join('\n'));
+  assert.equal(new URL(telegramDraft('DigimiumCheckout', two)).searchParams.get('text'), two);
+});
+
+test('the customer Telegram draft shows only available identity rows and localizes prices', () => {
+  const email = 'buyer@example.invalid';
+  const emailAccount = orderTelegramIdentity({ email, signInMethods: { google: false } });
+  const googleAccount = orderTelegramIdentity({ email, signInMethods: { google: true } });
+  assert.ok(!orderTelegramMessages(telegramOrder, emailAccount, 'en')[0].includes(email));
+  const [google] = orderTelegramMessages(telegramOrder, googleAccount, 'en');
+  assert.equal(google, [
+    '📦 Order ID — #22CED3C4', '📧 Email — buyer@example.invalid', '',
+    'ChatGPT Plus Share - 1 Device · 1 month — 38,000 MMK', '', '─────', '', '🧾 Total — 38,000 MMK',
+  ].join('\n'));
+  const unpriced = { ...telegramOrder, totalMmk: null,
+    lines: [{ ...telegramOrderLine, productName: 'Canva', planName: null, price: '' }] };
+  for (const [lang, item, total] of [
+    ['en', 'Canva · 1 month — Price on enquiry', 'Price on enquiry'],
+    ['my', 'Canva · 1 လ — ဈေးနှုန်း စုံစမ်းရန်', 'ဈေးနှုန်း စုံစမ်းရန်'],
+  ]) {
+    const [guest] = orderTelegramMessages(unpriced, { telegramUsername: null, googleEmail: null }, lang);
+    assert.equal(guest, ['📦 Order ID — #22CED3C4', '', item, '', '─────', '', '🧾 Total — ' + total].join('\n'));
+  }
+});
+
+test('multipart customer Telegram drafts retain short references, repeated lines and safe direct links', () => {
+  const line = { ...telegramOrderLine, quantity: 2 };
+  const order = { ...telegramOrder, lines: Array.from({ length: 200 }, () => line), totalMmk: 15200000 };
+  const identity = { telegramUsername: 'real_buyer', googleEmail: 'buyer@gmail.com' };
+  for (const [lang, item, total] of [
+    ['en', 'ChatGPT Plus Share - 1 Device · 1 month — 38,000 MMK', '🧾 Total — 15,200,000 MMK'],
+    ['my', 'ChatGPT Plus Share - 1 Device · 1 လ — 38,000 ကျပ်', '🧾 Total — 15,200,000 ကျပ်'],
+  ]) {
+    const parts = orderTelegramMessages(order, identity, lang);
     assert.ok(parts.length > 1);
     for (const message of parts) {
-      assert.ok(message.includes(id.toUpperCase()) && message.includes(customer.name) && message.includes(customer.email));
-      assert.ok(!message.includes(line.accountInfo));
+      assert.ok(message.startsWith('📦 Order ID — #22CED3C4'));
+      assert.match(message, /💬 Telegram — @real_buyer/);
+      assert.match(message, /📧 Gmail — buyer@gmail\.com/);
+      assert.ok(!message.includes(order.id.toUpperCase()) && !message.includes(line.accountInfo));
       const link = new URL(telegramDraft('DigimiumCheckout', message));
+      assert.equal(link.origin, 'https://t.me');
+      assert.equal(link.pathname, '/DigimiumCheckout');
       assert.equal(link.searchParams.get('text'), message);
       assert.ok(link.href.length < 8000);
     }
-    assert.ok(parts.join('\n').includes('1,200,000'));
-  }
-  const lines = [{ ...line, planName: null, price: '' }];
-  const [unknown] = orderTelegramMessages({ ...order, totalMmk: null, lines }, customer, 'en');
-  assert.ok(unknown.includes('Price on enquiry') && unknown.includes('Please confirm the total price.'));
-});
-
-test('guest Telegram drafts identify the nickname without an invented email or account', () => {
-  const order = { id: 'aa2d6549-fbd2-4602-a445-c6d99526afcb', totalMmk: 2000,
-    lines: [{ productName: 'Canva', planName: 'Monthly', duration: '1 month', price: '2,000 MMK', quantity: 1 }] };
-  const guest = { name: 'ဒေါ်မြ', email: null, guest: true };
-  for (const lang of ['en', 'my']) {
-    const [message] = orderTelegramMessages(order, guest, lang);
-    assert.ok(message.includes(guest.name) && message.includes(order.id.toUpperCase()));
-    assert.ok(message.includes(lang === 'my' ? 'အကောင့်မသုံးဘဲ မှာယူခြင်း' : 'Guest order'));
-    assert.ok(!message.includes('null') && !message.includes('Email') && !message.includes('အီးမေးလ်'));
-    const [anonymous] = orderTelegramMessages(order, { ...guest, name: null }, lang);
-    assert.ok(anonymous.includes(order.id.toUpperCase()) && anonymous.includes('Canva'));
-    assert.ok(anonymous.includes(lang === 'my' ? 'အကောင့်မသုံးဘဲ မှာယူခြင်း' : 'Guest order'));
-    assert.doesNotMatch(anonymous, /နာမည်|အီးမေးလ်|Name|Email|null/i);
+    const rows = parts.join('\n').split('\n');
+    assert.equal(rows.filter(row => row === item).length, 400);
+    assert.equal(rows.filter(row => row === total).length, 1);
+    assert.ok(parts.at(-1).endsWith('─────\n\n' + total));
   }
 });
 
-test('Telegram order drafts show only the username and omit the underlying account ID', () => {
-  const order = { id: 'aa2d6549-fbd2-4602-a445-c6d99526afcb', totalMmk: 2000,
-    lines: [{ productName: 'Canva', planName: 'Monthly', duration: '1 month', price: '2,000 MMK', quantity: 1 }] };
-  const customer = { name: 'မောင်မြ', email: null, telegram: { id: '9999000012345', username: 'real_buyer' } };
-  for (const lang of ['en', 'my']) {
-    const [message] = orderTelegramMessages(order, customer, lang);
-    assert.ok(message.includes('@real_buyer') && message.includes(order.id.toUpperCase()));
-    assert.ok(!message.includes(customer.name));
-    assert.doesNotMatch(message, /9999000012345|null|Email|အီးမေးလ်|Guest order|အကောင့်မသုံးဘဲ/);
-    const [withoutUsername] = orderTelegramMessages(order, { ...customer, telegram: { ...customer.telegram, username: null } }, lang);
-    assert.ok(withoutUsername.includes(order.id.toUpperCase()) && withoutUsername.includes('Canva'));
-    assert.doesNotMatch(withoutUsername, /9999000012345|null|undefined|@/);
-  }
+test('a bulk quantity stays readable without creating a draft line for every unit', () => {
+  const quantity = Number.MAX_SAFE_INTEGER;
+  const order = { ...telegramOrder, lines: [{ ...telegramOrderLine, quantity }], totalMmk: null };
+  assert.deepEqual(orderTelegramMessages(order, {}, 'en'), [[
+    '📦 Order ID — #22CED3C4', '',
+    '9,007,199,254,740,991 × ChatGPT Plus Share - 1 Device · 1 month — 38,000 MMK', '',
+    '─────', '', '🧾 Total — Price on enquiry',
+  ].join('\n')]);
 });
