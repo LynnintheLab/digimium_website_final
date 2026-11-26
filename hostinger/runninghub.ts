@@ -10,6 +10,7 @@ import { RUNNINGHUB_PACKS, RUNNINGHUB_PROOF_MAX_BYTES, RUNNINGHUB_RESERVATION_MI
   type RunningHubOrder, type RunningHubPackId, type RunningHubPaymentMethod, type RunningHubStock } from '../lib/runninghub';
 import { ensureCustomerSchema } from './customer-auth';
 import { getPool } from './mysql';
+import { drainRunningHubAdminReceipts, enqueueRunningHubAdminReceipt } from './runninghub-admin-bot-outbox';
 
 const uuid = z.string().uuid();
 const revision = z.number().int().positive().max(0xfffffffe);
@@ -201,10 +202,11 @@ export async function submitRunningHubProof(customerId: string, id: string, body
     if (identifyLogo(new Uint8Array(bytes)).mime !== mime) throw new CommerceError(415, 'The image contents do not match its type.');
   } catch (error) { if (error instanceof LogoInputError) throw new CommerceError(error.status, error.message); throw error; }
   const hash = digest('proof', mime + ':' + bytes.toString('base64'));
-  return transaction(async connection => {
+  const result = await transaction(async connection => {
     const row = await rowFor(connection, id, customerId, ', proof_hash');
     if (row.proof_request_id === input.requestId) {
       if (!row.proof_hash?.equals(hash)) throw new CommerceError(409, 'This upload request was already used for another image.');
+      if (row.status === 'payment_review') await enqueueRunningHubAdminReceipt(connection, id, input.requestId);
       return { order: present(row) };
     }
     if (row.status !== 'awaiting_payment' || row.revision !== input.revision) throw new CommerceError(409, 'This order changed or its payment reservation expired. Refresh before continuing.');
@@ -213,8 +215,11 @@ export async function submitRunningHubProof(customerId: string, id: string, body
       revision = revision + 1, proof_request_id = ?, proof_hash = ?, proof_mime = ?, proof_cipher = ? WHERE id = ?`,
     [input.requestId, hash, mime, cipher, id]);
     await audit(connection, 'proof-submitted', id, row.stock_id, customerId);
+    await enqueueRunningHubAdminReceipt(connection, id, input.requestId);
     return { order: present(await rowFor(connection, id)) };
   });
+  await drainRunningHubAdminReceipts({ orderId: id, limit: 1, budgetMs: 5000 }).catch(() => {});
+  return result;
 }
 export async function runningHubProof(id: string, customerId?: string) {
   validId(id);
@@ -222,6 +227,21 @@ export async function runningHubProof(id: string, customerId?: string) {
     const row = await rowFor(connection, id, customerId, ', proof_mime, proof_cipher');
     if (!row.proof_request_id || !row.proof_mime || !row.proof_cipher) throw new CommerceError(404, 'Payment screenshot not found.');
     return { contentType: row.proof_mime, bytes: decrypt('proof/' + id + '/' + row.customer_id, row.proof_cipher) };
+  });
+}
+
+/** Original pending receipt plus the minimal metadata permitted in the private Admin bot. */
+export async function runningHubAdminBotReceipt(id: string, proofRequestId: string) {
+  validId(id); validId(proofRequestId);
+  return transaction(async connection => {
+    const row = await rowFor(connection, id, undefined, ', proof_mime, proof_cipher');
+    if (row.status !== 'payment_review' || row.proof_request_id !== proofRequestId || !row.proof_mime || !row.proof_cipher) {
+      throw new CommerceError(409, 'This payment receipt is no longer awaiting review.');
+    }
+    const contentType = z.enum(['image/png', 'image/jpeg', 'image/webp']).parse(row.proof_mime);
+    const paymentMethod = methodId.parse((JSON.parse(row.payment) as RunningHubPaymentMethod).id);
+    return { id: row.id, proofRequestId, revision: row.revision, priceMmk: row.price_mmk, paymentMethod, contentType,
+      bytes: decrypt('proof/' + id + '/' + row.customer_id, row.proof_cipher) };
   });
 }
 

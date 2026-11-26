@@ -1,18 +1,25 @@
 // Run after npm run build, using an EMPTY disposable loopback database only.
-// The preloaded provider fixture blocks all outbound calls except the fake admin OTP mail.
+// The preloaded provider fixture intercepts synthetic OTP mail and the dedicated Admin bot.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import mysql from 'mysql2/promise';
 
+const fixtureDirectory = await mkdtemp(join(tmpdir(), 'digimium-runninghub-telegram-test-'));
 const env = { ...process.env, ADMIN_EMAIL: 'owner@example.invalid', ADMIN_AUTH_SECRET: randomUUID(),
   ORDER_FULFILLMENT_SECRET: randomUUID(), RESEND_FROM_EMAIL: 'digimium@example.invalid', RESEND_API_KEY: 're_integration_fixture',
-  GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', TELEGRAM_BOT_TOKEN: '', TELEGRAM_BOT_USERNAME: '', TELEGRAM_WEBHOOK_SECRET: '' };
+  GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', TELEGRAM_BOT_TOKEN: '', TELEGRAM_BOT_USERNAME: '', TELEGRAM_WEBHOOK_SECRET: '',
+  RUNNINGHUB_ADMIN_TELEGRAM_BOT_TOKEN: '99990001:fixture_runninghub_12345678901234567890',
+  RUNNINGHUB_ADMIN_TELEGRAM_OWNER_ID: '987654321', RUNNINGHUB_ADMIN_TELEGRAM_PAYMENT_TOPIC_ID: '42',
+  RUNNINGHUB_ADMIN_TELEGRAM_WEBHOOK_SECRET: randomBytes(32).toString('base64url'),
+  RUNNINGHUB_FIXTURE_LOG: join(fixtureDirectory, 'telegram.jsonl'), RUNNINGHUB_FIXTURE_CONTROL: join(fixtureDirectory, 'control.json') };
 const base = new URL(env.APP_ORIGIN || 'http://invalid');
 assert.ok(base.origin === env.APP_ORIGIN && base.protocol === 'http:' && base.hostname === '127.0.0.1' && base.port &&
   env.DB_HOST === '127.0.0.1' && /^digimium_test_[a-z0-9_]+$/.test(env.DB_NAME) && env.DB_USER && env.DB_PASSWORD,
@@ -21,6 +28,7 @@ const root = new URL('../', import.meta.url);
 const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT || 3306), user: env.DB_USER,
   password: env.DB_PASSWORD, database: env.DB_NAME, multipleStatements: true });
 let server;
+let serverOutput = '';
 const hash = value => createHash('sha256').update(value).digest();
 const request = (path, options = {}) => fetch(new URL(path, base), { ...options, redirect: 'manual', signal: AbortSignal.timeout(15000) });
 const get = (path, cookie = '') => request(path, { headers: { Cookie: cookie } });
@@ -56,11 +64,14 @@ try {
     'telegram-identity-schema.sql', 'google-auth-schema.sql', 'telegram-auth-schema.sql', 'giveaway-schema.sql', 'notification-schema.sql']) {
     await db.query(await readFile(new URL('hostinger/' + file, root), 'utf8'));
   }
-  server = spawn(process.execPath, ['--import', new URL('tests/fixtures/resend-fetch.mjs', root).href,
+  await writeFile(env.RUNNINGHUB_FIXTURE_LOG, '', { mode: 0o600 });
+  await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, '{}', { mode: 0o600 });
+  server = spawn(process.execPath, ['--import', new URL('tests/fixtures/runninghub-telegram-fetch.mjs', root).href,
     fileURLToPath(new URL('.next/standalone/server.js', root))], {
     cwd: fileURLToPath(root), env: { ...env, FIXTURE_MAIL_FAILURE: '0', NODE_ENV: 'production', HOSTNAME: base.hostname, PORT: base.port },
-    stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });
+  for (const stream of [server.stdout, server.stderr]) stream.on('data', chunk => { serverOutput = (serverOutput + chunk).slice(-1000000); });
   for (let attempt = 0; ; attempt++) {
     try { assert.equal((await request('/admin/login')).status, 200); break; }
     catch (error) {
@@ -86,8 +97,9 @@ try {
   const proofPng = await readFile(new URL('public/assets/symbol-blue.png', root));
   const keys = Array.from({ length: 3 }, () => 'fixture-' + randomBytes(24).toString('hex'));
   const walletRef = 'FIXTURE-881201';
+  const sensitiveReferences = [walletRef];
   const redacted = value => {
-    for (const secret of [...keys, walletRef]) assert.ok(!JSON.stringify(value).includes(secret), 'Sensitive keys and wallet references are scoped to explicit reads');
+    for (const secret of [...keys, ...sensitiveReferences]) assert.ok(!JSON.stringify(value).includes(secret), 'Sensitive keys and wallet references are scoped to explicit reads');
   };
   const create = (buyer, packId, method, requestId = randomUUID(), extra = {}) => mutate(customer, 'POST',
     { requestId, expectedCustomerId: buyer.id, packId, method, ...extra }, buyer.cookie);
@@ -99,6 +111,44 @@ try {
     { action: 'approve', revision: order.revision, requestId: randomUUID(), proofRequestId: order.proofRequestId,
       paymentReference: walletRef, ...fields }, session, origin);
   const restock = (body, session = owner) => mutate(admin + '/stock', 'POST', body, session);
+  const calls = async () => (await readFile(env.RUNNINGHUB_FIXTURE_LOG, 'utf8')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
+  async function providerCall(predicate, after = 0) {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const match = (await calls()).slice(after).find(predicate);
+      if (match) return match;
+      await delay(100);
+    }
+    assert.fail('Expected intercepted Telegram output did not arrive.');
+  }
+  const markup = fields => typeof fields.reply_markup === 'string' ? JSON.parse(fields.reply_markup) : fields.reply_markup;
+  const botOwnerId = Number(env.RUNNINGHUB_ADMIN_TELEGRAM_OWNER_ID);
+  const botId = Number(env.RUNNINGHUB_ADMIN_TELEGRAM_BOT_TOKEN.split(':')[0]);
+  const botTopic = Number(env.RUNNINGHUB_ADMIN_TELEGRAM_PAYMENT_TOPIC_ID);
+  const botUser = { id: botId, is_bot: true, first_name: 'Synthetic Running HUB Admin' };
+  const adminUser = { id: botOwnerId, is_bot: false, first_name: 'Synthetic Owner' };
+  const ownerChat = { id: botOwnerId, type: 'private' };
+  let nextUpdateId = 70000;
+  const webhookPath = '/api/internal/runninghub-bot/webhook';
+  async function webhook(update, secret = env.RUNNINGHUB_ADMIN_TELEGRAM_WEBHOOK_SECRET) {
+    const response = await request(webhookPath, { method: 'POST', headers: {
+      'Content-Type': 'application/json', ...(secret ? { 'X-Telegram-Bot-Api-Secret-Token': secret } : {}),
+    }, body: JSON.stringify(update) });
+    const text = await response.text();
+    const body = text ? JSON.parse(text) : null;
+    redacted(body);
+    return { response, body };
+  }
+  function callback(receipt, token) {
+    return { update_id: ++nextUpdateId, callback_query: { id: 'fixture-callback-' + nextUpdateId, from: adminUser, data: token,
+      message: { message_id: receipt.messageId, date: Math.floor(Date.now() / 1000), from: botUser,
+        chat: ownerChat, message_thread_id: botTopic, caption: receipt.fields.caption } } };
+  }
+  function referenceReply(prompt, value) {
+    return { update_id: ++nextUpdateId, message: { message_id: nextUpdateId, date: Math.floor(Date.now() / 1000), from: adminUser,
+      chat: ownerChat, message_thread_id: botTopic, text: value,
+      reply_to_message: { message_id: prompt.messageId, date: Math.floor(Date.now() / 1000), from: botUser,
+        chat: ownerChat, message_thread_id: botTopic, text: prompt.fields.text } } };
+  }
 
   await json(await get(admin), 401);
   await json(await get(admin, alice.cookie), 401);
@@ -245,6 +295,7 @@ try {
   for (let index = 0; index < 2; index++) {
     const racing = await addCustomer('RemovalRace' + index);
     const raceKey = 'fixture-removal-race-' + randomBytes(24).toString('hex');
+    keys.push(raceKey);
     const imported = await json(await restock({ requestId: randomUUID(), packId: 'usd10', keys: [raceKey] }), 201);
     const pendingRace = (await json(await create(racing, 'usd10', 'kpay'), 201)).order;
     const reviewRace = (await json(await proof(racing, pendingRace))).order;
@@ -282,12 +333,151 @@ try {
     await json(await restock({ requestId: randomUUID(), packId: 'usd10', keys: [raceKey] }), 409);
   }
 
+  // Dedicated Admin bot: receipts, signed approval prompt, verified reference and owner-only delivery.
+  const telegramBuyer = await addCustomer('TelegramBuyerFixture');
+  const telegramSecond = await addCustomer('TelegramSecondFixture');
+  const telegramStale = await addCustomer('TelegramStaleFixture');
+  const telegramKeys = Array.from({ length: 3 }, () => 'fixture-telegram-key-' + randomBytes(24).toString('hex'));
+  keys.push(...telegramKeys);
+  await json(await restock({ requestId: randomUUID(), packId: 'usd10', keys: telegramKeys }), 201);
+  async function reviewViaBot(buyer, method = 'kpay', fallback = false) {
+    const pendingOrder = (await json(await create(buyer, 'usd10', method), 201)).order;
+    const after = (await calls()).length;
+    if (fallback) await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, JSON.stringify({ rejectPhoto: true }));
+    const proofRequestId = randomUUID();
+    const reviewed = (await json(await proof(buyer, pendingOrder, proofPng, 'image/png', proofRequestId))).order;
+    const receipt = await providerCall(call => call.method === (fallback ? 'sendDocument' : 'sendPhoto') &&
+      String(call.fields.caption).toLowerCase().includes(reviewed.id.slice(0, 8).toLowerCase()), after);
+    await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, '{}');
+    const callCount = (await calls()).length;
+    assert.equal((await json(await proof(buyer, pendingOrder, proofPng, 'image/png', proofRequestId))).order.id, reviewed.id);
+    assert.equal((await calls()).length, callCount, 'Retrying acknowledged proof must not resend its delivered alert.');
+    const [[queued]] = await db.execute('SELECT COUNT(*) AS total, MAX(sent_at) AS sent FROM digimium_runninghub_admin_outbox WHERE order_id = ? AND proof_request_id = ?', [reviewed.id, proofRequestId]);
+    assert.equal(Number(queued.total), 1); assert.ok(queued.sent);
+    assert.equal(receipt.upload.sha256, createHash('sha256').update(proofPng).digest('hex'));
+    assert.equal(receipt.upload.size, proofPng.length);
+    assert.equal(receipt.upload.type, 'image/png');
+    assert.equal(receipt.upload.name, 'runninghub-payment-receipt.png');
+    assert.equal(String(receipt.fields.chat_id), String(botOwnerId));
+    assert.equal(String(receipt.fields.message_thread_id), String(botTopic));
+    assert.equal(String(receipt.fields.protect_content), 'true');
+    assert.match(receipt.fields.caption, /70[,. ]?000/);
+    assert.match(receipt.fields.caption, method === 'kpay' ? /KPay/i : /AYA/i);
+    const buttons = markup(receipt.fields).inline_keyboard.flat();
+    const approvalButton = buttons.find(button => button.callback_data);
+    assert.ok(approvalButton, 'The private receipt includes a signed payment approval button.');
+    assert.match(approvalButton.callback_data, /^[A-Za-z0-9_-]{64}$/);
+    assert.ok(buttons.some(button => button.url === base.origin + '/admin/runninghub?order=' + reviewed.id));
+    if (fallback) assert.ok((await calls()).slice(after).some(call => call.method === 'sendPhoto'), 'A rejected photo falls back to uploading the original document.');
+    for (const forbidden of [buyer.email, buyer.name, buyer.id, ...settings.methods.map(method => method.accountNumber)]) {
+      assert.ok(!JSON.stringify(receipt.fields).includes(forbidden), 'Alert metadata must omit customer identity and receiving-account details.');
+    }
+    redacted(receipt);
+    return { order: reviewed, receipt, token: approvalButton.callback_data };
+  }
+  const telegram = await reviewViaBot(telegramBuyer);
+  const acceptedCallback = callback(telegram.receipt, telegram.token);
+  for (const secret of ['', 'incorrect-fixture-secret']) {
+    const denied = await webhook(acceptedCallback, secret);
+    assert.ok([401, 403].includes(denied.response.status), 'A missing or wrong webhook secret must reject the update.');
+  }
+  const validPrompts = async () => (await calls()).filter(call => call.method === 'sendMessage' && markup(call.fields)?.force_reply);
+  const promptsBefore = (await validPrompts()).length;
+  for (const change of [
+    update => { update.callback_query.from.id++; },
+    update => { update.callback_query.from.is_bot = true; },
+    update => { update.callback_query.message.chat.id++; },
+    update => { update.callback_query.message.chat.type = 'group'; },
+    update => { update.callback_query.message.message_thread_id++; },
+    update => { delete update.callback_query.message.message_thread_id; },
+    update => { update.callback_query.message.from.id++; },
+    update => { update.callback_query.message.from.is_bot = false; },
+    update => { const bytes = Buffer.from(update.callback_query.data, 'base64url'); bytes[16] ^= 1; update.callback_query.data = bytes.toString('base64url'); },
+  ]) {
+    const invalid = structuredClone(callback(telegram.receipt, telegram.token)); change(invalid);
+    const result = await webhook(invalid); assert.equal(result.response.status, 200);
+  }
+  assert.equal((await validPrompts()).length, promptsBefore, 'Mismatched callback bindings and proof signatures cannot open approval prompts.');
+  assert.equal((await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie))).order.status, 'payment_review');
+  await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, JSON.stringify({ fail: true }));
+  assert.equal((await webhook(callback(telegram.receipt, telegram.token))).response.status, 503, 'A failed ForceReply delivery is retryable and cannot approve payment.');
+  await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, '{}');
+  const beforePrompt = (await calls()).length;
+  const buttonResponse = await webhook(acceptedCallback);
+  assert.equal(buttonResponse.response.status, 200);
+  assert.equal(buttonResponse.body.method, 'answerCallbackQuery');
+  const prompt = await providerCall(call => call.method === 'sendMessage' && markup(call.fields)?.force_reply, beforePrompt);
+  assert.equal(markup(prompt.fields).force_reply, true);
+  assert.ok(prompt.fields.text.endsWith('RH approval: ' + telegram.token));
+  assert.ok(prompt.fields.text.length <= 4096);
+  redacted(prompt);
+  const telegramReference = 'RH-FIXTURE-WALLET-12345001'; sensitiveReferences.push(telegramReference);
+  const reply = referenceReply(prompt, telegramReference);
+  for (const change of [
+    update => { update.message.from.id++; },
+    update => { update.message.from.is_bot = true; },
+    update => { update.message.chat.id++; },
+    update => { update.message.chat.type = 'supergroup'; },
+    update => { update.message.message_thread_id++; },
+    update => { delete update.message.message_thread_id; },
+    update => { update.message.reply_to_message.from.id++; },
+    update => { update.message.reply_to_message.from.is_bot = false; },
+    update => { update.message.reply_to_message.chat.id++; },
+    update => { update.message.reply_to_message.chat.type = 'group'; },
+    update => { update.message.reply_to_message.text = 'Changed prompt\n' + update.message.reply_to_message.text; },
+    update => { delete update.message.reply_to_message; },
+  ]) {
+    const invalid = structuredClone(referenceReply(prompt, telegramReference)); change(invalid);
+    assert.equal((await webhook(invalid)).response.status, 200);
+  }
+  const stillReviewing = await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie));
+  assert.equal(stillReviewing.order.status, 'payment_review'); assert.equal(stillReviewing.apiKey, undefined);
+  const approvedReply = await webhook(reply);
+  assert.equal(approvedReply.response.status, 200);
+  assert.equal(approvedReply.body.method, 'sendMessage');
+  assert.equal(String(approvedReply.body.chat_id), String(botOwnerId));
+  assert.equal(String(approvedReply.body.message_thread_id), String(botTopic));
+  assert.equal(approvedReply.body.protect_content, true);
+  const delivered = await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie));
+  assert.equal(delivered.order.status, 'approved'); assert.ok(telegramKeys.includes(delivered.apiKey));
+  assert.equal((await webhook(reply)).response.status, 200, 'Redelivery of the same update is harmless.');
+  assert.equal((await webhook(referenceReply(prompt, telegramReference))).response.status, 200, 'Replaying the verified prompt never issues a second key.');
+  assert.equal((await webhook(callback(telegram.receipt, telegram.token))).response.status, 200);
+  assert.equal((await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie))).apiKey, delivered.apiKey);
+  await json(await get(customer + '/' + telegram.order.id, telegramSecond.cookie), 404);
+  const [[telegramAudit]] = await db.execute("SELECT COUNT(*) AS total FROM digimium_runninghub_audit WHERE order_id = ? AND event = 'payment-approved'", [telegram.order.id]);
+  assert.equal(Number(telegramAudit.total), 1);
+
+  const fallback = await reviewViaBot(telegramSecond, 'kpay', true);
+  const fallbackAfter = (await calls()).length;
+  assert.equal((await webhook(callback(fallback.receipt, fallback.token))).response.status, 200);
+  const fallbackPrompt = await providerCall(call => call.method === 'sendMessage' && markup(call.fields)?.force_reply, fallbackAfter);
+  assert.equal((await webhook(referenceReply(fallbackPrompt, telegramReference))).response.status, 200);
+  assert.equal((await json(await get(customer + '/' + fallback.order.id, telegramSecond.cookie))).order.status, 'payment_review', 'A reused wallet reference cannot approve another order.');
+  const secondReference = 'RH-FIXTURE-WALLET-12345002'; sensitiveReferences.push(secondReference);
+  assert.equal((await webhook(referenceReply(fallbackPrompt, secondReference))).response.status, 200);
+  const fallbackDelivery = await json(await get(customer + '/' + fallback.order.id, telegramSecond.cookie));
+  assert.equal(fallbackDelivery.order.status, 'approved'); assert.notEqual(fallbackDelivery.apiKey, delivered.apiKey);
+  assert.ok(telegramKeys.includes(fallbackDelivery.apiKey));
+
+  // A receipt's signed button becomes stale after a website decision; neither route bypasses the other.
+  const stale = await reviewViaBot(telegramStale);
+  await json(await decide(stale.order, { action: 'reject', paymentReference: undefined, proofRequestId: undefined, note: 'Synthetic receipt mismatch.' }));
+  const beforeStale = (await validPrompts()).length;
+  assert.equal((await webhook(callback(stale.receipt, stale.token))).response.status, 200);
+  assert.equal((await validPrompts()).length, beforeStale);
+  const staleDetail = await json(await get(customer + '/' + stale.order.id, telegramStale.cookie));
+  assert.equal(staleDetail.order.status, 'rejected'); assert.equal(staleDetail.apiKey, undefined);
+  redacted(await calls()); redacted(serverOutput);
+  redacted(await json(await get(admin, owner)));
+  redacted(await json(await get(customer, telegramBuyer.cookie)));
+
   const [[legacy]] = await db.query('SELECT COUNT(*) AS total FROM digimium_orders');
   const [[notifications]] = await db.query('SELECT COUNT(*) AS total FROM digimium_notification_outbox');
   assert.equal(Number(legacy.total), 0);
   assert.equal(Number(notifications.total), 0);
   assert.deepEqual(await json(await get('/api/admin/catalog', owner)), catalogBefore);
-  console.log('Running HUB integration passed: isolated catalog, exact MMK prices, KPay/AYA, protected proof, idempotent approval, duplicate payment prevention, unique key delivery, private stock tracking and concurrent customer removal.');
+  console.log('Running HUB integration passed: isolated catalog, exact MMK prices, protected receipts, website and dedicated Telegram approval, signed owner/topic/bot checks, duplicate/replay prevention, document fallback, owner-only key delivery and concurrent customer removal.');
 } finally {
   if (server && server.exitCode === null && server.signalCode === null) {
     const closed = once(server, 'exit');
@@ -295,4 +485,5 @@ try {
     await Promise.race([closed, delay(3000)]);
   }
   await db.end();
+  await rm(fixtureDirectory, { recursive: true, force: true });
 }

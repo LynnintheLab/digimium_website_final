@@ -2,6 +2,8 @@
 
 ## Current status
 
+Running HUB has a separate Admin bot workflow for private original receipt delivery and payment approval. An owner reply with the checked wallet reference uses the existing atomic key issuance. The bot connects with its own production runtime values and webhook. See [Running HUB setup](docs/RUNNINGHUB.md#connect-the-dedicated-admin-telegram-bot).
+
 Running HUB API Key is a separate Hostinger storefront purchase flow on the production branch. It offers 10 USD for 70,000 MMK and 20 USD for 138,000 MMK. Admin can set up KPay and AYA Pay, import encrypted stock, verify original receipts and issue the reserved key by approving payment. Buyers see their assigned key in the Running HUB checkout and can recover it in their dedicated order history. Admin Orders records the customer and issued stock ID. See [Running HUB setup](docs/RUNNINGHUB.md).
 
 Admin can now record an earlier guest purchase for a selected registered customer through Customers, Customer details or Orders → Create order. The server creates an idempotent pending owner record from the saved catalog revision, allows validated actual whole-MMK unit prices, and keeps every old guest row unchanged. The existing approval editor supplies historical dates, optional encrypted credentials and the customer-visible note. Manual recording sends no checkout/Telegram alert. Clean Node 24 release-source lint (zero warnings), typecheck/build, 103 unit tests, the new manual-order integration and existing commerce/customer-administration integrations pass. Browser checks at 1440px, 390px and 320px cover customer/profile/global entry points, two-line totals, negotiated prices, duplicate validation, historical approval, Telegram-only identity, price-on-request amounts and an offline retry producing only one order. The phone form footer now scrolls below the fields. Native browser testing also found an existing Admin sign-in problem: no-referrer made form POST Origin opaque; Admin pages now use same-origin (external referrers still suppressed), while customer/API responses keep no-referrer and strict missing/null/foreign Origin rejection remains. Local tests used only isolated synthetic data; Kosai Namti and all live records were not touched. Release promotion and bounded hosted verification are next.
@@ -87,6 +89,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Implemented the Running HUB approval webhook and isolated receipt queue. Disposable integration passed for photo and document delivery, owner/chat/topic checks, receipt and revision binding, replay and payment deduplication, private key delivery, and website Admin approval. Clean Node 24 build, typecheck and strict lint passed.
 
 Built Running HUB from the production baseline. Tests verified protected receipt access, correct prices, payment-reference deduplication, concurrent reservations, atomic delivery, customer ownership and isolated legacy catalog/order data. Node 24 build, typecheck, strict lint, 103 units, Running HUB integration and legacy Admin orders integration passed. A loopback browser test verified automatic display after simulated approval and the protected Admin stock and receipt screens. Admin stock totals account for all available keys, and payment review retries preserve their original request IDs.
 
@@ -233,6 +237,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+- Use the dedicated Running HUB bot with the verified store owner's private Telegram chat. The setup helper checks the bot identity and registered webhook. Use a synthetic receipt for local approval checks.
 
 - In Admin → Running HUB, save the verified wallet details and import valid keys into the matching bundle to open sales. Both a payment method and available stock are required to create a purchase.
 

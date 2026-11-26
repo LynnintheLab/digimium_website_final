@@ -339,5 +339,10 @@ export async function runScheduledNotifications() {
   const [claimed] = await getPool().execute<ResultSetHeader>(`UPDATE digimium_notification_jobs SET last_run_at = UTC_TIMESTAMP(3)
     WHERE name = 'runner' AND (last_run_at IS NULL OR last_run_at <= DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 30 SECOND))`);
   if (claimed.affectedRows !== 1) throw new CommerceError(429, 'The notification job was run recently. Retry in 30 seconds.');
-  return { expiry: await createExpiryNotifications(), alerts: await drainAdminNotificationAlerts({ limit: 5, budgetMs: 5000 }) };
+  const result = { expiry: await createExpiryNotifications(), alerts: await drainAdminNotificationAlerts({ limit: 5, budgetMs: 5000 }) };
+  // Running HUB uses a separate queue and bot. Its delivery failures cannot block existing notifications.
+  const { drainRunningHubAdminReceipts } = await import('./runninghub-admin-bot-outbox');
+  const runningHubAlerts = await drainRunningHubAdminReceipts({ limit: 2, budgetMs: 4000, backfill: true })
+    .catch(() => ({ configured: true, sent: 0, failed: 1, cancelled: 0, backfilled: 0 }));
+  return { ...result, ...(runningHubAlerts.configured ? { runningHubAlerts } : {}) };
 }
