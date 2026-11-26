@@ -1,41 +1,12 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
+import { CommerceError } from '../lib/commerce-http';
+import { normalizeRunningHubReference } from '../lib/runninghub';
+import type { AdminOrdersBotAdapter, AdminOrdersBotConfig } from './admin-orders-telegram';
 
 type ApprovalBinding = { id: string; proofRequestId: string; revision: number };
-export type RunningHubAdminBotConfig = {
-  token: string; ownerId: string; botId: string; secret: string; topicId?: number; origin: string;
-};
 const uuid = z.string().uuid();
 const bindingSchema = z.object({ id: uuid, proofRequestId: uuid, revision: z.number().int().positive().max(0xfffffffe) }).strict();
-const positiveId = (value: string | undefined) => value && /^[1-9]\d{0,15}$/.test(value) &&
-  Number(value) <= 2 ** 52 - 1 ? value : null;
-
-/** This bot has its own credentials and never falls back to a login or order-alert bot. */
-export function runningHubAdminBotConfig(): RunningHubAdminBotConfig | null {
-  const origin = process.env.APP_ORIGIN ?? '';
-  let url: URL;
-  try { url = new URL(origin); } catch { return null; }
-  if (url.origin !== origin || (origin !== 'https://buywith-digimium.store' &&
-    !(url.protocol === 'http:' && url.hostname === '127.0.0.1' && url.port))) return null;
-  const token = process.env.RUNNINGHUB_ADMIN_TELEGRAM_BOT_TOKEN?.trim();
-  const ownerId = positiveId(process.env.RUNNINGHUB_ADMIN_TELEGRAM_OWNER_ID?.trim());
-  const secret = process.env.RUNNINGHUB_ADMIN_TELEGRAM_WEBHOOK_SECRET?.trim();
-  if (!token || !/^\d{1,16}:[A-Za-z0-9_-]{20,200}$/.test(token) || !ownerId ||
-    !secret || !/^[A-Za-z0-9_-]{32,256}$/.test(secret) ||
-    [process.env.TELEGRAM_BOT_TOKEN, process.env.ADMIN_TELEGRAM_BOT_TOKEN, process.env.ORDER_ALERTS_TELEGRAM_BOT_TOKEN]
-      .some(other => other?.trim() === token)) return null;
-  const botId = positiveId(token.split(':', 1)[0]);
-  if (!botId) return null;
-  const topic = process.env.RUNNINGHUB_ADMIN_TELEGRAM_PAYMENT_TOPIC_ID?.trim();
-  const topicId = topic ? Number(positiveId(topic)) : undefined;
-  if (topic && (!topicId || topicId > 0x7fffffff)) return null;
-  return { token, ownerId, botId, secret, origin, ...(topicId ? { topicId } : {}) };
-}
-export function equalRunningHubBotSecret(expected: string, provided: string | null) {
-  if (!provided || provided.length !== expected.length) return false;
-  const a = Buffer.from(expected), b = Buffer.from(provided);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
 function signature(secret: string, bytes: Buffer) {
   return createHmac('sha256', secret).update('digimium/runninghub/approval-button/v1/').update(bytes).digest().subarray(0, 12);
 }
@@ -79,7 +50,7 @@ export function runningHubApprovalRequestId(secret: string, code: string) {
   return formatUuid(bytes);
 }
 /** Token-bearing transport is bounded, never redirected, logged, or returned to a caller. */
-export async function promptRunningHubApproval(config: RunningHubAdminBotConfig, code: string, orderId: string) {
+export async function promptRunningHubApproval(config: AdminOrdersBotConfig, code: string, orderId: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
   try {
@@ -107,3 +78,33 @@ export async function promptRunningHubApproval(config: RunningHubAdminBotConfig,
   } catch { return false; }
   finally { clearTimeout(timeout); }
 }
+
+/** Running HUB is the first adapter of the store-wide Admin Orders bot. */
+export const runningHubAdminOrdersAdapter: AdminOrdersBotAdapter = {
+  namespace: 'runninghub.approval.v1',
+  matchesCallback: (secret, code) => readRunningHubApproval(secret, code) !== null,
+  async beginApproval(config, code) {
+    const binding = readRunningHubApproval(config.secret, code);
+    if (!binding) throw new CommerceError(400, 'Invalid Running HUB approval.');
+    const { runningHubOrder } = await import('./runninghub');
+    const { order } = await runningHubOrder(binding.id);
+    if (order.status !== 'payment_review' || order.proofRequestId !== binding.proofRequestId || order.revision !== binding.revision) {
+      throw new CommerceError(409, 'The Running HUB order changed.');
+    }
+    if (!await promptRunningHubApproval(config, code, binding.id)) throw new CommerceError(503, 'The approval prompt was not confirmed.');
+    return 'Reply to the payment-check message with the checked wallet reference.';
+  },
+  matchesReply: (secret, prompt) => readRunningHubApprovalPrompt(secret, prompt) !== null,
+  async completeApproval(config, prompt, value) {
+    const binding = readRunningHubApprovalPrompt(config.secret, prompt);
+    if (!binding) throw new CommerceError(400, 'Invalid Running HUB approval prompt.');
+    const reference = normalizeRunningHubReference(value);
+    if (!reference) return 'Use the checked wallet transaction reference: 6–80 letters or digits. Reply to the payment-check message again.';
+    const { decideRunningHubOrder } = await import('./runninghub');
+    const result = await decideRunningHubOrder(binding.order.id, {
+      action: 'approve', revision: binding.order.revision, proofRequestId: binding.order.proofRequestId,
+      requestId: runningHubApprovalRequestId(config.secret, binding.code), paymentReference: reference,
+    }, 'telegram:' + config.ownerId);
+    return result.applied ? 'Payment approved. The key is available in the customer’s website purchase details.' : 'This approval was already recorded.';
+  },
+};

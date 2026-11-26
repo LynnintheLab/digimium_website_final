@@ -2,7 +2,7 @@
 
 ## Current status
 
-Running HUB has a separate Admin bot workflow for private original receipt delivery and payment approval. An owner reply with the checked wallet reference uses the existing atomic key issuance. The bot connects with its own production runtime values and webhook. See [Running HUB setup](docs/RUNNINGHUB.md#connect-the-dedicated-admin-telegram-bot).
+The Main site uses the shared `@DigimiumAdminOrdersBot` connection for private receipt delivery and payment approval. Running HUB is the first connected checkout flow and issues its reserved key when the owner replies with the checked wallet reference. Future website checkout products can use the same bot. See [Admin Orders bot setup](docs/ADMIN-ORDERS-BOT.md).
 
 Running HUB API Key is a separate Hostinger storefront purchase flow on the production branch. It offers 10 USD for 70,000 MMK and 20 USD for 138,000 MMK. Admin can set up KPay and AYA Pay, import encrypted stock, verify original receipts and issue the reserved key by approving payment. Buyers see their assigned key in the Running HUB checkout and can recover it in their dedicated order history. Admin Orders records the customer and issued stock ID. See [Running HUB setup](docs/RUNNINGHUB.md).
 
@@ -90,7 +90,7 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
-Implemented the Running HUB approval webhook and isolated receipt queue. Disposable integration passed for photo and document delivery, owner/chat/topic checks, receipt and revision binding, replay and payment deduplication, private key delivery, and website Admin approval. Clean Node 24 build, typecheck and strict lint passed.
+Implemented the shared Admin Orders webhook and the isolated Running HUB approval and receipt queue. Disposable integration passed for photo and document delivery, owner/chat/topic checks, receipt and revision binding, replay and payment deduplication, private key delivery, and website Admin approval. Clean Node 24 build, typecheck and strict lint passed.
 
 Built Running HUB from the production baseline. Tests verified protected receipt access, correct prices, payment-reference deduplication, concurrent reservations, atomic delivery, customer ownership and isolated legacy catalog/order data. Node 24 build, typecheck, strict lint, 103 units, Running HUB integration and legacy Admin orders integration passed. A loopback browser test verified automatic display after simulated approval and the protected Admin stock and receipt screens. Admin stock totals account for all available keys, and payment review retries preserve their original request IDs.
 
@@ -238,7 +238,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Use the dedicated Running HUB bot with the verified store owner's private Telegram chat. The setup helper checks the bot identity and registered webhook. Use a synthetic receipt for local approval checks.
+- Use the shared Digimium Admin Orders bot with the verified store owner's private Telegram chat. The setup helper checks the bot identity and registered webhook. Use a synthetic receipt for local approval checks.
 
 - In Admin → Running HUB, save the verified wallet details and import valid keys into the matching bundle to open sales. Both a payment method and available stock are required to create a purchase.
 

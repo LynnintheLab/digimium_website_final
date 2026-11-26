@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { appendFile, readFile } from 'node:fs/promises';
 
 const previousFetch = globalThis.fetch;
-const token = process.env.RUNNINGHUB_ADMIN_TELEGRAM_BOT_TOKEN;
+const token = process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_BOT_TOKEN;
 assert.ok(token?.startsWith('99990001:fixture_'), 'The fixture requires a synthetic dedicated bot.');
 let nextMessageId = 1000;
 
@@ -31,12 +31,12 @@ globalThis.fetch = async function runningHubTelegramFixture(input, options) {
       }
     }
   } else fields = JSON.parse(options.body);
-  for (const secret of [token, process.env.ADMIN_AUTH_SECRET, process.env.ORDER_FULFILLMENT_SECRET, process.env.RUNNINGHUB_ADMIN_TELEGRAM_WEBHOOK_SECRET]) {
+  for (const secret of [token, process.env.ADMIN_AUTH_SECRET, process.env.ORDER_FULFILLMENT_SECRET, process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_WEBHOOK_SECRET]) {
     assert.ok(!JSON.stringify(fields).includes(secret), 'Telegram output must not contain application secrets.');
   }
   if (method.startsWith('send')) {
-    assert.equal(String(fields.chat_id), process.env.RUNNINGHUB_ADMIN_TELEGRAM_OWNER_ID);
-    assert.equal(String(fields.message_thread_id), process.env.RUNNINGHUB_ADMIN_TELEGRAM_PAYMENT_TOPIC_ID);
+    assert.equal(String(fields.chat_id), process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID);
+    assert.equal(String(fields.message_thread_id), process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID);
     assert.ok(fields.protect_content === true || fields.protect_content === 'true', 'Private receipts and prompts must be protected.');
     assert.equal(fields.parse_mode, undefined, 'Alerts use plain text.');
   }

@@ -2,8 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 
 const origin = 'https://buywith-digimium.store';
-const endpoint = origin + '/api/internal/runninghub-bot/webhook';
-const localFile = '.env.runninghub-admin-bot.local';
+const endpoint = origin + '/api/internal/admin-orders-bot/webhook';
+const localFile = '.env.admin-orders-bot.local';
 const updates = ['message', 'callback_query'];
 const [mode, ownerHandle, ...extra] = process.argv.slice(2);
 const usage = 'Choose --init, --discover-owner @yourusername, --check, or --apply. Use a private env file for bot credentials.';
@@ -29,25 +29,25 @@ async function setup() {
     throw new Error(usage);
   }
   if (mode === '--init') {
-    const contents = ['RUNNINGHUB_ADMIN_TELEGRAM_BOT_TOKEN=', 'RUNNINGHUB_ADMIN_TELEGRAM_OWNER_ID=',
-      'RUNNINGHUB_ADMIN_TELEGRAM_WEBHOOK_SECRET=' + randomBytes(32).toString('base64url'),
-      'RUNNINGHUB_ADMIN_TELEGRAM_PAYMENT_TOPIC_ID=', ''].join('\n');
+    const contents = ['DIGIMIUM_ADMIN_ORDERS_TELEGRAM_BOT_TOKEN=', 'DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID=',
+      'DIGIMIUM_ADMIN_ORDERS_TELEGRAM_WEBHOOK_SECRET=' + randomBytes(32).toString('base64url'),
+      'DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID=', ''].join('\n');
     try { await writeFile(localFile, contents, { mode: 0o600, flag: 'wx' }); }
     catch (error) { throw new Error(error.code === 'EEXIST' ? 'The private setup file already exists.' : 'Could not write the private setup file.'); }
     console.log('Created ' + localFile + ' with a private webhook secret.');
     return;
   }
 
-  const token = process.env.RUNNINGHUB_ADMIN_TELEGRAM_BOT_TOKEN?.trim();
+  const token = process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_BOT_TOKEN?.trim();
   if (!token || !/^\d{1,16}:[\w-]{20,200}$/.test(token) ||
       [process.env.TELEGRAM_BOT_TOKEN, process.env.ADMIN_TELEGRAM_BOT_TOKEN, process.env.ORDER_ALERTS_TELEGRAM_BOT_TOKEN]
         .some(value => value?.trim() === token)) {
-    throw new Error('Use the token for the separate Running HUB Admin bot.');
+    throw new Error('Use the token for the separate Digimium Admin Orders bot.');
   }
   const me = await telegram(token, 'getMe');
-  if (me?.is_bot !== true || String(me?.id) !== token.split(':')[0]) throw new Error('The Running HUB bot identity could not be verified.');
+  if (me?.is_bot !== true || String(me?.id) !== token.split(':')[0]) throw new Error('The Digimium Admin Orders bot identity could not be verified.');
   const webhook = await telegram(token, 'getWebhookInfo');
-  if (webhook.url && webhook.url !== endpoint) throw new Error('This bot already serves a different webhook. Use the separate Running HUB Admin bot.');
+  if (webhook.url && webhook.url !== endpoint) throw new Error('This bot already serves a different webhook. Use the separate Digimium Admin Orders bot.');
 
   if (mode === '--discover-owner') {
     if (webhook.url) throw new Error('The webhook is already connected. Use its existing private owner ID.');
@@ -62,9 +62,9 @@ async function setup() {
     return;
   }
 
-  const ownerId = process.env.RUNNINGHUB_ADMIN_TELEGRAM_OWNER_ID?.trim();
-  const secret = process.env.RUNNINGHUB_ADMIN_TELEGRAM_WEBHOOK_SECRET?.trim();
-  const topic = process.env.RUNNINGHUB_ADMIN_TELEGRAM_PAYMENT_TOPIC_ID?.trim();
+  const ownerId = process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID?.trim();
+  const secret = process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_WEBHOOK_SECRET?.trim();
+  const topic = process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID?.trim();
   if (!ownerId || !/^[1-9]\d{0,15}$/.test(ownerId) || Number(ownerId) > 2 ** 52 - 1 || ownerId === String(me.id)) {
     throw new Error('Configure the numeric Telegram ID of the store owner.');
   }
@@ -85,11 +85,11 @@ async function setup() {
     if (saved !== true) throw new Error('Telegram did not confirm the webhook update.');
     const applied = await telegram(token, 'getWebhookInfo');
     if (applied.url !== endpoint || !updates.every(kind => applied.allowed_updates?.includes(kind))) {
-      throw new Error('Telegram did not report both Running HUB approval update types.');
+      throw new Error('Telegram did not report both order approval update types.');
     }
   }
 
-  console.log(mode === '--apply' ? 'Running HUB Admin webhook verified.' : 'Dedicated bot and private owner chat verified.');
+  console.log(mode === '--apply' ? 'Digimium Admin Orders webhook verified.' : 'Dedicated bot and private owner chat verified.');
 }
 
 setup().catch(error => {

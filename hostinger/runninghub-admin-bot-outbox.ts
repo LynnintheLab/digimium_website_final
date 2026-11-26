@@ -4,11 +4,13 @@ import { z } from 'zod';
 import { CommerceError } from '../lib/commerce-http';
 import { RUNNINGHUB_PROOF_MAX_BYTES } from '../lib/runninghub';
 import { getPool } from './mysql';
-import { runningHubAdminBotConfig, signRunningHubApproval } from './runninghub-admin-bot';
+import { adminOrdersBotConfig } from './admin-orders-telegram';
+import { signRunningHubApproval } from './runninghub-admin-bot';
 
 const uuid = z.string().uuid();
 type QueueRow = RowDataPacket & { id: string; order_id: string; proof_request_id: string; attempts: number };
-type BotConfig = NonNullable<ReturnType<typeof runningHubAdminBotConfig>>;
+// Every product adapter shares one configured private owner and optional payment topic.
+type BotConfig = NonNullable<ReturnType<typeof adminOrdersBotConfig>>;
 type Receipt = Awaited<ReturnType<typeof import('./runninghub').runningHubAdminBotReceipt>>;
 export type RunningHubAlertResult = { configured: boolean; sent: number; failed: number; cancelled: number; backfilled: number };
 
@@ -92,7 +94,7 @@ async function sendReceipt(config: BotConfig, receipt: Receipt, deadline: number
 export async function drainRunningHubAdminReceipts(options: {
   limit?: number; budgetMs?: number; orderId?: string; backfill?: boolean;
 } = {}): Promise<RunningHubAlertResult> {
-  const config = runningHubAdminBotConfig();
+  const config = adminOrdersBotConfig();
   const result: RunningHubAlertResult = { configured: !!config, sent: 0, failed: 0, cancelled: 0, backfilled: 0 };
   if (!config) return result;
   if (options.orderId && !uuid.safeParse(options.orderId).success) return result;

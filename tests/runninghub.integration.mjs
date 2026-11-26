@@ -16,9 +16,9 @@ const fixtureDirectory = await mkdtemp(join(tmpdir(), 'digimium-runninghub-teleg
 const env = { ...process.env, ADMIN_EMAIL: 'owner@example.invalid', ADMIN_AUTH_SECRET: randomUUID(),
   ORDER_FULFILLMENT_SECRET: randomUUID(), RESEND_FROM_EMAIL: 'digimium@example.invalid', RESEND_API_KEY: 're_integration_fixture',
   GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', TELEGRAM_BOT_TOKEN: '', TELEGRAM_BOT_USERNAME: '', TELEGRAM_WEBHOOK_SECRET: '',
-  RUNNINGHUB_ADMIN_TELEGRAM_BOT_TOKEN: '99990001:fixture_runninghub_12345678901234567890',
-  RUNNINGHUB_ADMIN_TELEGRAM_OWNER_ID: '987654321', RUNNINGHUB_ADMIN_TELEGRAM_PAYMENT_TOPIC_ID: '42',
-  RUNNINGHUB_ADMIN_TELEGRAM_WEBHOOK_SECRET: randomBytes(32).toString('base64url'),
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_BOT_TOKEN: '99990001:fixture_admin_orders_12345678901234567890',
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID: '987654321', DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID: '42',
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_WEBHOOK_SECRET: randomBytes(32).toString('base64url'),
   RUNNINGHUB_FIXTURE_LOG: join(fixtureDirectory, 'telegram.jsonl'), RUNNINGHUB_FIXTURE_CONTROL: join(fixtureDirectory, 'control.json') };
 const base = new URL(env.APP_ORIGIN || 'http://invalid');
 assert.ok(base.origin === env.APP_ORIGIN && base.protocol === 'http:' && base.hostname === '127.0.0.1' && base.port &&
@@ -121,15 +121,15 @@ try {
     assert.fail('Expected intercepted Telegram output did not arrive.');
   }
   const markup = fields => typeof fields.reply_markup === 'string' ? JSON.parse(fields.reply_markup) : fields.reply_markup;
-  const botOwnerId = Number(env.RUNNINGHUB_ADMIN_TELEGRAM_OWNER_ID);
-  const botId = Number(env.RUNNINGHUB_ADMIN_TELEGRAM_BOT_TOKEN.split(':')[0]);
-  const botTopic = Number(env.RUNNINGHUB_ADMIN_TELEGRAM_PAYMENT_TOPIC_ID);
-  const botUser = { id: botId, is_bot: true, first_name: 'Synthetic Running HUB Admin' };
+  const botOwnerId = Number(env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID);
+  const botId = Number(env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_BOT_TOKEN.split(':')[0]);
+  const botTopic = Number(env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID);
+  const botUser = { id: botId, is_bot: true, first_name: 'Synthetic Digimium Admin Orders' };
   const adminUser = { id: botOwnerId, is_bot: false, first_name: 'Synthetic Owner' };
   const ownerChat = { id: botOwnerId, type: 'private' };
   let nextUpdateId = 70000;
-  const webhookPath = '/api/internal/runninghub-bot/webhook';
-  async function webhook(update, secret = env.RUNNINGHUB_ADMIN_TELEGRAM_WEBHOOK_SECRET) {
+  const webhookPath = '/api/internal/admin-orders-bot/webhook';
+  async function webhook(update, secret = env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_WEBHOOK_SECRET) {
     const response = await request(webhookPath, { method: 'POST', headers: {
       'Content-Type': 'application/json', ...(secret ? { 'X-Telegram-Bot-Api-Secret-Token': secret } : {}),
     }, body: JSON.stringify(update) });
@@ -377,6 +377,9 @@ try {
   }
   const telegram = await reviewViaBot(telegramBuyer);
   const acceptedCallback = callback(telegram.receipt, telegram.token);
+  assert.equal((await request('/api/internal/runninghub-bot/webhook', { method: 'POST', headers: {
+    'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_WEBHOOK_SECRET,
+  }, body: JSON.stringify(acceptedCallback) })).status, 404, 'The retired product-specific webhook is not an alternate approval entry point.');
   for (const secret of ['', 'incorrect-fixture-secret']) {
     const denied = await webhook(acceptedCallback, secret);
     assert.ok([401, 403].includes(denied.response.status), 'A missing or wrong webhook secret must reject the update.');
@@ -477,7 +480,7 @@ try {
   assert.equal(Number(legacy.total), 0);
   assert.equal(Number(notifications.total), 0);
   assert.deepEqual(await json(await get('/api/admin/catalog', owner)), catalogBefore);
-  console.log('Running HUB integration passed: isolated catalog, exact MMK prices, protected receipts, website and dedicated Telegram approval, signed owner/topic/bot checks, duplicate/replay prevention, document fallback, owner-only key delivery and concurrent customer removal.');
+  console.log('Running HUB integration passed: isolated catalog, exact MMK prices, protected receipts, website and Admin Orders Telegram approval, signed owner/topic/bot checks, duplicate/replay prevention, document fallback, owner-only key delivery and concurrent customer removal.');
 } finally {
   if (server && server.exitCode === null && server.signalCode === null) {
     const closed = once(server, 'exit');
