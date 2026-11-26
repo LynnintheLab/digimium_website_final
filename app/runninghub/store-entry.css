@@ -4,13 +4,7 @@ a.runninghub-store-entry {
 }
 
 .runninghub-store-mark {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
   border-radius: 6px;
-  background: var(--brand-selected);
-  color: var(--blue);
 }
 
 .runninghub-store-packs {

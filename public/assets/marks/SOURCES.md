@@ -18,6 +18,7 @@ Retrieved 2026-11-10. Brand marks identify third-party services; no affiliation 
 | `grok.svg` | grok | [SVGL source](https://raw.githubusercontent.com/pheralb/svgl/main/static/library/grok-light.svg) | Black Grok mark for light surfaces. |
 | `microsoft365.svg` | microsoft365 | [SVGL source](https://raw.githubusercontent.com/pheralb/svgl/main/static/library/microsoft.svg) | Microsoft corporate four-color mark used to identify Microsoft 365; not a dedicated 365 product glyph. |
 | `vpn.svg` | VPN category | Authored locally | Generic blue shield, not a company logo. |
+| `runninghub.png` | RunningHub | [Official website icon](https://www.runninghub.ai/favicon.ico?v=1.4) | Original 256px PNG extracted from the ICO on November 26, 2026. Matches the icon in the [official API documentation](https://www.runninghub.cn/runninghub-api-doc-en/). |
 
 ## Unavailable marks
 

@@ -1,4 +1,5 @@
-import { ArrowRight, ArrowUpRight, KeyRound } from 'lucide-react';
+import Image from 'next/image';
+import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { RUNNINGHUB_PACKS } from '@/lib/runninghub';
 import { categoryName, type ShopLanguage } from '@/lib/shop-language';
 import './store-entry.css';
@@ -15,7 +16,7 @@ export function RunningHubEntry({ lang }: { lang: ShopLanguage }) {
   return (
     <a className="product runninghub-store-entry" href="/runninghub" aria-labelledby="runninghub-product runninghub-product-action" aria-describedby="runninghub-product-packs">
       <div className="product-top">
-        <span className="runninghub-store-mark"><KeyRound size={22} aria-hidden="true" /></span>
+        <Image className="runninghub-store-mark" src="/assets/marks/runninghub.png" width={36} height={36} alt="" unoptimized />
         <ArrowUpRight size={20} aria-hidden="true" />
       </div>
       <h3 id="runninghub-product">Running HUB API Key</h3>
