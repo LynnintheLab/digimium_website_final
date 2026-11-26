@@ -2,6 +2,8 @@
 
 ## Current status
 
+The live catalog prices are 18,000 MMK for ChatGPT Go Share - 1 Device, 145,000 MMK for ChatGPT Plus - Own Mail, and 54,000 MMK for ChatGPT Go - Own Mail. Claude Pro, Max, and Ultra - Own Mail are 145,000 MMK, 750,000 MMK, and 1,450,000 MMK respectively.
+
 The eight historical Running HUB orders confirmed for permanent deletion have been removed from production. Admin’s All orders view was empty after the cleanup.
 
 Running HUB can retain the fingerprint of an approved payment screenshot after its order is permanently removed. This keeps duplicate-receipt detection in place without storing the deleted image.
@@ -115,6 +117,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Saved the price changes through Digimium Admin on November 27, 2026. Compared live catalog revision 29 to revision 27 and confirmed the exact six price changes. The website’s checkout parser accepted every formatted MMK value.
 
 Permanently removed the four delivered, three rejected, and one expired Running HUB orders in a transaction scoped to the confirmed records. Verified that the four issued keys stayed outside sellable stock and the four approved receipt fingerprints remained available for duplicate detection.
 
