@@ -122,6 +122,7 @@ body:has(.rh-qr-dialog[open]) { overflow: hidden; }
 .rh-review > svg, .rh-key > svg { margin-bottom: 12px; color: var(--blue); }
 .rh-review p, .rh-key p { margin-top: 10px; font-size: 14px; color: var(--muted); }
 .rh-key-value { margin: 18px 0; padding: 16px; background: var(--canvas); border: 1px solid var(--brand-line-strong); border-radius: 6px; overflow-wrap: anywhere; user-select: text; }
+.rh-key-name { display: block; margin-bottom: 8px; font-weight: 600; }
 .rh-key-value code { white-space: pre-wrap; font-size: 15px; }
 .rh-key-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .rh-note { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 14px; }

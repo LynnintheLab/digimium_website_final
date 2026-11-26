@@ -201,7 +201,23 @@ export function RunningHubOrderPanel({ order, lang, onUpdated, onRefresh, onIden
       </div>{uncertain && <p className="rh-notice" role="status">{t('Retry uses the same screenshot and request.', 'ပြန်တင်လျှင် မူလ screenshot နှင့် အော်ဒါကိုပဲ သုံးပါမယ်။')}</p>}<button className="rh-primary" type="submit" disabled={busy || !file}><Upload size={17} />{busy ? t('Submitting…', 'တင်နေသည်…') : uncertain ? t('Retry screenshot', 'Screenshot ပြန်တင်ရန်') : t('Submit for payment review', 'ငွေပေးချေမှု စစ်ဆေးရန် တင်မယ်')}</button></form>
     </>}
     {order.status === 'payment_review' && <div className="rh-review" role="status"><RefreshCw size={22} aria-hidden="true" /><h3>{t('Your payment is being reviewed', 'ငွေပေးချေမှု စစ်ဆေးနေပါတယ်')}</h3><p>{t('Your receipt is saved. This page checks for approval automatically. Your API key will be ready here when Digimium approves the payment.', 'Screenshot သိမ်းပြီးပါပြီ။ ဒီစာမျက်နှာက အတည်ပြုမှုကို အလိုအလျောက် ပြန်စစ်ပေးနေပါတယ်။ Digimium က ငွေပေးချေမှု အတည်ပြုပြီးရင် API Key ကို ဒီမှာ ရယူနိုင်ပါမယ်။')}</p><p>{t('You can return to this page later.', 'ဒီစာမျက်နှာကို နောက်မှ ပြန်လာကြည့်နိုင်ပါတယ်။')}</p></div>}
-    {order.status === 'approved' && <div className="rh-key"><KeyRound size={26} aria-hidden="true" /><h3>{t('Your API key is ready', 'သင့် API Key ရပါပြီ')}</h3><p>{t('View and copy your key. It stays available in your Running HUB order history.', 'Key ကို ဖွင့်ကြည့်ပြီး ကူးယူနိုင်ပါတယ်။ Running HUB အော်ဒါမှတ်တမ်းမှာ နောက်မှ ပြန်ယူနိုင်ပါတယ်။')}</p><div className="rh-key-value"><code dir="ltr">{apiKey || '••••••••••••••••••••••••'}</code></div><div className="rh-key-actions"><button type="button" className="rh-secondary" disabled={busy} onClick={() => void revealKey()}>{apiKey ? <EyeOff size={17} /> : <Eye size={17} />}{busy ? t('Loading…', 'ဖော်ပြနေသည်…') : apiKey ? t('Hide key', 'Key ဖျောက်ရန်') : t('View API key', 'API Key ကြည့်ရန်')}</button>{apiKey && <button type="button" className="rh-primary" onClick={() => void copy('key')}><Copy size={17} />{t('Copy API key', 'API Key ကူးယူရန်')}</button>}</div>{copied === 'key' && <p role="status">{t('API key copied.', 'API Key ကူးယူပြီးပါပြီ။')}</p>}</div>}
+    {order.status === 'approved' && <div className="rh-key">
+      <KeyRound size={26} aria-hidden="true" />
+      <h3>{t('Your API key is ready', 'သင့် API Key ရပါပြီ')}</h3>
+      <p>{t('View and copy your key. It stays available in your Running HUB order history.', 'Key ကို ဖွင့်ကြည့်ပြီး ကူးယူနိုင်ပါတယ်။ Running HUB အော်ဒါမှတ်တမ်းမှာ နောက်မှ ပြန်ယူနိုင်ပါတယ်။')}</p>
+      <div className="rh-key-value">
+        {apiKey && order.keyName && <strong className="rh-key-name" dir="auto">{order.keyName}</strong>}
+        <code dir="ltr">{apiKey || '••••••••••••••••••••••••'}</code>
+      </div>
+      <div className="rh-key-actions">
+        <button type="button" className="rh-secondary" disabled={busy} onClick={() => void revealKey()}>
+          {apiKey ? <EyeOff size={17} /> : <Eye size={17} />}
+          {busy ? t('Loading…', 'ဖော်ပြနေသည်…') : apiKey ? t('Hide key', 'Key ဖျောက်ရန်') : t('View API key', 'API Key ကြည့်ရန်')}
+        </button>
+        {apiKey && <button type="button" className="rh-primary" onClick={() => void copy('key')}><Copy size={17} />{t('Copy API key', 'API Key ကူးယူရန်')}</button>}
+      </div>
+      {copied === 'key' && <p role="status">{t('API key copied.', 'API Key ကူးယူပြီးပါပြီ။')}</p>}
+    </div>}
     {/* Full document navigation keeps storefront scripts out of the private page. */}
     {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
     {stage === 'expired' && <div className="rh-notice"><h3>{t('This reservation has expired', 'သီးသန့်ထားပေးချိန် ကုန်သွားပါပြီ')}</h3><p>{t('Do not transfer money for this order. If you already paid, contact Digimium with this order reference and your receipt.', 'ဒီအော်ဒါအတွက် ငွေမလွှဲတော့ပါနှင့်။ ငွေလွှဲပြီးသားဖြစ်လျှင် အော်ဒါအမှတ်နှင့် screenshot ကိုယူပြီး Digimium ကို ဆက်သွယ်ပါ။')}</p><button type="button" className="rh-text-button" onClick={onRefresh} lang="en">Refresh availability</button><a href="/#contact">{t('Contact Digimium', 'Digimium ကို ဆက်သွယ်ရန်')}</a></div>}

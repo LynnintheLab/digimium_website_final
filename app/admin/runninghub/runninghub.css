@@ -90,6 +90,7 @@
 .rh-table .rh-status[data-status=issued] { color: #165b43; background: #def6ea; }
 .rh-table th.rh-stock-reference { min-width: 165px; white-space: normal; }
 .rh-stock-reference { overflow-wrap: anywhere; font-size: 12px; }
+.rh-table .rh-stock-key-name { min-width: 110px; max-width: 220px; white-space: normal; overflow-wrap: anywhere; }
 .rh-shell ::selection { color: var(--admin-ink); background: var(--brand-selected); }
 @media (max-width: 760px) {
   .rh-main { padding: 18px 16px 30px; }

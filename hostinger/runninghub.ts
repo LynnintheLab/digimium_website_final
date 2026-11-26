@@ -26,8 +26,10 @@ const methodSchema = z.object({ id: methodId, enabled: z.boolean(), accountLabel
 const settingsSchema = z.object({ revision, methods: z.array(methodSchema).max(2)
   .refine(methods => new Set(methods.map(method => method.id)).size === methods.length) }).strict();
 const createSchema = z.object({ requestId: uuid, expectedCustomerId: uuid, packId, method: methodId }).strict();
+const stockKeySchema = z.string().trim().min(8).max(2048).refine(value => !/[\s\p{Cc}\u202a-\u202e\u2066-\u2069]/u.test(value));
+const namedStockKeySchema = z.object({ key: stockKeySchema, name: safeText(100).refine(Boolean) }).strict();
 const importSchema = z.object({ requestId: uuid, packId,
-  keys: z.array(z.string().trim().min(8).max(2048).refine(value => !/[\s\p{Cc}\u202a-\u202e\u2066-\u2069]/u.test(value))).min(1).max(100) }).strict();
+  keys: z.array(z.union([stockKeySchema, namedStockKeySchema])).min(1).max(100) }).strict();
 const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('approve'), revision, requestId: uuid, proofRequestId: uuid,
     // Accepted only for older Admin clients; current approval needs no reference entry.
@@ -36,12 +38,12 @@ const actionSchema = z.discriminatedUnion('action', [
 ]);
 const proofSchema = z.object({ revision, requestId: uuid }).strict();
 const confirmSchema = z.object({ confirmation: uuid }).strict();
-const columns = 'id, customer_id, pack_id, pack_label, price_mmk, status, revision, created_at, expires_at, approved_at, payment, stock_id, proof_request_id, note';
+const columns = 'id, customer_id, pack_id, pack_label, price_mmk, status, revision, created_at, expires_at, approved_at, payment, stock_id, proof_request_id, key_name, note';
 type OrderRow = RowDataPacket & { id: string; customer_id: string; pack_id: RunningHubPackId; pack_label: string; price_mmk: number;
   status: RunningHubOrder['status']; revision: number; created_at: string; expires_at: string | null; approved_at: string | null;
-  payment: string; stock_id: string; proof_request_id: string | null; note: string; request_hash: Buffer;
+  payment: string; stock_id: string; proof_request_id: string | null; key_name: string | null; note: string; request_hash: Buffer;
   proof_hash: Buffer | null; proof_mime: string | null; proof_cipher: Buffer | null; delivery_cipher: string | null };
-type StockRow = RowDataPacket & { id: string; pack_id: RunningHubPackId; key_cipher: string; reserved_order_id: string | null;
+type StockRow = RowDataPacket & { id: string; pack_id: RunningHubPackId; key_cipher: string; key_name: string | null; reserved_order_id: string | null;
   issued_order_id: string | null; retired: number; created_at: string };
 type SettingsRow = RowDataPacket & { revision: number; methods: string };
 
@@ -50,8 +52,20 @@ export function ensureRunningHub() {
   return schemaReady ??= (async () => {
     await ensureCustomerSchema();
     const sql = await readFile(join(process.cwd(), 'hostinger', 'runninghub-schema.sql'), 'utf8');
-    for (const statement of sql.split(';').filter(value => value.trim())) await getPool().query(statement);
-    await getPool().execute("INSERT IGNORE INTO digimium_runninghub_settings (id, methods) VALUES (1, '[]')");
+    const pool = getPool();
+    for (const statement of sql.split(';').filter(value => value.trim())) await pool.query(statement);
+    for (const table of ['digimium_runninghub_stock', 'digimium_runninghub_orders']) {
+      try { await pool.query(`SELECT key_name FROM ${table} LIMIT 0`); }
+      catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'ER_BAD_FIELD_ERROR')) throw error;
+        try { await pool.query(`ALTER TABLE ${table} ADD COLUMN key_name VARCHAR(100) NULL`); }
+        catch (migrationError) {
+          if (!(migrationError instanceof Error && 'code' in migrationError && migrationError.code === 'ER_DUP_FIELDNAME')) throw migrationError;
+          await pool.query(`SELECT key_name FROM ${table} LIMIT 0`);
+        }
+      }
+    }
+    await pool.execute("INSERT IGNORE INTO digimium_runninghub_settings (id, methods) VALUES (1, '[]')");
   })().catch(error => { schemaReady = undefined; throw error; });
 }
 function secret(purpose: string) {
@@ -86,10 +100,10 @@ function present(row: OrderRow): RunningHubOrder {
     status: row.status, revision: row.revision, createdAt: row.created_at, expiresAt: row.expires_at, approvedAt: row.approved_at,
     payment: JSON.parse(row.payment), proofRequestId: row.proof_request_id,
     proofUrl: row.proof_request_id ? '/api/customer/runninghub/' + row.id + '/proof' : null,
-    keyId: row.status === 'approved' ? row.stock_id : null, note: row.note };
+    keyId: row.status === 'approved' ? row.stock_id : null, keyName: row.status === 'approved' ? row.key_name : null, note: row.note };
 }
 function presentStock(row: StockRow): RunningHubStock {
-  return { id: row.id, packId: row.pack_id, status: row.retired ? 'retired' : row.issued_order_id ? 'issued' : row.reserved_order_id ? 'reserved' : 'available',
+  return { id: row.id, packId: row.pack_id, keyName: row.key_name, status: row.retired ? 'retired' : row.issued_order_id ? 'issued' : row.reserved_order_id ? 'reserved' : 'available',
     reservedOrderId: row.reserved_order_id, issuedOrderId: row.issued_order_id, createdAt: row.created_at };
 }
 async function audit(connection: PoolConnection, event: string, orderId: string | null, keyId: string | null, actor?: string) {
@@ -292,7 +306,7 @@ export async function recoverRunningHubAdminApproval(id: string, proofRequestId:
 
 export async function adminRunningHub() {
   return transaction(async (connection, settings) => {
-    const [stock] = await connection.execute<StockRow[]>(`SELECT id, pack_id, reserved_order_id, issued_order_id, retired, created_at
+    const [stock] = await connection.execute<StockRow[]>(`SELECT id, pack_id, key_name, reserved_order_id, issued_order_id, retired, created_at
       FROM digimium_runninghub_stock ORDER BY created_at DESC, id DESC LIMIT 1000`);
     const [rows] = await connection.execute<(OrderRow & { customer_name: string; customer_email: string | null })[]>(
       'SELECT ' + columns.split(', ').map(column => 'o.' + column).join(', ') + `, c.name AS customer_name, c.email AS customer_email
@@ -316,21 +330,27 @@ export async function saveRunningHubSettings(body: unknown, actor: string) {
   });
 }
 export async function importRunningHubStock(body: unknown, actor: string) {
-  const input = parse(importSchema, body, 'Provide a bundle and 1–100 keys, each 8–2,048 characters without spaces.');
-  if (new Set(input.keys).size !== input.keys.length) throw new CommerceError(409, 'The import contains duplicate keys.');
-  const hash = digest('import-request', JSON.stringify([input.packId, [...input.keys].sort()]));
+  const input = parse(importSchema, body, 'Provide a bundle and 1–100 keys, each 8–2,048 characters without spaces. Key names can be up to 100 characters.');
+  const names = new Map<string, string | null>(input.keys.map(item => typeof item === 'string' ? [item, null] : [item.key, item.name]));
+  if (names.size !== input.keys.length) throw new CommerceError(409, 'The import contains duplicate keys.');
+  // Keep the original sorted string format for retries of unnamed batches.
+  const batch = [...names.keys()].sort().map(key => {
+    const name = names.get(key);
+    return name ? { key, name } : key;
+  });
+  const hash = digest('import-request', JSON.stringify([input.packId, batch]));
   return transaction(async connection => {
     const previous = await replay(connection, input.requestId, hash);
     if (previous) return { ...previous, created: false };
     const ids: string[] = [];
-    for (const key of input.keys) {
+    for (const [key, keyName] of names) {
       const keyHash = digest('stock-key', key);
       const [duplicates] = await connection.execute<RowDataPacket[]>('SELECT id FROM digimium_runninghub_stock WHERE key_hash = ?', [keyHash]);
       if (duplicates.length) throw new CommerceError(409, 'One or more keys already exist in stock, including issued or retired keys.');
       const id = randomUUID();
       const cipher = encrypt('stock/' + id + '/' + input.packId, Buffer.from(key)).toString('base64');
-      await connection.execute('INSERT INTO digimium_runninghub_stock (id, pack_id, key_hash, key_cipher, created_at) VALUES (?, ?, ?, ?, ?)',
-        [id, input.packId, keyHash, cipher, new Date().toISOString()]);
+      await connection.execute('INSERT INTO digimium_runninghub_stock (id, pack_id, key_hash, key_cipher, key_name, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, input.packId, keyHash, cipher, keyName, new Date().toISOString()]);
       await audit(connection, 'stock-imported', null, id, actor);
       ids.push(id);
     }
@@ -381,7 +401,7 @@ export async function decideRunningHubOrder(id: string, body: unknown, actor: st
     if (row.revision !== input.revision || !['awaiting_payment', 'payment_review'].includes(row.status)) {
       throw new AdminOrdersActionError('order_changed');
     }
-    const [stock] = await connection.execute<StockRow[]>('SELECT id, pack_id, key_cipher, reserved_order_id, issued_order_id, retired FROM digimium_runninghub_stock WHERE id = ?', [row.stock_id]);
+    const [stock] = await connection.execute<StockRow[]>('SELECT id, pack_id, key_cipher, key_name, reserved_order_id, issued_order_id, retired FROM digimium_runninghub_stock WHERE id = ?', [row.stock_id]);
     if (!stock[0] || stock[0].retired || stock[0].issued_order_id || stock[0].reserved_order_id !== id) {
       throw new AdminOrdersActionError('stock_unavailable');
     }
@@ -402,7 +422,7 @@ export async function decideRunningHubOrder(id: string, body: unknown, actor: st
       const delivery = encrypt('delivery/' + id + '/' + row.customer_id, key).toString('base64');
       const now = new Date().toISOString();
       await connection.execute(`UPDATE digimium_runninghub_orders SET status = 'approved', approved_at = ?, expires_at = NULL,
-        delivery_cipher = ?, note = ?, revision = revision + 1 WHERE id = ?`, [now, delivery, input.note ?? '', id]);
+        delivery_cipher = ?, key_name = ?, note = ?, revision = revision + 1 WHERE id = ?`, [now, delivery, stock[0].key_name, input.note ?? '', id]);
       await connection.execute('UPDATE digimium_runninghub_stock SET reserved_order_id = NULL, issued_order_id = ? WHERE id = ?', [id, row.stock_id]);
       if (referenceHash) await connection.execute('INSERT INTO digimium_runninghub_payments (method, reference_hash, order_id, created_at) VALUES (?, ?, ?, ?)',
         [payment.id, referenceHash, id, now]);

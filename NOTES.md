@@ -2,6 +2,8 @@
 
 ## Current status
 
+Running HUB Inventory accepts a name when adding an individual API key. Admin sees the saved name in stock and the buyer sees it alongside their revealed key after approval. Existing unnamed stock, bulk imports and historical keys continue to work.
+
 Running HUB checkout shows an Enlarge QR action for payment methods with a saved QR. Buyers can open the original QR at a larger size on desktop and phone without leaving the order.
 
 Both production Telegram bot profile photos retain the original Digimium backgrounds and use badges sized for the Telegram chat list. The customer bot has the cyan robot and Admin Orders has the gold shield.
@@ -103,6 +105,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Added optional per-key names, with a backward-compatible database migration and an immutable name snapshot when payment is approved. The existing encrypted key and one-click approval flows remain in use. Passed the Node 24 build, typecheck, strict lint, 103 unit tests, isolated Running HUB integration and synthetic browser checks of named entry, retry, reveal and copy.
 
 Added an accessible QR viewer to the Running HUB awaiting-payment panel, with responsive sizing and keyboard dismissal. Node 24 standalone build, typecheck, strict lint and 103 unit tests passed. With a synthetic portrait QR, browser checks passed on desktop, portrait phone and compact landscape, including keyboard and touch dismissal, focus return, and an absent QR.
 
@@ -271,6 +275,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+- Add funded Running HUB stock with a buyer-facing name when needed. Use the existing one-key-per-line import for unnamed batches.
 
 - Use the existing Admin payment settings to add the AYA Pay QR when the owner supplies it. The viewer can display that image after it is configured.
 

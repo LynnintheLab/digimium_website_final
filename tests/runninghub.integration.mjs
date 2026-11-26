@@ -105,6 +105,14 @@ try {
     'telegram-identity-schema.sql', 'google-auth-schema.sql', 'telegram-auth-schema.sql', 'giveaway-schema.sql', 'notification-schema.sql']) {
     await db.query(await readFile(new URL('hostinger/' + file, root), 'utf8'));
   }
+  const runningHubSchema = await readFile(new URL('hostinger/runninghub-schema.sql', root), 'utf8');
+  // Model an already deployed database so CREATE TABLE IF NOT EXISTS alone cannot pass this test.
+  const oldRunningHubSchema = runningHubSchema.replace(/^[ \t]*key_name[ \t]+[^,\r\n]+,\r?\n/gmi, '');
+  assert.doesNotMatch(oldRunningHubSchema, /\bkey_name\b/i);
+  await db.query(oldRunningHubSchema);
+  for (const table of ['digimium_runninghub_stock', 'digimium_runninghub_orders']) {
+    assert.equal((await db.query(`SHOW COLUMNS FROM ${table} LIKE 'key_name'`))[0].length, 0);
+  }
   await writeFile(env.RUNNINGHUB_FIXTURE_LOG, '', { mode: 0o600 });
   await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, '{}', { mode: 0o600 });
   await start();
@@ -125,6 +133,11 @@ try {
   const catalogBefore = await json(await get('/api/admin/catalog', owner));
   const proofPng = await readFile(new URL('public/assets/symbol-blue.png', root));
   const keys = Array.from({ length: 3 }, () => 'fixture-' + randomBytes(24).toString('hex'));
+  const keyNames = ['Key - 1', 'စမ်းသပ်သော့ - 2'];
+  function namesHidden(value) {
+    const serialized = JSON.stringify(value);
+    for (const name of keyNames) assert.ok(!serialized.includes(name), 'API key names are limited to inventory and approved order details');
+  }
   const walletRef = 'FIXTURE-881201';
   const sensitiveReferences = [walletRef];
   const redacted = value => {
@@ -166,6 +179,7 @@ try {
     const text = await response.text();
     const body = text ? JSON.parse(text) : null;
     redacted(body);
+    namesHidden(body);
     return { response, body };
   }
   function callback(receipt, token) {
@@ -187,6 +201,10 @@ try {
   const empty = await json(await get(admin, owner));
   assert.deepEqual(empty.packs.map(pack => [pack.id, pack.priceMmk]), [['usd10', 70000], ['usd20', 138000]]);
   assert.equal(empty.stock.length, 0);
+  for (const table of ['digimium_runninghub_stock', 'digimium_runninghub_orders']) {
+    const [[column]] = await db.query(`SHOW COLUMNS FROM ${table} LIKE 'key_name'`);
+    assert.equal(column?.Null, 'YES', 'The upgrade adds a nullable key name to existing tables');
+  }
   const initialView = await json(await get(customer, alice.cookie));
   assert.deepEqual(initialView.methods, []);
   assert.ok(initialView.packs.every(pack => pack.available === 0));
@@ -205,17 +223,31 @@ try {
   await json(await mutate(admin, 'PUT', settings, owner), 409);
   await json(await create(alice, 'usd10', 'kpay'), 409);
 
-  const batch = { requestId: randomUUID(), packId: 'usd10', keys: keys.slice(0, 2) };
+  const batch = { requestId: randomUUID(), packId: 'usd10', keys: [
+    { key: keys[0], name: '  ' + keyNames[0] + '  ' }, { key: keys[1], name: keyNames[1] },
+  ] };
   const last = { requestId: randomUUID(), packId: 'usd20', keys: [keys[2]] };
   await json(await restock(batch, alice.cookie), 401);
+  for (const name of ['', '   ', 'x'.repeat(101), 'Two\nlines', 'Visible\u202e label']) {
+    await json(await restock({ ...batch, keys: [{ key: keys[0], name }] }), 400);
+  }
+  await json(await restock({ ...batch, keys: [batch.keys[0], keys[0]] }), 409);
   const additions = await json(await restock(batch), 201);
   assert.equal(additions.added, 2);
-  assert.deepEqual((await json(await restock(batch))).ids, additions.ids);
+  const reorderedBatch = { ...batch, keys: [...batch.keys].reverse().map(({ key, name }) => ({ key, name: name.trim() })) };
+  assert.deepEqual((await json(await restock(reorderedBatch))).ids, additions.ids);
+  const changedName = [{ key: keys[0], name: 'Different name' }, batch.keys[1]];
+  await json(await restock({ ...batch, keys: changedName }), 409);
+  await json(await restock({ ...batch, requestId: randomUUID(), keys: changedName }), 409);
   await json(await restock({ ...batch, requestId: randomUUID() }), 409);
-  assert.equal((await json(await restock(last), 201)).added, 1);
+  const unnamedImport = await json(await restock(last), 201);
+  assert.equal(unnamedImport.added, 1);
+  assert.deepEqual((await json(await restock(last))).ids, unnamedImport.ids, 'Existing string-key imports still replay.');
   const before = await json(await get(admin, owner));
   redacted(before);
   assert.equal(before.stock.length, 3);
+  assert.deepEqual(additions.ids.map(id => before.stock.find(item => item.id === id)?.keyName), keyNames);
+  assert.equal(before.stock.find(item => item.id === unnamedImport.ids[0])?.keyName, null);
   const assertEncrypted = async () => {
     const [data] = await db.query('SELECT key_hash, key_cipher FROM digimium_runninghub_stock');
     assert.equal(data.length, 3);
@@ -227,6 +259,7 @@ try {
   const requestId = randomUUID();
   const first = (await json(await create(alice, 'usd10', 'kpay', requestId), 201)).order;
   assert.equal(first.status, 'awaiting_payment');
+  assert.equal(first.keyName, null);
   assert.equal(first.priceMmk, 70000);
   assert.equal(first.payment.id, 'kpay');
   assert.ok(Date.parse(first.expiresAt) > Date.now());
@@ -242,6 +275,7 @@ try {
     assert.ok(!JSON.stringify(orderCreated.fields).includes(privateDetail));
   }
   redacted(orderCreated);
+  namesHidden(orderCreated);
   assert.equal((await json(await create(alice, 'usd10', 'kpay', requestId))).order.id, first.id);
   assert.equal((await calls()).filter(firstAlert).length, 1, 'Replaying order creation sends no duplicate notice.');
   await json(await create(alice, 'usd10', 'aya', requestId), 409);
@@ -250,13 +284,16 @@ try {
   const preApproval = await json(await get(firstPath, alice.cookie));
   redacted(preApproval);
   assert.equal(preApproval.apiKey, undefined);
-  await json(await get(firstPath, bob.cookie), 404);
+  assert.equal(preApproval.order.keyName, null);
+  namesHidden(preApproval);
+  namesHidden(await json(await get(firstPath, bob.cookie), 404));
   await json(await decide(first, { proofRequestId: randomUUID() }), 409);
   await json(await proof(bob, first), 404);
   await json(await proof(alice, first, proofPng, 'image/svg+xml'), 415);
 
   const review = (await json(await proof(alice, first))).order;
   assert.equal(review.status, 'payment_review');
+  assert.equal(review.keyName, null);
   assert.equal(review.expiresAt, null);
   redacted(review);
   await json(await get(review.proofUrl), 401);
@@ -292,16 +329,23 @@ try {
   assert.equal(replay.order.keyId, approved.order.keyId);
   const detail = await json(await get(firstPath, alice.cookie));
   assert.ok(keys.slice(0, 2).includes(detail.apiKey));
+  const assignedName = keyNames[keys.indexOf(detail.apiKey)];
+  assert.equal(detail.order.keyName, assignedName, 'The delivered key and its name stay paired.');
+  assert.equal(approved.order.keyName, assignedName);
+  assert.equal(replay.order.keyName, assignedName);
   assert.equal(detail.order.keyId, approved.order.keyId);
   assert.equal((await json(await get(firstPath, alice.cookie))).apiKey, detail.apiKey);
   redacted(await json(await get(customer, alice.cookie)));
-  await json(await get(firstPath, bob.cookie), 404);
+  namesHidden(await json(await get(customer + '/history?status=purchased', alice.cookie)));
+  namesHidden(await json(await get(firstPath, bob.cookie), 404));
+  namesHidden(await json(await get(customer, bob.cookie)));
   const adminView = await json(await get(admin, owner));
   redacted(adminView);
   const recorded = adminView.orders.find(order => order.id === first.id);
   assert.equal(recorded.customerId, alice.id);
   assert.equal(recorded.customerName, alice.name);
   assert.equal(recorded.keyId, approved.order.keyId);
+  assert.equal(recorded.keyName, assignedName);
   const revealPath = admin + '/orders/' + first.id + '/reveal';
   await json(await mutate(revealPath, 'POST', { confirmation: first.id }, alice.cookie), 401);
   assert.equal((await json(await mutate(revealPath, 'POST', { confirmation: first.id }, owner))).apiKey, detail.apiKey);
@@ -333,6 +377,7 @@ try {
     action: 'reject', paymentReference: undefined, proofRequestId: undefined, note: 'Synthetic screenshot already used.',
   }))).order;
   assert.equal(rejected.status, 'rejected');
+  assert.equal(rejected.keyName, null);
   assert.equal((await json(await get(customer + '/' + duplicate.id, bob.cookie))).apiKey, undefined);
 
   const lastUnit = await Promise.all([create(bob, 'usd20', 'aya'), create(charlie, 'usd20', 'aya')]);
@@ -349,7 +394,9 @@ try {
   assert.equal((await json(await decide(secondReview, { ...legacyDecision, paymentReference: 'fixture 881201' }))).applied, false, 'Legacy reference-based request receipts still replay.');
   const [[oldReferenceRows]] = await db.execute('SELECT COUNT(*) AS total FROM digimium_runninghub_payments WHERE order_id = ?', [secondReview.id]);
   assert.equal(Number(oldReferenceRows.total), 1, 'Legacy reference verification is retained.');
-  assert.equal((await json(await get(customer + '/' + secondFilled.id, winner.cookie))).apiKey, keys[2]);
+  const unnamedDelivery = await json(await get(customer + '/' + secondFilled.id, winner.cookie));
+  assert.equal(unnamedDelivery.apiKey, keys[2]);
+  assert.equal(unnamedDelivery.order.keyName, null, 'Unnamed keys still issue successfully.');
   await json(await get(customer + '/' + secondFilled.id, loser.cookie), 404);
 
   const unpaid = (await json(await create(loser, 'usd10', 'aya'), 201)).order;
@@ -609,6 +656,7 @@ try {
   const staleDetail = await json(await get(customer + '/' + stale.order.id, telegramStale.cookie));
   assert.equal(staleDetail.order.status, 'rejected'); assert.equal(staleDetail.apiKey, undefined);
   redacted(await calls()); redacted(serverOutput);
+  namesHidden(await calls()); namesHidden(serverOutput);
   redacted(await json(await get(admin, owner)));
   redacted(await json(await get(customer, telegramBuyer.cookie)));
 

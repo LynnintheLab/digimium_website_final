@@ -120,6 +120,7 @@ export default function OrderReview({ order, onChanged, onDirtyChange, onAuthExp
       <div><dt>Bundle</dt><dd>{order.packLabel}</dd></div><div><dt>Payment amount</dt><dd>{mmk(order.priceMmk)}</dd></div>
       <div><dt>Created</dt><dd>{orderDate(order.createdAt)}</dd></div><div><dt>{order.approvedAt ? 'Delivered' : 'Reservation expires'}</dt><dd>{orderDate(order.approvedAt || order.expiresAt)}</dd></div>
       <div><dt>Customer ID</dt><dd className="rh-id">{order.customerId}</dd></div>{order.keyId && <div><dt>Delivered key ID</dt><dd className="rh-id">{order.keyId}</dd></div>}
+      {order.status === 'approved' && order.keyName && <div><dt>Key name</dt><dd><bdi>{order.keyName}</bdi></dd></div>}
     </dl>
     {notice && <div className="admin-feedback admin-feedback-success" role="status"><Check size={18} aria-hidden="true"/><p>{notice}</p></div>}
     {error && <div className="admin-feedback admin-feedback-error" role="alert"><CircleAlert size={18} aria-hidden="true"/><p>{error}</p></div>}

@@ -11,8 +11,9 @@ type Props = {
   onAuthExpired: () => void;
 };
 
-type ImportAttempt = { requestId: string; packId: Pack['id']; keys: string[] };
+type ImportAttempt = { requestId: string; packId: Pack['id']; keys: (string | { key: string; name: string })[] };
 const MAX_KEYS = 100;
+const MAX_KEY_NAME = 100;
 const dateFormat = new Intl.DateTimeFormat('en-GB', {
   dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Yangon',
 });
@@ -34,10 +35,11 @@ function addedBatch(value: unknown, count: number): value is { created: boolean;
 
 export default function InventoryPanel({ data, onChanged, onDirtyChange, onAuthExpired }: Props) {
   const [packId, setPackId] = useState<Pack['id']>(data.packs[0]?.id ?? 'usd10');
+  const [keyName, setKeyName] = useState('');
   const [keysText, setKeysText] = useState('');
   const [busy, setBusy] = useState<'add' | 'remove' | 'refresh' | null>(null);
   const [error, setError] = useState('');
-  const [errorScope, setErrorScope] = useState<'add' | 'remove' | 'refresh' | null>(null);
+  const [errorScope, setErrorScope] = useState<'add' | 'name' | 'remove' | 'refresh' | null>(null);
   const [notice, setNotice] = useState('');
   const [uncertain, setUncertain] = useState(false);
   const [needsRefresh, setNeedsRefresh] = useState(false);
@@ -45,6 +47,7 @@ export default function InventoryPanel({ data, onChanged, onDirtyChange, onAuthE
   const attempt = useRef<ImportAttempt | null>(null);
   const active = useRef(false);
   const mounted = useRef(true);
+  const keyNameInput = useRef<HTMLInputElement>(null);
   const keysInput = useRef<HTMLTextAreaElement>(null);
   const listHeading = useRef<HTMLHeadingElement>(null);
   const confirmationHeading = useRef<HTMLHeadingElement>(null);
@@ -58,18 +61,19 @@ export default function InventoryPanel({ data, onChanged, onDirtyChange, onAuthE
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
-  useEffect(() => { onDirtyChange(keysText.length > 0 || locked); }, [keysText, locked, onDirtyChange]);
+  useEffect(() => { onDirtyChange(Boolean(keyName || keysText) || locked); }, [keyName, keysText, locked, onDirtyChange]);
   useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
 
-  function editKeys(value: string) {
-    setKeysText(value); setNotice('');
+  function editDraft() {
+    setNotice('');
     attempt.current = null;
     if (!needsRefresh) { setError(''); setErrorScope(null); }
   }
 
-  function showInputError(message: string) {
-    setError(message); setErrorScope('add');
-    keysInput.current?.focus();
+  function showInputError(message: string, field: 'add' | 'name' = 'add') {
+    setError(message); setErrorScope(field);
+    const input = field === 'name' ? keyNameInput : keysInput;
+    input.current?.focus();
   }
 
   async function refresh() {
@@ -107,7 +111,14 @@ export default function InventoryPanel({ data, onChanged, onDirtyChange, onAuthE
         showInputError('This batch contains duplicate keys. Remove repeated lines before adding it.'); return;
       }
       if (!data.packs.some(pack => pack.id === packId)) { showInputError('Choose an available bundle before adding keys.'); return; }
-      submission = { requestId: crypto.randomUUID(), packId, keys };
+      const name = keyName.trim();
+      if (name.length > MAX_KEY_NAME || /[\p{Cc}\u202a-\u202e\u2066-\u2069]/u.test(name)) {
+        showInputError('Use up to 100 characters on one line for the key name.', 'name'); return;
+      }
+      if (name && keys.length !== 1) {
+        showInputError('Enter one API key to save a name, or clear the name to add this batch.', 'name'); return;
+      }
+      submission = { requestId: crypto.randomUUID(), packId, keys: name ? [{ key: keys[0], name }] : keys };
       attempt.current = submission;
     }
     active.current = true; setBusy('add'); setError(''); setErrorScope(null); setNotice('');
@@ -134,7 +145,7 @@ export default function InventoryPanel({ data, onChanged, onDirtyChange, onAuthE
       const result: unknown = await response.json();
       if (!mounted.current) return;
       if (!addedBatch(result, submission.keys.length)) throw new Error('Unconfirmed import');
-      attempt.current = null; setUncertain(false); setNeedsRefresh(false); setKeysText('');
+      attempt.current = null; setUncertain(false); setNeedsRefresh(false); setKeyName(''); setKeysText('');
       const packLabel = data.packs.find(pack => pack.id === submission.packId)?.label ?? 'the selected bundle';
       setNotice(`${result.added} ${result.added === 1 ? 'key added' : 'keys added'} to ${packLabel}.`);
       onDirtyChange(true);
@@ -216,15 +227,21 @@ export default function InventoryPanel({ data, onChanged, onDirtyChange, onAuthE
     </section>
 
     <section className="rh-panel" aria-labelledby="rh-add-stock-title">
-      <div className="rh-panel-heading"><div><h2 id="rh-add-stock-title">Add keys</h2><p className="rh-help">Choose a bundle and paste one key per line. Saved keys remain hidden in Admin.</p></div></div>
+      <div className="rh-panel-heading"><div><h2 id="rh-add-stock-title">Add keys</h2><p className="rh-help">Choose a bundle and paste one API key per line.</p></div></div>
       <form onSubmit={event => void addKeys(event)} autoComplete="off">
         <fieldset disabled={locked || uncertain}>
           <label className="admin-field">Bundle<select value={packId} onChange={event => {
-            setPackId(event.target.value as Pack['id']); attempt.current = null; setNotice('');
-            if (!needsRefresh) { setError(''); setErrorScope(null); }
+            setPackId(event.target.value as Pack['id']); editDraft();
           }}>{data.packs.map(pack => <option value={pack.id} key={pack.id}>{pack.label}</option>)}</select></label>
-          <label className="admin-field" htmlFor="rh-stock-keys">Keys
-            <textarea id="rh-stock-keys" ref={keysInput} value={keysText} onChange={event => editKeys(event.target.value)}
+          <label className="admin-field" htmlFor="rh-stock-key-name">Key name (optional)
+            <input id="rh-stock-key-name" ref={keyNameInput} value={keyName} onChange={event => { setKeyName(event.target.value); editDraft(); }}
+              type="text" maxLength={MAX_KEY_NAME} placeholder="Key - 1" autoComplete="off"
+              aria-invalid={errorScope === 'name' && !!error || undefined}
+              aria-describedby={'rh-stock-key-name-help' + (errorScope === 'name' && error ? ' rh-inventory-error' : '')} />
+          </label>
+          <p id="rh-stock-key-name-help" className="rh-help">Add one key at a time to give it a name. The buyer will see this name with their key.</p>
+          <label className="admin-field" htmlFor="rh-stock-keys">API keys
+            <textarea id="rh-stock-keys" ref={keysInput} value={keysText} onChange={event => { setKeysText(event.target.value); editDraft(); }}
               rows={7} autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
               aria-invalid={errorScope === 'add' && !!error || undefined}
               aria-describedby={'rh-stock-keys-help' + (errorScope === 'add' && error ? ' rh-inventory-error' : '')} />
@@ -237,7 +254,7 @@ export default function InventoryPanel({ data, onChanged, onDirtyChange, onAuthE
             {busy === 'add' ? 'Adding keys…' : uncertain ? 'Retry same batch' : 'Add keys'}
           </button>
           <span className="rh-help">{enteredCount} {enteredCount === 1 ? 'key entered' : 'keys entered'}</span>
-          {uncertain && <p className="rh-help">The bundle and keys are held until this request is confirmed.</p>}
+          {uncertain && <p className="rh-help">The bundle, name and keys are held until this request is confirmed.</p>}
         </div>
       </form>
     </section>
@@ -256,10 +273,11 @@ export default function InventoryPanel({ data, onChanged, onDirtyChange, onAuthE
         </div>
       </section>}
       {data.stock.length ? <div className="rh-table-wrap" tabIndex={0} role="region" aria-label="Stock records">
-        <table className="rh-table"><thead><tr><th scope="col">Stock ID</th><th scope="col">Bundle</th><th scope="col">Status</th><th scope="col">Added</th><th scope="col">Order ID</th><th scope="col"><span className="admin-sr-only">Actions</span></th></tr></thead>
+        <table className="rh-table"><thead><tr><th scope="col">Stock ID</th><th scope="col">Key name</th><th scope="col">Bundle</th><th scope="col">Status</th><th scope="col">Added</th><th scope="col">Order ID</th><th scope="col"><span className="admin-sr-only">Actions</span></th></tr></thead>
           <tbody>{data.stock.map(item => {
             const created = new Date(item.createdAt);
             return <tr key={item.id}><th scope="row" className="rh-stock-reference">{item.id}</th>
+              <td className="rh-stock-key-name">{item.keyName ? <bdi>{item.keyName}</bdi> : 'Unnamed'}</td>
               <td>{data.packs.find(pack => pack.id === item.packId)?.label ?? item.packId}</td>
               <td><span className="rh-status" data-status={item.status}>{statusLabels[item.status] ?? 'Unknown'}</span></td>
               <td>{Number.isNaN(created.getTime()) ? 'Date unavailable' : <time dateTime={item.createdAt}>{dateFormat.format(created)}</time>}</td>

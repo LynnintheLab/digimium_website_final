@@ -27,11 +27,13 @@ export type RunningHubOrder = {
   proofUrl: string | null;
   proofRequestId: string | null;
   keyId: string | null;
+  keyName: string | null;
   note: string;
 };
 export type RunningHubStock = {
   id: string;
   packId: RunningHubPackId;
+  keyName: string | null;
   status: 'available' | 'reserved' | 'issued' | 'retired';
   reservedOrderId: string | null;
   issuedOrderId: string | null;
