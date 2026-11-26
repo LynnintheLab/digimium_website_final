@@ -2,6 +2,10 @@
 
 ## Current status
 
+Approved Running HUB orders display a red balance-check box beside the API key controls. Customers can open Keymeter or copy its public website link.
+
+Production Running HUB stock has five available 10 USD keys and four available 20 USD keys after importing four of each. The 10 USD total includes one existing key.
+
 Running HUB checkout shows the available key count beside each bundle for signed-in and signed-out buyers. Active reservations, issued keys and retired keys are excluded. An expired unpaid reservation makes its key available again.
 
 Running HUB Inventory accepts a name when adding an individual API key. Admin sees the saved name in stock and the buyer sees it alongside their revealed key after approval. Existing unnamed stock, bulk imports and historical keys continue to work.
@@ -107,6 +111,10 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Verified the deployed Keymeter destination. Local browser checks covered approved-only visibility, the Burmese layout at 320 pixels, separate-tab navigation without a referrer, and copying the website URL while the key is visible. Node 24 build, typecheck, strict lint and 103 unit tests passed.
+
+Created Key 1 through Key 4 for both Running HUB bundles. Verified each provider usage limit, the eight matching Admin stock records, and the live customer stock counts.
 
 Added bilingual stock counts and an unauthenticated endpoint that returns only the two bundle quantities. The purchase form keeps sold-out bundles disabled and refreshes the counts when returning to the chooser. Node 24 build, typecheck, strict lint, 103 unit tests, and the disposable Running HUB integration passed. Local desktop and 320-pixel Burmese browser checks covered available and sold-out bundles.
 
@@ -280,7 +288,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Add four named $10 keys and four named $20 keys after the RunningHub Personal wallet is funded. Set each key limit to its bundle amount and verify the stock totals in checkout after import.
+- The owner will fund the RunningHub Personal wallet as customers purchase. For future stock additions, set each key limit to its bundle amount and verify the stock totals in checkout after import.
 
 - Use the existing Admin payment settings to add the AYA Pay QR when the owner supplies it. The viewer can display that image after it is configured.
 
@@ -297,8 +305,6 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 - Buyers can use Products → Running HUB API Key (the green R logo) or open `/runninghub` directly. Check current stock before verifying purchase availability.
 
 - Use the shared Digimium Admin Orders bot with the verified store owner's private Telegram chat. The setup helper checks the bot identity and registered webhook. Check the receiving wallet before approving a live order. Use distinct synthetic receipts for approval checks in a disposable environment.
-
-- Import funded API keys in Admin → Running HUB → Inventory for each bundle. Add the AYA Pay receiving QR in Payment settings when the owner supplies it.
 
 - Keep the production campaign hidden until the owner explicitly resumes it. Before reopening, review the schedule and separately update/enable the OTP banner. Do not invent new campaign dates. The website promo carousel uses payment methods in place of giveaway.
 

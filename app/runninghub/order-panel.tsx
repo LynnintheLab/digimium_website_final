@@ -1,10 +1,13 @@
 'use client';
 
 import Image from 'next/image';
-import { Check, Copy, Eye, EyeOff, ImagePlus, KeyRound, RefreshCw, Upload, X, ZoomIn } from 'lucide-react';
+import { ArrowUpRight, Check, Copy, Eye, EyeOff, ImagePlus, KeyRound, RefreshCw, Upload, X, ZoomIn } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react';
 import { RUNNINGHUB_PACKS, RUNNINGHUB_PROOF_MAX_BYTES, type RunningHubOrder, type RunningHubPaymentMethod } from '@/lib/runninghub';
 import type { ShopLanguage } from '@/lib/shop-language';
+
+const KEY_METER_URL = 'https://keymeter.lynninthelab.space/';
+type CopyTarget = 'recipient' | 'key' | 'website';
 
 export const walletName = (method: RunningHubPaymentMethod['id']) => method === 'kpay' ? 'KPay' : 'AYA Pay';
 export function runningHubStatus(status: RunningHubOrder['status'], lang: ShopLanguage) {
@@ -51,7 +54,7 @@ export function RunningHubOrderPanel({ order, lang, onUpdated, onRefresh, onIden
   const [uncertain, setUncertain] = useState(false);
   const [error, setError] = useState('');
   const [apiKey, setApiKey] = useState('');
-  const [copied, setCopied] = useState<'recipient' | 'key' | null>(null);
+  const [copied, setCopied] = useState<CopyTarget | 'website-fallback' | null>(null);
   const [proofFailed, setProofFailed] = useState(false);
   const [proofRetry, setProofRetry] = useState(0);
   const input = useRef<HTMLInputElement>(null);
@@ -167,12 +170,16 @@ export function RunningHubOrderPanel({ order, lang, onUpdated, onRefresh, onIden
     finally { flight.current = false; if (active.current) setBusy(false); }
   }
 
-  async function copy(kind: 'recipient' | 'key') {
+  async function copy(kind: CopyTarget) {
     if (kind === 'recipient' && !canPay) return;
-    const value = kind === 'key' ? apiKey : order.payment.accountNumber;
+    const value = { recipient: order.payment.accountNumber, key: apiKey, website: KEY_METER_URL }[kind];
     if (!value) return;
     try { await navigator.clipboard.writeText(value); if (active.current) setCopied(kind); }
-    catch { if (active.current) setError(t('Select the displayed text and copy it manually.', 'ပြထားသောစာသားကို ရွေးပြီး ကိုယ်တိုင် ကူးယူပါ။')); }
+    catch {
+      if (!active.current) return;
+      if (kind === 'website') setCopied('website-fallback');
+      else setError(t('Select the displayed text and copy it manually.', 'ပြထားသောစာသားကို ရွေးပြီး ကိုယ်တိုင် ကူးယူပါ။'));
+    }
   }
 
   return <section className="rh-panel rh-order" aria-labelledby={`rh-order-${order.id}`}>
@@ -217,6 +224,22 @@ export function RunningHubOrderPanel({ order, lang, onUpdated, onRefresh, onIden
         {apiKey && <button type="button" className="rh-primary" onClick={() => void copy('key')}><Copy size={17} />{t('Copy API key', 'API Key ကူးယူရန်')}</button>}
       </div>
       {copied === 'key' && <p role="status">{t('API key copied.', 'API Key ကူးယူပြီးပါပြီ။')}</p>}
+      <div className="rh-key-balance">
+        <h4>{t('Check your API key balance here', 'API Key လက်ကျန်ငွေကို ဒီမှာ စစ်ပါ')}</h4>
+        <div className="rh-key-balance-actions" lang="en">
+          <a className="rh-primary rh-key-balance-link" href={KEY_METER_URL} target="_blank" rel="noopener noreferrer">
+            Check Balance <ArrowUpRight size={17} aria-hidden="true" />
+          </a>
+          <button type="button" className="rh-secondary" onClick={() => void copy('website')}>
+            <Copy size={17} aria-hidden="true" /> Copy Website Link
+          </button>
+        </div>
+        {copied === 'website' && <p role="status">{t('Website link copied.', 'Website link ကူးယူပြီးပါပြီ။')}</p>}
+        {copied === 'website-fallback' && <>
+          <p role="status">{t('Select and copy the website link below.', 'အောက်က website link ကို ရွေးပြီး ကူးယူပါ။')}</p>
+          <code dir="ltr">{KEY_METER_URL}</code>
+        </>}
+      </div>
     </div>}
     {/* Full document navigation keeps storefront scripts out of the private page. */}
     {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
