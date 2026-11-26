@@ -88,7 +88,7 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
-Built Running HUB from the production baseline. Tests verified protected receipt access, correct prices, payment-reference deduplication, concurrent reservations, atomic delivery, customer ownership and isolated legacy catalog/order data. Node 24 build, typecheck, strict lint, 103 units, Running HUB integration and legacy Admin orders integration passed. A loopback browser test verified automatic display after simulated approval and the protected Admin stock and receipt screens.
+Built Running HUB from the production baseline. Tests verified protected receipt access, correct prices, payment-reference deduplication, concurrent reservations, atomic delivery, customer ownership and isolated legacy catalog/order data. Node 24 build, typecheck, strict lint, 103 units, Running HUB integration and legacy Admin orders integration passed. A loopback browser test verified automatic display after simulated approval and the protected Admin stock and receipt screens. Admin stock totals account for all available keys, and payment review retries preserve their original request IDs.
 
 Deployed and verified reversible giveaway visibility, hid the production campaign and disabled the independent OTP banner. Live admin proof shows Paused and Show giveaway; the two original participants and campaign times are unchanged.
 

@@ -100,7 +100,7 @@ export default function InventoryPanel({ data, onChanged, onDirtyChange, onAuthE
       const keys = keysText.split(/\r\n?|\n/).map(line => line.trim()).filter(Boolean);
       if (!keys.length) { showInputError('Paste at least one key, with one key on each line.'); return; }
       if (keys.length > MAX_KEYS) { showInputError('Add up to 100 keys at a time. Split this batch into smaller groups.'); return; }
-      if (keys.some(key => key.length < 8 || key.length > 2048 || /[\s\p{Cc}]/u.test(key))) {
+      if (keys.some(key => key.length < 8 || key.length > 2048 || /[\s\p{Cc}\u202a-\u202e\u2066-\u2069]/u.test(key))) {
         showInputError('Each key must contain 8–2,048 characters, with no spaces or control characters.'); return;
       }
       if (new Set(keys).size !== keys.length) {
@@ -206,12 +206,13 @@ export default function InventoryPanel({ data, onChanged, onDirtyChange, onAuthE
         </button>
       </div>
       <div className="rh-table-wrap" tabIndex={0} role="region" aria-label="Stock counts by bundle">
-        <table className="rh-table rh-stock-summary"><thead><tr><th scope="col">Bundle</th><th scope="col">Available</th><th scope="col">Reserved</th><th scope="col">Issued</th></tr></thead>
+        <table className="rh-table rh-stock-summary"><thead><tr><th scope="col">Bundle</th><th scope="col">Available</th><th scope="col">Reserved in recent stock</th><th scope="col">Issued in recent stock</th></tr></thead>
           <tbody>{data.packs.map(pack => <tr key={pack.id}><th scope="row">{pack.label}</th>
-            {['available', 'reserved', 'issued'].map(status => <td key={status}>{data.stock.filter(item => item.packId === pack.id && item.status === status).length}</td>)}
+            <td>{pack.available}</td>{['reserved', 'issued'].map(status => <td key={status}>{data.stock.filter(item => item.packId === pack.id && item.status === status).length}</td>)}
           </tr>)}</tbody>
         </table>
       </div>
+      <p className="rh-help">Available totals include all stock. Reserved and issued counts cover the latest 1,000 stock records.</p>
     </section>
 
     <section className="rh-panel" aria-labelledby="rh-add-stock-title">
@@ -242,7 +243,7 @@ export default function InventoryPanel({ data, onChanged, onDirtyChange, onAuthE
     </section>
 
     <section className="rh-panel" aria-labelledby="rh-stock-list-title">
-      <div className="rh-panel-heading"><div><h2 id="rh-stock-list-title" ref={listHeading} tabIndex={-1}>Stock records</h2><p className="rh-help">Only available keys can be deleted. All dates use Myanmar time.</p></div></div>
+      <div className="rh-panel-heading"><div><h2 id="rh-stock-list-title" ref={listHeading} tabIndex={-1}>Stock records</h2><p className="rh-help">Latest 1,000 records. Only available keys can be deleted. All dates use Myanmar time.</p></div></div>
       {removingId && <section className="rh-confirmation" role="group" aria-labelledby="rh-delete-stock-title" aria-describedby="rh-delete-stock-description">
         <h3 id="rh-delete-stock-title" ref={confirmationHeading} tabIndex={-1}>Delete available key?</h3>
         <p id="rh-delete-stock-description">{canRemove ? 'This key will no longer be available for purchases.' : 'This record is no longer available for deletion. Refresh stock to see its current status.'}</p>

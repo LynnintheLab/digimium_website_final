@@ -14,6 +14,12 @@ function methodsFrom(data: RunningHubData): RunningHubPaymentMethod[] {
   });
 }
 
+function sameMethods(expected: RunningHubPaymentMethod[], actual?: RunningHubPaymentMethod[]) {
+  return actual?.length === expected.length && expected.every(method => actual.some(saved =>
+    saved.id === method.id && saved.enabled === method.enabled && saved.accountLabel === method.accountLabel &&
+    saved.accountNumber === method.accountNumber && saved.qrPath === method.qrPath));
+}
+
 export default function PaymentSettings({ data, onChanged, onDirtyChange, onAuthExpired }: {
   data: RunningHubData;
   onChanged: () => Promise<RunningHubData | undefined>;
@@ -27,7 +33,7 @@ export default function PaymentSettings({ data, onChanged, onDirtyChange, onAuth
   const [notice, setNotice] = useState('');
   const [conflict, setConflict] = useState(false);
   const request = useRef<AbortController | null>(null);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(methodsFrom(data));
+  const dirty = !sameMethods(draft, methodsFrom(data));
   const stale = conflict || revision !== data.settingsRevision;
 
   useEffect(() => { onDirtyChange(dirty || !!busy); return () => onDirtyChange(false); }, [dirty, busy, onDirtyChange]);
@@ -72,16 +78,18 @@ export default function PaymentSettings({ data, onChanged, onDirtyChange, onAuth
     }
     const controller = new AbortController(); request.current = controller;
     setBusy('save'); setError(''); setNotice('');
+    const submitted = draft.map(method => ({ ...method, accountLabel: method.accountLabel.trim(), accountNumber: method.accountNumber.trim() }));
     try {
       const response = await fetch('/api/admin/runninghub', { method: 'PUT', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, methods: draft }), signal: controller.signal });
-      const result = await response.json().catch(() => null) as { error?: string } | null;
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, methods: submitted }), signal: controller.signal });
+      const result = await response.json().catch(() => null) as { error?: string; methods?: RunningHubPaymentMethod[]; settingsRevision?: number } | null;
       if (controller.signal.aborted) return;
       if (response.status === 401 || response.status === 403) { onAuthExpired(); return; }
       if (!response.ok) { setConflict(response.status === 409); setError(result?.error || 'Payment settings could not be saved. Your edits are still here.'); return; }
+      if (result?.settingsRevision !== revision + 1 || !sameMethods(submitted, result.methods)) throw new Error('Unconfirmed payment settings save');
       const latest = await onChanged();
       if (controller.signal.aborted) return;
-      if (latest) { setDraft(methodsFrom(latest)); setRevision(latest.settingsRevision); setNotice('Payment settings saved. Existing orders keep their original receiving details.'); }
+      if (latest && latest.settingsRevision === result.settingsRevision && sameMethods(submitted, methodsFrom(latest))) { setDraft(methodsFrom(latest)); setRevision(latest.settingsRevision); setNotice('Payment settings saved. Existing orders keep their original receiving details.'); }
       else { setConflict(true); setError('Settings were saved, but the latest version could not be loaded. Reload settings before editing again.'); }
     } catch { if (!controller.signal.aborted) setError('Could not confirm the save. Your edits are still here; retry or reload the latest settings.'); }
     finally { if (request.current === controller) { request.current = null; if (!controller.signal.aborted) setBusy(null); } }

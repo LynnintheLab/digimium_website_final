@@ -32,7 +32,6 @@ export default function OrderReview({ order, onChanged, onDirtyChange, onAuthExp
   const pending = useRef<PendingDecision | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const confirmationHeading = useRef<HTMLHeadingElement>(null);
-  const decisionTrigger = useRef<HTMLButtonElement | null>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
   const dirty = !!walletReference || !!note || busy || uncertain;
   const reviewable = order.status === 'payment_review' && !!order.proofRequestId;
@@ -56,13 +55,12 @@ export default function OrderReview({ order, onChanged, onDirtyChange, onAuthExp
     if (dirty && !window.confirm('Close this order and discard unsaved review inputs?')) return;
     onClose();
   }
-  function prepare(action: Decision, trigger: HTMLButtonElement) {
+  function prepare(action: Decision) {
     if (locked || !reviewable) return;
     if (action === 'approve' && !normalizeRunningHubReference(walletReference)) {
       setError('Enter the receiving wallet’s transaction reference: 6–80 letters or digits. Spaces and hyphens are allowed.');
       referenceInput.current?.focus(); return;
     }
-    decisionTrigger.current = trigger;
     setError(''); setConfirming(action);
     requestAnimationFrame(() => confirmationHeading.current?.focus());
   }
@@ -85,7 +83,7 @@ export default function OrderReview({ order, onChanged, onDirtyChange, onAuthExp
       if (!response.ok) {
         setError(result?.error || 'This order could not be updated. Your review inputs are still here.');
         if (response.status === 409) { setConflict(true); setConfirming(null); setUncertain(false); pending.current = null; }
-        else if (response.status < 500) { setUncertain(false); setConfirming(null); pending.current = null; }
+        else if (response.status < 500 && response.status !== 408) { setUncertain(false); setConfirming(null); pending.current = null; }
         else setUncertain(true);
         return;
       }
@@ -148,7 +146,7 @@ export default function OrderReview({ order, onChanged, onDirtyChange, onAuthExp
             <p>{confirming === 'approve' ? `${order.packLabel} will be delivered to ${order.customerName || 'this customer'} after this ${mmk(order.priceMmk)} payment is recorded.` : 'The customer will see the rejection and your note.'}</p>
             <div className="rh-action-buttons"><button type="button" className="admin-button admin-button-primary" disabled={busy || conflict || done} onClick={() => void decide()}>{busy && <LoaderCircle size={16} className="admin-spinner" aria-hidden="true"/>}{busy ? 'Updating…' : uncertain ? 'Retry same decision' : confirming === 'approve' ? 'Confirm and issue key' : 'Confirm rejection'}</button>
               {!uncertain && <button type="button" className="admin-button admin-button-secondary" disabled={busy} onClick={() => { const action = confirming; setConfirming(null); requestAnimationFrame(() => document.getElementById(`rh-${action}-payment`)?.focus()); }}>Keep reviewing</button>}</div>
-          </div> : <div className="rh-action-buttons"><button id="rh-approve-payment" type="button" className="admin-button admin-button-primary" disabled={locked} onClick={event => prepare('approve', event.currentTarget)}>Approve payment &amp; issue key</button><button id="rh-reject-payment" type="button" className="admin-button admin-button-secondary" disabled={locked} onClick={event => prepare('reject', event.currentTarget)}>Reject payment</button></div>}
+          </div> : <div className="rh-action-buttons"><button id="rh-approve-payment" type="button" className="admin-button admin-button-primary" disabled={locked} onClick={() => prepare('approve')}>Approve payment &amp; issue key</button><button id="rh-reject-payment" type="button" className="admin-button admin-button-secondary" disabled={locked} onClick={() => prepare('reject')}>Reject payment</button></div>}
         </>}
         {order.note && <div className="rh-saved-note"><h4>Customer note</h4><p>{order.note}</p></div>}
         {order.status === 'approved' && order.keyId && <div className="rh-delivery"><h3>Delivered key</h3><p className="rh-help">The customer can view this key in their account. Reveal it only when needed for support; it hides after one minute or when you leave this tab.</p>

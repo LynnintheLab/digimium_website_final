@@ -77,6 +77,6 @@ export default function OrdersPanel({ data, initialOrder, onChanged, onDirtyChan
       <p>{term ? 'Try a customer name, order reference or key ID.' : filter === 'payment_review' ? 'Submitted receipts will appear here.' : 'Choose another status to see more orders.'}</p>
       {(term || filter !== 'all') && <button type="button" className="admin-text-button" onClick={() => { setSearch(''); setFilter('all'); }}>Show all orders</button>}
     </div>}
-    <p className="rh-list-footer">{shown.length} {shown.length === 1 ? 'order' : 'orders'} in the latest 200 records · Dates shown in Myanmar time</p>
+    <p className="rh-list-footer">{shown.length} {shown.length === 1 ? 'order' : 'orders'} shown · Up to 200 records, with payment reviews first · Myanmar time</p>
   </section>;
 }
