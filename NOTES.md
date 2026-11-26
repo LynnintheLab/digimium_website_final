@@ -2,6 +2,8 @@
 
 ## Current status
 
+Production Running HUB checkout has KPay and AYA Pay enabled. The owner-provided KPay receiving QR is saved. AYA Pay uses its receiving number while its QR is pending. The signed-in checkout showed the 10 USD bundle available and both payment methods on November 26, 2026.
+
 The production storefront lists Running HUB API Key as the first product card under All services and AI & productivity, with the official RunningHub mark. Storefront search finds Running HUB, RunningHub and API Key. This card opens the dedicated checkout, with both bundle prices coming from the checkout definitions. The subscription catalog data is separate.
 
 The Main site uses the shared `@DigimiumAdminOrdersBot` connection for private receipt delivery and payment approval. Running HUB is the first connected checkout flow and issues its reserved key when the owner replies with the checked wallet reference. Future website checkout products can use the same bot. See [Admin Orders bot setup](docs/ADMIN-ORDERS-BOT.md).
@@ -91,6 +93,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Saved and verified the production Running HUB payment configuration through Admin. Confirmed the live buyer could select 10 USD and continue to payment. At that check the 20 USD bundle had zero available keys. No live order was created during verification.
 
 Replaced the Running HUB storefront placeholder icon with the locally served PNG from the provider’s official website icon. See [mark provenance](public/assets/marks/SOURCES.md).
 
@@ -244,11 +248,11 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Buyers can use Products → Running HUB API Key (the green R logo) or open `/runninghub` directly. In a signed-in production check, both packages were unavailable and checkout reported that receiving accounts needed setup. Recheck after valid keys and the receiving accounts are saved.
+- Buyers can use Products → Running HUB API Key (the green R logo) or open `/runninghub` directly. Check current stock before verifying purchase availability.
 
 - Use the shared Digimium Admin Orders bot with the verified store owner's private Telegram chat. The setup helper checks the bot identity and registered webhook. Use a synthetic receipt for local approval checks.
 
-- In Admin → Running HUB, save the verified wallet details and import valid keys into the matching bundle to open sales. Both a payment method and available stock are required to create a purchase.
+- Import funded API keys in Admin → Running HUB → Inventory for each bundle. Add the AYA Pay receiving QR in Payment settings when the owner supplies it.
 
 - Keep the production campaign hidden until the owner explicitly resumes it. Before reopening, review the schedule and separately update/enable the OTP banner. Do not invent new campaign dates. The website promo carousel uses payment methods in place of giveaway.
 
