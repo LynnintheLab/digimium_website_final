@@ -2,6 +2,8 @@
 
 ## Current status
 
+Running HUB checkout shows the available key count beside each bundle for signed-in and signed-out buyers. Active reservations, issued keys and retired keys are excluded. An expired unpaid reservation makes its key available again.
+
 Running HUB Inventory accepts a name when adding an individual API key. Admin sees the saved name in stock and the buyer sees it alongside their revealed key after approval. Existing unnamed stock, bulk imports and historical keys continue to work.
 
 Running HUB checkout shows an Enlarge QR action for payment methods with a saved QR. Buyers can open the original QR at a larger size on desktop and phone without leaving the order.
@@ -105,6 +107,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Added bilingual stock counts and an unauthenticated endpoint that returns only the two bundle quantities. The purchase form keeps sold-out bundles disabled and refreshes the counts when returning to the chooser. Node 24 build, typecheck, strict lint, 103 unit tests, and the disposable Running HUB integration passed. Local desktop and 320-pixel Burmese browser checks covered available and sold-out bundles.
 
 Added optional per-key names, with a backward-compatible database migration and an immutable name snapshot when payment is approved. The existing encrypted key and one-click approval flows remain in use. Passed the Node 24 build, typecheck, strict lint, 103 unit tests, isolated Running HUB integration and synthetic browser checks of named entry, retry, reveal and copy.
 
@@ -276,7 +280,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Add funded Running HUB stock with a buyer-facing name when needed. Use the existing one-key-per-line import for unnamed batches.
+- Add four named $10 keys and four named $20 keys after the RunningHub Personal wallet is funded. Set each key limit to its bundle amount and verify the stock totals in checkout after import.
 
 - Use the existing Admin payment settings to add the AYA Pay QR when the owner supplies it. The viewer can display that image after it is configured.
 

@@ -118,6 +118,9 @@ try {
   await start();
   const admin = '/api/admin/runninghub';
   const customer = '/api/customer/runninghub';
+  async function assertPublicStock(usd10, usd20) {
+    assert.deepEqual(await json(await get('/api/runninghub/availability')), { stock: { usd10, usd20 } });
+  }
   const alice = await addCustomer('RunningHubFixture');
   const bob = await addCustomer('OtherFixture');
   const charlie = await addCustomer('ThirdFixture');
@@ -197,6 +200,7 @@ try {
   await json(await get(admin), 401);
   await json(await get(admin, alice.cookie), 401);
   await json(await get(customer), 401);
+  await assertPublicStock(0, 0);
   await json(await mutate(customer, 'POST', { requestId: randomUUID(), expectedCustomerId: alice.id, packId: 'usd10', method: 'kpay' }), 401);
   const empty = await json(await get(admin, owner));
   assert.deepEqual(empty.packs.map(pack => [pack.id, pack.priceMmk]), [['usd10', 70000], ['usd20', 138000]]);
@@ -248,6 +252,7 @@ try {
   assert.equal(before.stock.length, 3);
   assert.deepEqual(additions.ids.map(id => before.stock.find(item => item.id === id)?.keyName), keyNames);
   assert.equal(before.stock.find(item => item.id === unnamedImport.ids[0])?.keyName, null);
+  await assertPublicStock(2, 1);
   const assertEncrypted = async () => {
     const [data] = await db.query('SELECT key_hash, key_cipher FROM digimium_runninghub_stock');
     assert.equal(data.length, 3);
@@ -263,6 +268,7 @@ try {
   assert.equal(first.priceMmk, 70000);
   assert.equal(first.payment.id, 'kpay');
   assert.ok(Date.parse(first.expiresAt) > Date.now());
+  await assertPublicStock(1, 1);
   const firstReference = 'Order #' + first.id.slice(0, 8).toUpperCase();
   const firstAlert = call => call.method === 'sendMessage' && call.fields.text?.includes(firstReference);
   const orderCreated = await providerCall(firstAlert);
@@ -295,6 +301,7 @@ try {
   assert.equal(review.status, 'payment_review');
   assert.equal(review.keyName, null);
   assert.equal(review.expiresAt, null);
+  await assertPublicStock(1, 1);
   redacted(review);
   await json(await get(review.proofUrl), 401);
   await json(await get(review.proofUrl, bob.cookie), 404);
@@ -400,7 +407,11 @@ try {
   await json(await get(customer + '/' + secondFilled.id, loser.cookie), 404);
 
   const unpaid = (await json(await create(loser, 'usd10', 'aya'), 201)).order;
+  await assertPublicStock(0, 0);
   await db.execute('UPDATE digimium_runninghub_orders SET expires_at = ? WHERE id = ?', ['2000-01-01T00:00:00.000Z', unpaid.id]);
+  await assertPublicStock(1, 0);
+  const [[unpaidStatus]] = await db.execute('SELECT status FROM digimium_runninghub_orders WHERE id = ?', [unpaid.id]);
+  assert.equal(unpaidStatus.status, 'awaiting_payment', 'Public stock reads never expire orders themselves.');
   const recoveredStock = await json(await get(customer, loser.cookie));
   assert.equal(recoveredStock.orders.find(order => order.id === unpaid.id).status, 'expired');
   assert.equal(recoveredStock.packs.find(pack => pack.id === 'usd10').available, 1);
@@ -410,6 +421,7 @@ try {
   const available = used.stock.find(item => item.status === 'available');
   assert.ok(available);
   await json(await mutate(admin + '/stock/' + available.id, 'DELETE', { confirmation: available.id }, owner));
+  await assertPublicStock(0, 0);
   await json(await restock({ ...batch, requestId: randomUUID() }), 409);
   await assertEncrypted();
 

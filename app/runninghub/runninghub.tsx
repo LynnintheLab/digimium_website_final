@@ -12,6 +12,7 @@ import { RunningHubOrderPanel, runningHubStatus, walletName } from './order-pane
 const API = '/api/customer/runninghub';
 const ATTEMPT_KEY = 'digimium:runninghub-attempt:v1';
 type Data = { customer: CommerceCustomer; packs: RunningHubPack[]; methods: RunningHubPaymentMethod[]; orders: RunningHubOrder[] };
+type Stock = Record<RunningHubPackId, number>;
 type Attempt = { requestId: string; expectedCustomerId: string; packId: RunningHubPackId; method: RunningHubPaymentMethod['id'] };
 const isUuid = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value);
 const pending = (order: RunningHubOrder) => order.status === 'awaiting_payment' || order.status === 'payment_review';
@@ -24,15 +25,26 @@ function readAttempt(customerId: string): Attempt | null {
   } catch { return null; }
 }
 
-function Packages() {
-  return <div className="rh-price-preview">{RUNNINGHUB_PACKS.map(pack => <div key={pack.id}><strong>{pack.usd} USD</strong><span>{pack.priceMmk.toLocaleString('en-US')} Ks</span></div>)}</div>;
+function stockLabel(count: number | undefined, lang: ShopLanguage, loading = false) {
+  if (loading) return lang === 'my' ? 'လက်ကျန် စစ်နေသည်…' : 'Checking stock…';
+  if (count === undefined) return lang === 'my' ? 'လက်ကျန် စစ်မရသေးပါ' : 'Stock count unavailable';
+  if (count === 0) return lang === 'my' ? 'လက်ကျန် မရှိပါ' : 'Out of stock';
+  const formatted = count.toLocaleString(lang === 'my' ? 'my-MM' : 'en-US');
+  return lang === 'my' ? `လက်ကျန် ${formatted} ခု` : `${formatted} ${count === 1 ? 'key' : 'keys'} left`;
 }
 
-function Purchase({ data, lang, onSaved, onRefresh, onIdentityChange }: { data: Data; lang: ShopLanguage; onSaved: (order: RunningHubOrder) => void; onRefresh: () => void; onIdentityChange: () => void }) {
+function Packages({ lang, stock, loading }: { lang: ShopLanguage; stock?: Stock | null; loading?: boolean }) {
+  return <div className="rh-price-preview">{RUNNINGHUB_PACKS.map(pack => <div key={pack.id}>
+    <strong>{pack.usd} USD</strong><span>{pack.priceMmk.toLocaleString('en-US')} Ks</span>
+    <small className="rh-stock-count" aria-live="polite">{stockLabel(stock?.[pack.id], lang, loading)}</small>
+  </div>)}</div>;
+}
+
+function Purchase({ data, lang, stockReady, onSaved, onRefresh, onIdentityChange }: { data: Data; lang: ShopLanguage; stockReady: boolean; onSaved: (order: RunningHubOrder) => void; onRefresh: () => void; onIdentityChange: () => void }) {
   const t = (en: string, my: string) => lang === 'my' ? my : en;
   const [initial] = useState(() => readAttempt(data.customer.id));
   const attempt = useRef<Attempt | null>(initial);
-  const [packId, setPackId] = useState<RunningHubPackId>(initial?.packId || 'usd10');
+  const [chosenPackId, setChosenPackId] = useState<RunningHubPackId | null>(initial?.packId ?? null);
   const [method, setMethod] = useState<RunningHubPaymentMethod['id']>(initial?.method || data.methods[0]?.id || 'kpay');
   const [uncertain, setUncertain] = useState(!!initial);
   const [busy, setBusy] = useState(false);
@@ -40,9 +52,10 @@ function Purchase({ data, lang, onSaved, onRefresh, onIdentityChange }: { data: 
   const inFlight = useRef(false);
   const active = useRef(true);
   const currentPending = data.orders.find(pending);
+  const packId = chosenPackId ?? data.packs.find(item => item.available > 0)?.id;
   const pack = data.packs.find(item => item.id === packId);
   const configured = data.methods.length > 0;
-  const available = !!pack?.available && data.methods.some(item => item.id === method);
+  const available = stockReady && !!pack?.available && data.methods.some(item => item.id === method);
 
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   useEffect(() => {
@@ -54,8 +67,9 @@ function Purchase({ data, lang, onSaved, onRefresh, onIdentityChange }: { data: 
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (inFlight.current || currentPending || (!uncertain && !available)) return;
+    if (inFlight.current || !packId || currentPending || (!uncertain && !available)) return;
     inFlight.current = true; setBusy(true); setError('');
+    setChosenPackId(packId);
     attempt.current ??= { requestId: crypto.randomUUID(), expectedCustomerId: data.customer.id, packId, method };
     const submitted = attempt.current;
     try { sessionStorage.setItem(ATTEMPT_KEY, JSON.stringify(submitted)); } catch { /* The request remains recoverable in memory. */ }
@@ -86,10 +100,14 @@ function Purchase({ data, lang, onSaved, onRefresh, onIdentityChange }: { data: 
 
   return <section className="rh-panel" aria-labelledby="rh-buy-title"><h2 id="rh-buy-title">{t('Choose your bundle', 'Package ရွေးပါ')}</h2>
     <form onSubmit={submit}><fieldset disabled={busy || uncertain || !!currentPending} className="rh-choices"><legend className="rh-sr-only">{t('Running HUB bundle', 'Running HUB Package')}</legend>
-      {RUNNINGHUB_PACKS.map(item => { const stock = data.packs.find(candidate => candidate.id === item.id); return <label className="rh-package" key={item.id} data-selected={packId === item.id}>
-        <input type="radio" name="runninghub-pack" checked={packId === item.id} onChange={() => setPackId(item.id)} disabled={!stock?.available} />
-        <span><strong>{item.usd} USD</strong><span>{item.priceMmk.toLocaleString('en-US')} Ks</span><small>{stock?.available ? t('Available', 'ရနိုင်သည်') : t('Currently unavailable', 'ခေတ္တ မရနိုင်သေးပါ')}</small></span>{packId === item.id && <Check size={18} aria-hidden="true" />}
-      </label>; })}
+      {RUNNINGHUB_PACKS.map(item => {
+        const count = stockReady ? data.packs.find(candidate => candidate.id === item.id)?.available : undefined;
+        return <label className="rh-package" key={item.id} data-selected={packId === item.id}>
+          <input type="radio" name="runninghub-pack" checked={packId === item.id} onChange={() => setChosenPackId(item.id)} disabled={!count} />
+          <span><strong>{item.usd} USD</strong><span>{item.priceMmk.toLocaleString('en-US')} Ks</span><small className="rh-stock-count" aria-live="polite">{stockLabel(count, lang)}</small></span>
+          {packId === item.id && <Check size={18} aria-hidden="true" />}
+        </label>;
+      })}
     </fieldset>
     {!configured ? <div className="rh-notice" role="status"><strong>{t('Payment setup is not ready', 'ငွေပေးချေမှု ပြင်ဆင်နေဆဲ')}</strong><p>{t('Check back here when Digimium has added its receiving accounts. Your order will start only when payment is available.', 'Digimium က ငွေလက်ခံအကောင့်များ ထည့်ပြီးချိန် ဒီမှာ ပြန်ကြည့်ပါ။ ငွေပေးချေနိုင်မှ အော်ဒါစတင်နိုင်ပါမယ်။')}</p></div>
       : <fieldset className="rh-methods" disabled={busy || uncertain || !!currentPending}><legend>{t('Pay with', 'ငွေပေးချေနည်း')}</legend><div>{data.methods.map(item => <label key={item.id} data-selected={method === item.id}><input type="radio" name="runninghub-method" checked={method === item.id} onChange={() => setMethod(item.id)} /><Image src={`/assets/payments/${item.id === 'kpay' ? 'kbzpay.jpg' : 'ayapay.jpg'}`} width={26} height={26} alt="" unoptimized /><span>{walletName(item.id)}</span></label>)}</div></fieldset>}
@@ -109,6 +127,7 @@ export default function RunningHub({ lang }: { lang: ShopLanguage }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
+  const [preview, setPreview] = useState<{ reload: number; stock: Stock | null } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const owner = useRef<string | null>(null);
   const selection = useRef<string | null>(null);
@@ -156,6 +175,24 @@ export default function RunningHub({ lang }: { lang: ShopLanguage }) {
   }, [reload, lang]);
 
   useEffect(() => {
+    if (loading || customer) return;
+    const controller = new AbortController();
+    async function loadStock() {
+      try {
+        const response = await fetch('/api/runninghub/availability', { cache: 'no-store', signal: controller.signal });
+        if (!response.ok) throw new Error('availability');
+        const { stock } = await response.json() as { stock: Stock };
+        if (RUNNINGHUB_PACKS.some(({ id }) => !Number.isSafeInteger(stock?.[id]) || stock[id] < 0)) throw new Error('availability');
+        if (!controller.signal.aborted) setPreview({ reload, stock });
+      } catch {
+        if (!controller.signal.aborted) setPreview({ reload, stock: null });
+      }
+    }
+    void loadStock();
+    return () => controller.abort();
+  }, [customer, loading, reload]);
+
+  useEffect(() => {
     const visible = () => { if (!document.hidden) setReload(value => value + 1); };
     const clear = () => { owner.current = null; setCustomer(null); setData(null); setLoading(true); };
     const restored = (event: PageTransitionEvent) => { if (event.persisted) setReload(value => value + 1); };
@@ -195,14 +232,14 @@ export default function RunningHub({ lang }: { lang: ShopLanguage }) {
         <section className="rh-account-gate" aria-labelledby="rh-account-title">
           <h2 id="rh-account-title">{t('A Digimium account is required to buy', 'ဝယ်ယူရန် Digimium အကောင့် လိုအပ်ပါတယ်')}</h2>
           <p>{t('Create an account or sign in to continue. You can find your orders and API keys in your account.', 'ဆက်လက်ဝယ်ယူရန် အကောင့်ဖွင့်ပါ သို့မဟုတ် ဝင်ပါ။ အော်ဒါနဲ့ API Key တွေကို သင့်အကောင့်မှာ ပြန်ကြည့်နိုင်ပါတယ်။')}</p>
-          <Packages />
+          <Packages lang={lang} stock={preview?.stock} loading={preview?.reload !== reload} />
         </section>
         <AuthForm checkout={false} embedded history={false} accountRequired t={t} onSuccess={() => { setLoading(true); refresh(); }} />
       </div>}
-      {customer && !data && !loading && <section className="rh-panel"><h2>{t('Purchasing is not available yet', 'ဝယ်ယူရန် အဆင်သင့် မဖြစ်သေးပါ')}</h2><p>{t('Bundle availability and receiving accounts must be ready before you pay. Refresh this page to check again.', 'ငွေမချေမီ Package နှင့် ငွေလက်ခံအကောင့်များ အဆင်သင့် ဖြစ်ရန်လိုပါတယ်။ ဒီစာမျက်နှာကို ပြန်ကြည့်ပါ။')}</p><Packages /></section>}
+      {customer && !data && !loading && <section className="rh-panel"><h2>{t('Purchasing is not available yet', 'ဝယ်ယူရန် အဆင်သင့် မဖြစ်သေးပါ')}</h2><p>{t('Bundle availability and receiving accounts must be ready before you pay. Refresh this page to check again.', 'ငွေမချေမီ Package နှင့် ငွေလက်ခံအကောင့်များ အဆင်သင့် ဖြစ်ရန်လိုပါတယ်။ ဒီစာမျက်နှာကို ပြန်ကြည့်ပါ။')}</p><Packages lang={lang} /></section>}
       {customer && data && <div className="rh-layout" key={customer.id}><div>
-        {selected ? <><RunningHubOrderPanel key={selected.id} order={selected} lang={lang} onUpdated={update} onRefresh={refresh} onIdentityChange={identityChanged} />{!pending(selected) && <button type="button" className="rh-secondary rh-new-order" onClick={() => { selection.current = null; setSelectedId(null); window.history.replaceState(window.history.state, '', '/runninghub'); }}>{t('Choose another bundle', 'နောက်ထပ် Package ရွေးရန်')}<ArrowRight size={16} /></button>}</>
-          : <Purchase data={data} lang={lang} onSaved={order => { update(order); refresh(); }} onRefresh={refresh} onIdentityChange={identityChanged} />}
+        {selected ? <><RunningHubOrderPanel key={selected.id} order={selected} lang={lang} onUpdated={update} onRefresh={refresh} onIdentityChange={identityChanged} />{!pending(selected) && <button type="button" className="rh-secondary rh-new-order" onClick={() => { selection.current = null; setSelectedId(null); window.history.replaceState(window.history.state, '', '/runninghub'); refresh(); }}>{t('Choose another bundle', 'နောက်ထပ် Package ရွေးရန်')}<ArrowRight size={16} /></button>}</>
+          : <Purchase data={data} lang={lang} stockReady={!error} onSaved={order => { update(order); refresh(); }} onRefresh={refresh} onIdentityChange={identityChanged} />}
       </div><aside className="rh-history" aria-labelledby="rh-history-title"><h2 id="rh-history-title">{t('Your Running HUB orders', 'သင့် Running HUB အော်ဒါများ')}</h2><p>{t('Return to this page to recover approved keys and check payments.', 'အတည်ပြုပြီးသော Key များ ပြန်ယူရန်နှင့် ငွေပေးချေမှု စစ်ဆေးရန် ဒီစာမျက်နှာကို ပြန်လာနိုင်ပါတယ်။')}</p>
         {data.orders.length ? <ol>{data.orders.map(order => <li key={order.id}><button type="button" aria-current={selectedId === order.id ? 'true' : undefined} onClick={() => select(order)}><span><strong>{RUNNINGHUB_PACKS.find(pack => pack.id === order.packId)?.usd} USD</strong><span>{order.priceMmk.toLocaleString('en-US')} Ks</span></span><span className="rh-history-status">{runningHubStatus(order.status, lang)}</span><small>#{order.id.slice(0, 8).toUpperCase()} · {new Intl.DateTimeFormat(lang === 'my' ? 'my-MM' : 'en-GB', { dateStyle: 'medium', timeZone: 'Asia/Yangon' }).format(new Date(order.createdAt))}</small></button></li>)}</ol> : <p className="rh-empty">{t('Your orders and approved keys will appear here.', 'သင့်အော်ဒါနှင့် အတည်ပြုပြီးသော Key များကို ဒီမှာ ပြပေးပါမယ်။')}</p>}
       </aside></div>}

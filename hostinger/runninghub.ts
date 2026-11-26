@@ -46,6 +46,7 @@ type OrderRow = RowDataPacket & { id: string; customer_id: string; pack_id: Runn
 type StockRow = RowDataPacket & { id: string; pack_id: RunningHubPackId; key_cipher: string; key_name: string | null; reserved_order_id: string | null;
   issued_order_id: string | null; retired: number; created_at: string };
 type SettingsRow = RowDataPacket & { revision: number; methods: string };
+type PackCountRow = RowDataPacket & { pack_id: RunningHubPackId; available: number };
 
 let schemaReady: Promise<void> | undefined;
 export function ensureRunningHub() {
@@ -142,9 +143,23 @@ async function transaction<T>(work: (connection: PoolConnection, settings: Setti
   }
 }
 async function packs(connection: PoolConnection) {
-  const [rows] = await connection.execute<(RowDataPacket & { pack_id: string; available: number })[]>(`SELECT pack_id, COUNT(*) AS available
+  const [rows] = await connection.execute<PackCountRow[]>(`SELECT pack_id, COUNT(*) AS available
     FROM digimium_runninghub_stock WHERE retired = 0 AND reserved_order_id IS NULL AND issued_order_id IS NULL GROUP BY pack_id`);
   return RUNNINGHUB_PACKS.map(pack => ({ ...pack, available: Number(rows.find(row => row.pack_id === pack.id)?.available ?? 0) }));
+}
+export async function publicRunningHubStock(): Promise<Record<RunningHubPackId, number>> {
+  await ensureRunningHub();
+  // Checkout releases expired unpaid reservations before allocating stock. Count them here without taking its write lock.
+  const [rows] = await getPool().execute<PackCountRow[]>(`SELECT s.pack_id, COUNT(*) AS available
+    FROM digimium_runninghub_stock s
+    LEFT JOIN digimium_runninghub_orders o ON o.id = s.reserved_order_id
+      AND (o.status = 'payment_review' OR (o.status = 'awaiting_payment' AND (o.expires_at IS NULL OR o.expires_at > ?)))
+    WHERE s.retired = 0 AND s.issued_order_id IS NULL AND o.id IS NULL
+    GROUP BY s.pack_id`, [new Date().toISOString()]);
+  return {
+    usd10: Number(rows.find(row => row.pack_id === 'usd10')?.available ?? 0),
+    usd20: Number(rows.find(row => row.pack_id === 'usd20')?.available ?? 0),
+  };
 }
 async function rowFor(connection: PoolConnection, id: string, customerId?: string, extra = '') {
   const [rows] = await connection.execute<OrderRow[]>('SELECT ' + columns + extra + ' FROM digimium_runninghub_orders WHERE id = ?' +
