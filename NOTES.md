@@ -2,7 +2,7 @@
 
 ## Current status
 
-Both production Telegram bot profile photos use the original Digimium backgrounds with slightly larger badges. The customer bot has the cyan robot and Admin Orders has the gold shield.
+Both production Telegram bot profile photos retain the original Digimium backgrounds and use badges sized for the Telegram chat list. The customer bot has the cyan robot and Admin Orders has the gold shield.
 
 The production Digimium Admin Orders bot has three private topics with the topic sidebar enabled. Orders receives new storefront orders. Running HUB Orders receives new API Key orders, payment receipts and approval confirmations. Account Registration receives new website signups. Standard storefront payment and service delivery continue through the existing workflow. The full website payment and fulfillment rollout stays deferred.
 
@@ -102,7 +102,7 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
-Enlarged the robot and shield badges about 10–13%. Verified that decoded pixels outside each badge edit match the earlier assets, then updated both Telegram profiles and confirmed their new photos.
+Enlarged the customer robot by about 30% and the Admin shield by about 40% from their previous sizes. Verified the circular chat-list crops and exact decoded pixels outside each badge edit, then updated and confirmed both live Telegram profile photos.
 
 Added grouped owner notifications with compact order references, product and plan names, totals and protected Admin links. Telegram checkout drafts show the verified @username if available. The placement response exposes only the Telegram username field. Legacy signed Running HUB approvals still work in their original private chat/topic. Updated the customer login bot and Admin Orders bot profile photos using the Digimium mark with distinct bot badges. The original production webhooks remain active. Node 24 standalone build, typecheck, strict lint, 103 unit tests, and the disposable Running HUB, notifications and commerce integration suites passed.
 
@@ -268,7 +268,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 ## Next steps
 
-- Use the updated profile photos as the current source assets for future Telegram profile changes.
+- Use the chat-list-size bot profile photos as the source for future Telegram profile changes.
 
 - Review the next legitimate signup, ordinary order and Running HUB order in their three private owner topics. Keep the testing website payment and fulfillment upgrade deferred until the owner asks to roll it out.
 
