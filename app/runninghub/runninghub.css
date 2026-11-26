@@ -136,7 +136,7 @@ body:has(.rh-qr-dialog[open]) { overflow: hidden; }
   background: var(--balance-surface);
 }
 html[data-shop-theme="dark"] .rh-key-balance { --balance-border: #f47185; --balance-title: #ffb6c2; --balance-surface: #34212a; }
-.rh-key-balance h4 { margin: 0 0 12px; color: var(--balance-title); font-size: 16px; font-weight: 700; line-height: 1.8; }
+.rh-key-balance h4 { margin: 0 0 12px; color: var(--balance-title); font-size: 16px; font-weight: 700; line-height: 1.8; text-wrap: balance; }
 .rh-key-balance-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .rh-page .rh-key-balance-link { color: #fff; background: #ac2439; border: 1px solid transparent; }
 .rh-page .rh-key-balance-link:hover { color: #fff; background: #8b1c2d; text-decoration: none; }
