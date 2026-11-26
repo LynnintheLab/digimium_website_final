@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
+import { formatAdminOrderDetailsNotice } from '../lib/admin-order-details-notice';
 import { cleanAdminTelegramValue as cleanAlert, formatAdminRegistrationNotice, formatAdminTelegramNotice, formatAdminTimestamp } from '../lib/admin-telegram-message';
 import { CommerceError } from '../lib/commerce-http';
 import type { CustomerNotification, CustomerNotificationPage } from '../lib/notification-types';
@@ -189,7 +190,18 @@ function telegramConfiguration(): AlertConfig | null {
 }
 type AlertEntity = RowDataPacket & {
   createdAt?: string; name?: string; email?: string | null; telegramUsername?: string | null;
+  customerId?: string | null; orderStatus?: 'pending' | 'approved' | 'rejected'; orderSnapshot?: string;
 };
+const orderAlertSnapshot = z.object({
+  lines: z.array(z.object({
+    productName: z.string(),
+    planName: z.string().nullish(),
+    duration: z.string().nullish(),
+    price: z.string().nullish(),
+    quantity: z.number().int().positive().safe(),
+  })).min(1).max(3000),
+  totalMmk: z.number().int().nonnegative().safe().nullable(),
+});
 
 function alertMessage(payload: NotificationAlertInput, dedicated: boolean, entity: AlertEntity) {
   const registration = payload.kind === 'customer-created';
@@ -203,6 +215,20 @@ function alertMessage(payload: NotificationAlertInput, dedicated: boolean, entit
     telegramName: payload.authProvider === 'telegram' ? payload.customerName : undefined,
     createdAt: entity.createdAt,
   });
+  if (dedicated && payload.kind === 'order-created' && entity.orderSnapshot && entity.createdAt && entity.orderStatus) {
+    const snapshot = orderAlertSnapshot.safeParse(JSON.parse(entity.orderSnapshot));
+    if (snapshot.success) return formatAdminOrderDetailsNotice({
+      id: payload.entityId,
+      createdAt: entity.createdAt,
+      status: entity.orderStatus,
+      lines: snapshot.data.lines,
+      totalMmk: snapshot.data.totalMmk,
+      customerName: entity.name,
+      customerEmail: entity.email,
+      telegramUsername: entity.telegramUsername,
+      guest: entity.customerId === null,
+    });
+  }
 
   const shortId = payload.entityId.slice(0, 8).toUpperCase();
   const reference = registration ? 'Account #' + shortId : 'Order ID: #' + (cleanAlert(payload.orderReference, 40) || shortId);
@@ -238,6 +264,12 @@ function topicFields(payload: NotificationAlertInput, topics: NonNullable<AlertC
 const registrationProfileQuery = `SELECT c.name, c.email, t.username AS telegramUsername,
   DATE_FORMAT(c.created_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS createdAt FROM digimium_customers c
   LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id WHERE c.id = ?`;
+
+const orderDetailsQuery = `SELECT o.created_at AS createdAt, o.snapshot AS orderSnapshot, o.customer_id AS customerId,
+  CASE WHEN o.rejected_at IS NOT NULL THEN 'rejected' WHEN o.approved_at IS NOT NULL THEN 'approved' ELSE 'pending' END AS orderStatus,
+  c.name, c.email, t.username AS telegramUsername
+  FROM digimium_orders o LEFT JOIN digimium_customers c ON c.id = o.customer_id
+  LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id WHERE o.id = ?`;
 
 const alertEntityQueries: Record<NotificationAlertInput['kind'], string> = {
   'customer-created': 'SELECT id FROM digimium_customers WHERE id = ?',
@@ -277,8 +309,11 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
     let ok = false;
     try {
       const payload = alertSchema.parse(JSON.parse(row.payload));
-      const entityQuery = payload.kind === 'customer-created' && config.topics
-        ? registrationProfileQuery : alertEntityQueries[payload.kind];
+      let entityQuery = alertEntityQueries[payload.kind];
+      if (config.topics) {
+        if (payload.kind === 'customer-created') entityQuery = registrationProfileQuery;
+        if (payload.kind === 'order-created') entityQuery = orderDetailsQuery;
+      }
       const [[entity]] = await getPool().execute<AlertEntity[]>(entityQuery, [payload.entityId]);
       if (!entity) {
         // Removed entities and inactive Running HUB orders must not cause a delayed alert.

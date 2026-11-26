@@ -426,19 +426,43 @@ try {
   assert.equal(newOrder.fields.protect_content, true);
   assert.deepEqual(newOrder.fields.text.split('\n').slice(0, 2), ['🛒 New order', 'Order ID: #' + checkout.id.slice(0, 8).toUpperCase()]);
   assert.deepEqual(newOrder.fields.entities, [{ type: 'bold', offset: 0, length: '🛒 New order'.length }]);
-  assert.match(newOrder.fields.text, /\nOrder time: \d{1,2} [A-Z][a-z]{2,3} \d{4}, \d{2}:\d{2} MMT\n\nLong product 0 .+ — Long plan .+ × 1\n/);
+  assert.match(newOrder.fields.text, /\nOrder time: \d{1,2} [A-Z][a-z]{2,3} \d{4}, \d{2}:\d{2} MMT\nStatus: Pending\n\n/);
+  assert.equal(newOrder.fields.text.split('\n\n')[1], 'Customer: ' + alice.name + '\nEmail: ' + alice.email);
+  assert.deepEqual(newOrder.fields.text.split('\n\n').slice(2, -1), products.map(product =>
+    product.name + ' — ' + product.plans[0].name + ' × 1\n1 month · 16,000 MMK each'));
   assert.match(newOrder.fields.text, /\n\nTotal: 96,000 MMK$/);
-  assert.doesNotMatch(newOrder.fields.text, /Notification Alice|Items:|New Digimium order/);
+  assert.doesNotMatch(newOrder.fields.text, /Items:|New Digimium order/);
   assert.ok(!JSON.stringify(newOrder.fields).includes(contact.value), 'Telegram alerts omit the buyer’s manual contact');
   assert.equal(newOrder.fields.reply_markup.inline_keyboard[0][0].url, base.origin + '/admin?order=' + checkout.id);
-  const legacyOrder = await seedOrder(alice.id, 'Queued order fixture', { status: 'pending' });
-  await db.execute('UPDATE digimium_orders SET created_at = ? WHERE id = ?', ['2026-11-26T18:45:35.000Z', legacyOrder.id]);
+  const legacyOrder = await seedOrder(telegramSignup.id, 'Queued order fixture', { status: 'approved' });
+  await db.execute('UPDATE digimium_orders SET created_at = ?, customer_note = ? WHERE id = ?',
+    ['2026-11-26T18:45:35.000Z', 'PRIVATE-CUSTOMER-NOTE-SENTINEL', legacyOrder.id]);
   const legacyAlert = { kind: 'order-created', dedupeKey: 'fixture:' + randomUUID(), entityId: legacyOrder.id, productSummary: 'Queued order fixture' };
   await enqueue(notifications, legacyAlert);
   assert.equal((await notifications.drainAdminNotificationAlerts({ dedupeKey: legacyAlert.dedupeKey })).sent, 1);
   const legacyText = (await calls()).at(-1).fields.text;
-  assert.deepEqual(legacyText.split('\n').slice(0, 2), ['🛒 New order', 'Order ID: #' + legacyOrder.id.slice(0, 8).toUpperCase()]);
-  assert.match(legacyText, /\nOrder time: 27 Nov 2026, 01:15 MMT\n/, 'Queued alerts use the actual order time across Myanmar midnight.');
+  assert.equal(legacyText, [
+    '🛒 New order\nOrder ID: #' + legacyOrder.id.slice(0, 8).toUpperCase() + '\nOrder time: 27 Nov 2026, 01:15 MMT\nStatus: Approved',
+    'Customer: Edited Website Name\nTelegram: @topic_fixture',
+    'Queued order fixture — Fixture plan × 1\n1 month · 16,000 MMK each',
+    'Total: 16,000 MMK',
+  ].join('\n\n'), 'Queued alerts use the saved order, current status, and actual order time across Myanmar midnight.');
+  assert.doesNotMatch(legacyText, /PRIVATE-CUSTOMER-NOTE|PRIVATE-NOTIFICATION|secret@example\.invalid/);
+  const guestOrder = await seedOrder(null, 'Guest order fixture', { status: 'pending', guest: true });
+  const guestAlert = { kind: 'order-created', dedupeKey: 'fixture:' + randomUUID(), entityId: guestOrder.id };
+  await enqueue(notifications, guestAlert);
+  assert.equal((await notifications.drainAdminNotificationAlerts({ dedupeKey: guestAlert.dedupeKey })).sent, 1);
+  const guestText = (await calls()).at(-1).fields.text;
+  assert.match(guestText, /\n\nCustomer: Guest\n\nGuest order fixture/);
+  assert.doesNotMatch(guestText, /Fixture guest|Email:|Telegram: @/);
+  const { formatAdminOrderDetailsNotice } = await import('../lib/admin-order-details-notice.ts');
+  const packed = formatAdminOrderDetailsNotice({ id: guestOrder.id, createdAt: '2026-11-26T18:45:35.000Z',
+    status: 'rejected', lines: Array.from({ length: 30 }, () => ({
+      productName: '😀'.repeat(50), planName: '😀'.repeat(90), duration: '1 month', price: '', quantity: 1,
+    })), totalMmk: null, guest: true, historical: true });
+  assert.ok(packed.text.length <= 3500 && packed.text.isWellFormed());
+  assert.match(packed.text, /^🛒 Order details\n/);
+  assert.match(packed.text, /\n\n\d+ more items in Admin\n\nTotal: Price on request$/);
   assert.match(await (await get('/admin?order=' + checkout.id, owner)).text(), /<h1>Orders<\/h1>/);
   assert.match(await (await get('/admin?customer=' + topicCustomer.id, owner)).text(), /<h1>Customers<\/h1>/);
   assert.ok([302, 303, 307, 308].includes((await get('/admin?order=' + checkout.id)).status));
