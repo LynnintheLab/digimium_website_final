@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
+import { formatAdminTelegramNotice } from '../lib/admin-telegram-message';
 import { CommerceError } from '../lib/commerce-http';
 import { adminOrdersBotConfig } from './admin-orders-telegram';
 import { getPool } from './mysql';
@@ -27,22 +28,23 @@ async function sendApproval(config: BotConfig, approval: Approval, deadline: num
   const email = z.email().max(254).safeParse(approval.customerEmail);
   const username = typeof approval.telegramUsername === 'string' && /^[A-Za-z0-9_]{5,32}$/.test(approval.telegramUsername)
     ? approval.telegramUsername : null;
-  const details = runningHubAdminMessage(approval, 'Payment approved');
+  const details = runningHubAdminMessage(approval, 'approved');
   if (username) {
-    details.push('Telegram: @' + username);
+    details.push('', 'Telegram: @' + username);
   } else if (email.success) {
     const name = plain(approval.customerName, 100);
+    details.push('');
     if (name) details.push('Customer: ' + name);
     details.push('Email: ' + email.data);
   }
   details.push('', 'The key is now available in the customer’s website purchase details.');
-  const text = details.join('\n');
+  const notice = formatAdminTelegramNotice(details.join('\n'));
   if (Date.now() >= deadline) return false;
   const topicId = config.runningHubTopicId ?? config.topicId;
   const response = await fetch(`https://api.telegram.org/bot${config.token}/sendMessage`, {
     method: 'POST', redirect: 'error', signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: Number(config.ownerId), text, protect_content: true,
+    body: JSON.stringify({ chat_id: Number(config.ownerId), ...notice, protect_content: true,
       link_preview_options: { is_disabled: true }, ...(topicId !== undefined ? { message_thread_id: topicId } : {}) }),
   });
   const reader = response.body?.getReader();

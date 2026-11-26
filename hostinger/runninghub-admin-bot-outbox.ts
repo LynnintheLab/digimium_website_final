@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
+import { formatAdminTelegramNotice } from '../lib/admin-telegram-message';
 import { CommerceError } from '../lib/commerce-http';
 import { RUNNINGHUB_PROOF_MAX_BYTES } from '../lib/runninghub';
 import { getPool } from './mysql';
@@ -59,7 +60,7 @@ async function sendReceipt(config: BotConfig, receipt: Receipt, deadline: number
   if (!extension || !receipt.bytes.length || receipt.bytes.length > RUNNINGHUB_PROOF_MAX_BYTES || Date.now() >= deadline) return false;
   // The owner requires the original uploaded image, including on the document fallback.
   const image = new Blob([new Uint8Array(receipt.bytes)], { type: receipt.contentType });
-  const caption = runningHubAdminMessage(receipt, 'Payment review').join('\n');
+  const { text: caption, entities } = formatAdminTelegramNotice(runningHubAdminMessage(receipt, 'payment_review').join('\n'));
   const keyboard = { inline_keyboard: [
     [{ text: 'Review on website', url: `${config.origin}/admin/runninghub?order=${receipt.id}` }],
     [{ text: 'Approve payment', callback_data: signRunningHubApproval(config.secret, {
@@ -73,6 +74,7 @@ async function sendReceipt(config: BotConfig, receipt: Receipt, deadline: number
     if (topicId !== undefined) form.set('message_thread_id', String(topicId));
     form.set('protect_content', 'true');
     form.set('caption', caption);
+    form.set('caption_entities', JSON.stringify(entities));
     form.set('reply_markup', JSON.stringify(keyboard));
     form.set(kind, image, `runninghub-payment-receipt.${extension}`);
     return fetch(`https://api.telegram.org/bot${config.token}/${kind === 'photo' ? 'sendPhoto' : 'sendDocument'}`, {

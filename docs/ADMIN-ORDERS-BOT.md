@@ -8,6 +8,8 @@ Use [Digimium Admin Orders](https://t.me/DigimiumAdminOrdersBot) as the private 
 | Running HUB Orders | New Running HUB API Key reservations, original payment receipts with the approval button, and payment confirmations. Each shows the Order ID and original order time in Myanmar time. |
 | Account Registration | New website accounts with the sign-up method, name, available email and verified Telegram username, Telegram display name for Telegram sign-ups, registration time in Myanmar time, and an Admin link |
 
+Each alert starts with one icon and a bold heading. The account or order ID and original timestamp are grouped at the top. The relevant account or order details follow underneath.
+
 Website Telegram order drafts show the customer's verified `@username` if available. The order reference can be used to look up the record in Admin.
 
 Enable Threaded mode and the topic sidebar for the dedicated bot in Telegram. Create the topics in the store owner's existing private chat and retain their IDs. Keep `callback_query_mode` set to `default` for the existing approval buttons. [Telegram bot settings](https://core.telegram.org/bots/api#setmysettings)

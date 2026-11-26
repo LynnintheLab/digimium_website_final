@@ -3,11 +3,12 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
+import { cleanAdminTelegramValue as cleanAlert, formatAdminRegistrationNotice, formatAdminTelegramNotice, formatAdminTimestamp } from '../lib/admin-telegram-message';
 import { CommerceError } from '../lib/commerce-http';
 import type { CustomerNotification, CustomerNotificationPage } from '../lib/notification-types';
 import { normalizeNotificationActionLabel, normalizeNotificationActionUrl } from '../lib/notification-action';
 import { getSubscriptionTerm, todayInMyanmar } from '../lib/subscription-term';
-import { adminOrdersNotificationTopics, adminOrdersNotificationTopicsConfigured, formatAdminTimestamp } from './admin-orders-telegram';
+import { adminOrdersNotificationTopics, adminOrdersNotificationTopicsConfigured } from './admin-orders-telegram';
 import { getPool } from './mysql';
 
 const uuid = z.string().uuid();
@@ -186,41 +187,32 @@ function telegramConfiguration(): AlertConfig | null {
   return token && token.length <= 256 && chat && /^[1-9]\d{0,15}$/.test(chat)
     && Number.isSafeInteger(Number(chat)) && Number(chat) <= 2 ** 52 - 1 ? { token, chat } : null;
 }
-function cleanAlert(value: string | undefined, maximum: number) {
-  const clean = (value ?? '').replace(/[\p{Cc}\u202a-\u202e\u2066-\u2069]/gu, ' ')
-    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/gu, '');
-  let result = '';
-  for (const point of clean) { if (result.length + point.length > maximum) break; result += point; }
-  return result.trim();
-}
 type AlertEntity = RowDataPacket & {
   createdAt?: string; name?: string; email?: string | null; telegramUsername?: string | null;
 };
 
-function alertText(payload: NotificationAlertInput, dedicated: boolean, entity: AlertEntity) {
+function alertMessage(payload: NotificationAlertInput, dedicated: boolean, entity: AlertEntity) {
   const registration = payload.kind === 'customer-created';
+  if (dedicated && registration) return formatAdminRegistrationNotice({
+    customerId: payload.entityId,
+    authProvider: payload.authProvider,
+    name: entity.name,
+    email: entity.email,
+    telegramUsername: entity.telegramUsername,
+    // The transaction captures the verified bot profile name before later account edits.
+    telegramName: payload.authProvider === 'telegram' ? payload.customerName : undefined,
+    createdAt: entity.createdAt,
+  });
+
   const shortId = payload.entityId.slice(0, 8).toUpperCase();
   const reference = registration ? 'Account #' + shortId : 'Order ID: #' + (cleanAlert(payload.orderReference, 40) || shortId);
   const createdAt = formatAdminTimestamp(entity.createdAt);
   const orderTime = !registration && createdAt ? 'Order time: ' + createdAt : '';
   const total = payload.totalMmk == null ? 'Price on request' : payload.totalMmk.toLocaleString('en-US') + ' MMK';
   if (dedicated) {
-    if (registration) {
-      const providerLabels = { email: 'Email', google: 'Google', telegram: 'Telegram' };
-      const name = cleanAlert(entity.name, 200);
-      const email = cleanAlert(entity.email ?? undefined, 254);
-      const username = entity.telegramUsername && /^[A-Za-z0-9_]{5,32}$/.test(entity.telegramUsername) ? entity.telegramUsername : null;
-      // For Telegram sign-ups, the transaction captures the verified bot profile name separately from later account edits.
-      const telegramName = payload.authProvider === 'telegram' ? cleanAlert(payload.customerName, 200) : '';
-      return [
-        reference, payload.authProvider && 'Sign-up method: ' + providerLabels[payload.authProvider],
-        name && 'Name: ' + name, email && 'Email: ' + email, username && 'Telegram username: @' + username,
-        telegramName && 'Telegram name: ' + telegramName, createdAt && 'Registered at: ' + createdAt,
-      ].filter(Boolean).join('\n');
-    }
     const items = payload.productSummary?.split('\n').map(line => cleanAlert(line, 350).replace(' · ', ' — ')).filter(Boolean);
-    const header = [reference, orderTime].filter(Boolean).join('\n');
-    return [header, items?.join('\n'), 'Total ' + total].filter(Boolean).join('\n\n');
+    const header = ['🛒 New order', reference, orderTime].filter(Boolean).join('\n');
+    return formatAdminTelegramNotice([header, items?.join('\n'), 'Total: ' + total].filter(Boolean).join('\n\n'));
   }
   const rows = [registration ? 'New Digimium customer' : 'New Digimium order', reference];
   if (orderTime) rows.push(orderTime);
@@ -228,7 +220,7 @@ function alertText(payload: NotificationAlertInput, dedicated: boolean, entity: 
   if (payload.authProvider) rows.push('Sign-in: ' + payload.authProvider);
   if (payload.productSummary) rows.push('Items: ' + cleanAlert(payload.productSummary, 350));
   if (!registration) rows.push('Total: ' + total);
-  return rows.join('\n');
+  return { text: rows.join('\n') };
 }
 
 function topicFields(payload: NotificationAlertInput, topics: NonNullable<AlertConfig['topics']>) {
@@ -297,7 +289,7 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
       const response = await fetch('https://api.telegram.org/bot' + config.token + '/sendMessage', {
         method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: config.chat, text: alertText(payload, Boolean(config.topics), entity), link_preview_options: { is_disabled: true },
+          chat_id: config.chat, ...alertMessage(payload, Boolean(config.topics), entity), link_preview_options: { is_disabled: true },
           ...(config.topics ? topicFields(payload, config.topics) : {}),
         }),
         signal: AbortSignal.timeout(Math.max(1, Math.min(2000, deadline - Date.now()))),

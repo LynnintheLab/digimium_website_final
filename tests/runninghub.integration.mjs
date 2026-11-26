@@ -40,6 +40,7 @@ const request = (path, options = {}) => fetch(new URL(path, base), { ...options,
 const get = (path, cookie = '') => request(path, { headers: { Cookie: cookie } });
 const orderIdLine = order => 'Order ID: #' + order.id.slice(0, 8).toUpperCase();
 const orderTimeLine = 'Order time: 1 Jan 2026, 01:30 MMT';
+const boldTitle = title => [{ type: 'bold', offset: 0, length: title.length }];
 const mutate = (path, method, body, cookie = '', origin = base.origin) => request(path, {
   method, headers: { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
@@ -275,7 +276,8 @@ try {
   const firstReference = orderIdLine(first);
   const firstAlert = call => call.method === 'sendMessage' && call.fields.text?.includes(firstReference);
   const orderCreated = await providerCall(firstAlert);
-  assert.match(orderCreated.fields.text, /^Order ID: #[A-F0-9]{8}\nOrder time: \d{1,2} [A-Za-z]+ \d{4}, \d{2}:\d{2} MMT\n\n/);
+  assert.match(orderCreated.fields.text, /^🛒 New order\nOrder ID: #[A-F0-9]{8}\nOrder time: \d{1,2} [A-Za-z]+ \d{4}, \d{2}:\d{2} MMT\n\n/);
+  assert.deepEqual(orderCreated.fields.entities, boldTitle('🛒 New order'));
   assert.match(orderCreated.fields.text, /Running HUB API Key — 10 USD bundle × 1/);
   assert.match(orderCreated.fields.text, /70,000 MMK/);
   assert.equal(Number(orderCreated.fields.message_thread_id), botTopic);
@@ -517,9 +519,9 @@ try {
     assert.equal(String(receipt.fields.chat_id), String(botOwnerId));
     assert.equal(String(receipt.fields.message_thread_id), String(botTopic));
     assert.equal(String(receipt.fields.protect_content), 'true');
-    assert.ok(receipt.fields.caption.startsWith(orderIdLine(reviewed) + '\n' + orderTimeLine + '\n\nRunning HUB API Key — 10 USD bundle\n'));
+    assert.ok(receipt.fields.caption.startsWith('🧾 Payment review\n' + orderIdLine(reviewed) + '\n' + orderTimeLine + '\n\nRunning HUB API Key — 10 USD bundle\n'));
+    assert.deepEqual(JSON.parse(receipt.fields.caption_entities), boldTitle('🧾 Payment review'));
     assert.ok(receipt.fields.caption.length <= 1024, 'The receipt caption remains below Telegram’s limit.');
-    assert.match(receipt.fields.caption, /\nStatus: Payment review$/);
     assert.match(receipt.fields.caption, /70[,. ]?000/);
     assert.match(receipt.fields.caption, method === 'kpay' ? /KPay/i : /AYA/i);
     const buttons = markup(receipt.fields).inline_keyboard.flat();
@@ -594,8 +596,10 @@ try {
   assert.match(oldReply.body.text, /reference is no longer needed/i);
   assert.equal((await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie))).order.status, 'payment_review');
   async function approvalMessages(order) {
-    return (await calls()).filter(call => call.method === 'sendMessage' && call.fields.text?.includes('\nStatus: Payment approved') &&
-      call.fields.text.startsWith(orderIdLine(order) + '\n' + orderTimeLine + '\n\nRunning HUB API Key — '));
+    const alerts = (await calls()).filter(call => call.method === 'sendMessage' &&
+      call.fields.text?.startsWith('✅ Payment approved\n' + orderIdLine(order) + '\n' + orderTimeLine + '\n\nRunning HUB API Key — '));
+    for (const alert of alerts) assert.deepEqual(alert.fields.entities, boldTitle('✅ Payment approved'));
+    return alerts;
   }
   // A provider outage cannot undo the approval or key delivery.
   const beforeApproval = (await calls()).length;

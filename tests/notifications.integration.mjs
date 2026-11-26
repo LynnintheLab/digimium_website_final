@@ -289,7 +289,10 @@ try {
   process.env.ADMIN_TELEGRAM_CHAT_ID = env.NOTIFICATION_FIXTURE_CHAT;
   const flushed = await notifications.drainAdminNotificationAlerts({ limit: 5, budgetMs: 5000 }); assert.equal(flushed.sent, 2);
   assert.equal((await calls()).length, 2, 'Only new signup events were queued; old pending fixtures produce no alerts.');
-  for (const oldBotCall of await calls()) assert.doesNotMatch(oldBotCall.fields.text, /Email:|Telegram username:|Telegram name:|Registered at:/);
+  for (const oldBotCall of await calls()) {
+    assert.doesNotMatch(oldBotCall.fields.text, /Email:|Telegram username:|Telegram name:|Registered at:/);
+    assert.equal(oldBotCall.fields.entities, undefined);
+  }
   const rolledBackId = randomUUID(), rolledBackKey = 'rollback:' + randomUUID();
   const transaction = await pool.getConnection();
   try {
@@ -371,9 +374,10 @@ try {
   assert.equal(registration.fields.message_thread_id, 22);
   assert.equal(registration.fields.protect_content, true);
   assert.equal(registration.fields.text, [
-    'Account #' + alice.id.slice(0, 8).toUpperCase(), 'Sign-up method: Email', 'Name: ' + alice.name,
-    'Email: ' + alice.email, 'Registered at: 27 Nov 2026, 00:30 MMT',
+    '👤 Account registration', 'Account ID: #' + alice.id.slice(0, 8).toUpperCase(), 'Registered at: 27 Nov 2026, 00:30 MMT',
+    '', 'Name: ' + alice.name, 'Email: ' + alice.email, 'Sign-up method: Email',
   ].join('\n'));
+  assert.deepEqual(registration.fields.entities, [{ type: 'bold', offset: 0, length: '👤 Account registration'.length }]);
   assert.equal(registration.fields.reply_markup.inline_keyboard[0][0].url, base.origin + '/admin?customer=' + alice.id);
   const oldDueAlert = alert('Independent old alert');
   await enqueue(notifications, oldDueAlert);
@@ -383,11 +387,10 @@ try {
   const newRegistration = (await calls()).at(-1);
   assert.equal(newRegistration.shared, true);
   assert.equal(newRegistration.fields.message_thread_id, 22);
-  assert.deepEqual(newRegistration.fields.text.split('\n').slice(0, 4), [
-    'Account #' + topicCustomer.id.slice(0, 8).toUpperCase(), 'Sign-up method: Email',
-    'Name: ' + topicCustomer.name, 'Email: ' + topicCustomer.email,
-  ]);
-  assert.match(newRegistration.fields.text, /\nRegistered at: \d{1,2} [A-Z][a-z]{2,3} \d{4}, \d{2}:\d{2} MMT$/);
+  const newRegistrationLines = newRegistration.fields.text.split('\n');
+  assert.deepEqual(newRegistrationLines.slice(0, 2), ['👤 Account registration', 'Account ID: #' + topicCustomer.id.slice(0, 8).toUpperCase()]);
+  assert.match(newRegistrationLines[2], /^Registered at: \d{1,2} [A-Z][a-z]{2,3} \d{4}, \d{2}:\d{2} MMT$/);
+  assert.deepEqual(newRegistrationLines.slice(3), ['', 'Name: ' + topicCustomer.name, 'Email: ' + topicCustomer.email, 'Sign-up method: Email']);
   assert.doesNotMatch(newRegistration.fields.text, /Telegram username:|Telegram name:/);
   assert.ok(!JSON.stringify(newRegistration.fields).includes(topicCustomer.password));
   assert.equal(newRegistration.fields.reply_markup.inline_keyboard[0][0].url, base.origin + '/admin?customer=' + topicCustomer.id);
@@ -397,15 +400,15 @@ try {
   const telegramRegistration = (await calls()).at(-1);
   assert.equal(telegramRegistration.fields.message_thread_id, 22);
   assert.equal(telegramRegistration.fields.protect_content, true);
-  assert.deepEqual(telegramRegistration.fields.text.split('\n').slice(1, 5),
-    ['Sign-up method: Telegram', 'Name: Edited Website Name', 'Telegram username: @topic_fixture', 'Telegram name: Telegram Fixture']);
+  assert.deepEqual(telegramRegistration.fields.text.split('\n').slice(4),
+    ['Name: Edited Website Name', 'Telegram username: @topic_fixture', 'Telegram name: Telegram Fixture', 'Sign-up method: Telegram']);
   assert.doesNotMatch(telegramRegistration.fields.text, /Email:/);
   const googleSignup = await resolveGoogleIdentity({ sub: 'topic-registration-google', name: 'Topic Google Fixture', email: 'topic-google@example.invalid' });
   assert.equal(googleSignup.status, 'success');
   const googleRegistration = (await calls()).at(-1);
   assert.equal(googleRegistration.fields.message_thread_id, 22);
-  assert.deepEqual(googleRegistration.fields.text.split('\n').slice(1, 4),
-    ['Sign-up method: Google', 'Name: Topic Google Fixture', 'Email: topic-google@example.invalid']);
+  assert.deepEqual(googleRegistration.fields.text.split('\n').slice(4),
+    ['Name: Topic Google Fixture', 'Email: topic-google@example.invalid', 'Sign-up method: Google']);
   assert.doesNotMatch(googleRegistration.fields.text, /Telegram username:|Telegram name:/);
   const original = await json(await get('/api/admin/catalog', owner));
   const products = Array.from({ length: 6 }, (_, index) => ({ ...original.products[0], id: 'notification-fixture-' + index,
@@ -421,9 +424,10 @@ try {
   assert.equal(newOrder.shared, true);
   assert.equal(newOrder.fields.message_thread_id, 21);
   assert.equal(newOrder.fields.protect_content, true);
-  assert.equal(newOrder.fields.text.split('\n')[0], 'Order ID: #' + checkout.id.slice(0, 8).toUpperCase());
+  assert.deepEqual(newOrder.fields.text.split('\n').slice(0, 2), ['🛒 New order', 'Order ID: #' + checkout.id.slice(0, 8).toUpperCase()]);
+  assert.deepEqual(newOrder.fields.entities, [{ type: 'bold', offset: 0, length: '🛒 New order'.length }]);
   assert.match(newOrder.fields.text, /\nOrder time: \d{1,2} [A-Z][a-z]{2,3} \d{4}, \d{2}:\d{2} MMT\n\nLong product 0 .+ — Long plan .+ × 1\n/);
-  assert.match(newOrder.fields.text, /\n\nTotal 96,000 MMK$/);
+  assert.match(newOrder.fields.text, /\n\nTotal: 96,000 MMK$/);
   assert.doesNotMatch(newOrder.fields.text, /Notification Alice|Items:|New Digimium order/);
   assert.ok(!JSON.stringify(newOrder.fields).includes(contact.value), 'Telegram alerts omit the buyer’s manual contact');
   assert.equal(newOrder.fields.reply_markup.inline_keyboard[0][0].url, base.origin + '/admin?order=' + checkout.id);
@@ -433,7 +437,7 @@ try {
   await enqueue(notifications, legacyAlert);
   assert.equal((await notifications.drainAdminNotificationAlerts({ dedupeKey: legacyAlert.dedupeKey })).sent, 1);
   const legacyText = (await calls()).at(-1).fields.text;
-  assert.equal(legacyText.split('\n')[0], 'Order ID: #' + legacyOrder.id.slice(0, 8).toUpperCase());
+  assert.deepEqual(legacyText.split('\n').slice(0, 2), ['🛒 New order', 'Order ID: #' + legacyOrder.id.slice(0, 8).toUpperCase()]);
   assert.match(legacyText, /\nOrder time: 27 Nov 2026, 01:15 MMT\n/, 'Queued alerts use the actual order time across Myanmar midnight.');
   assert.match(await (await get('/admin?order=' + checkout.id, owner)).text(), /<h1>Orders<\/h1>/);
   assert.match(await (await get('/admin?customer=' + topicCustomer.id, owner)).text(), /<h1>Customers<\/h1>/);
