@@ -2,9 +2,9 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { CommerceError } from '../lib/commerce-http';
-import { RUNNINGHUB_PRODUCT_NAME } from '../lib/runninghub';
 import { adminOrdersBotConfig } from './admin-orders-telegram';
 import { getPool } from './mysql';
+import { runningHubAdminMessage } from './runninghub-admin-bot';
 
 const uuid = z.string().uuid();
 type QueueRow = RowDataPacket & { id: string; order_id: string; attempts: number };
@@ -24,24 +24,26 @@ function plain(value: unknown, max: number) {
 }
 
 async function sendApproval(config: BotConfig, approval: Approval, deadline: number) {
-  const name = plain(approval.customerName, 100);
   const email = z.email().max(254).safeParse(approval.customerEmail);
   const username = typeof approval.telegramUsername === 'string' && /^[A-Za-z0-9_]{5,32}$/.test(approval.telegramUsername)
     ? approval.telegramUsername : null;
-  const text = [
-    `${RUNNINGHUB_PRODUCT_NAME} — payment approved`,
-    'Order #' + approval.id.replaceAll('-', '').slice(0, 8).toUpperCase(),
-    `${approval.paymentMethod === 'kpay' ? 'KPay' : 'AYA Pay'} · ${approval.priceMmk.toLocaleString('en-US')} MMK`,
-    ...(name ? ['Customer: ' + name] : []),
-    ...(email.success ? ['Email: ' + email.data] : username ? ['Telegram: @' + username] : []),
-    'The key is now available in the customer’s website purchase details.',
-  ].join('\n');
+  const details = runningHubAdminMessage(approval, 'Payment approved');
+  if (username) {
+    details.push('Telegram: @' + username);
+  } else if (email.success) {
+    const name = plain(approval.customerName, 100);
+    if (name) details.push('Customer: ' + name);
+    details.push('Email: ' + email.data);
+  }
+  details.push('', 'The key is now available in the customer’s website purchase details.');
+  const text = details.join('\n');
   if (Date.now() >= deadline) return false;
+  const topicId = config.runningHubTopicId ?? config.topicId;
   const response = await fetch(`https://api.telegram.org/bot${config.token}/sendMessage`, {
     method: 'POST', redirect: 'error', signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: Number(config.ownerId), text, protect_content: true,
-      link_preview_options: { is_disabled: true }, ...(config.topicId !== undefined ? { message_thread_id: config.topicId } : {}) }),
+      link_preview_options: { is_disabled: true }, ...(topicId !== undefined ? { message_thread_id: topicId } : {}) }),
   });
   const reader = response.body?.getReader();
   if (!reader) return false;

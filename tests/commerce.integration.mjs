@@ -473,7 +473,8 @@ try {
   assert.deepEqual(await json(await mutate(customerSession, 'PATCH', { currentPassword: 'not-a-password', newPassword: randomUUID() }, telegramCookie), 400),
     { error: 'provider_password' });
   const telegramCheckout = await json(await submit({ requestId: randomUUID(), items: [custom] }, telegramCookie), 201);
-  assert.deepEqual(telegramCheckout.customer, { name: telegramSession.name, email: null, telegram: telegramUser });
+  assert.deepEqual(telegramCheckout.customer, { name: telegramSession.name, email: null, telegram: { username: telegramUser.username } });
+  assert.ok(!JSON.stringify(telegramCheckout).includes(telegramUser.id), 'Order placement does not expose the Telegram account ID');
   const telegramAdmin = await json(await get(adminCommerce, owner));
   assert.deepEqual(telegramAdmin.customers.find(person => person.id === telegramId).telegram, telegramUser);
   assert.equal(telegramAdmin.customers.find(person => person.id === telegramId).email, null);

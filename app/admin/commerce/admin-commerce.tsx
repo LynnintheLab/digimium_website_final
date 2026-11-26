@@ -13,8 +13,9 @@ import './commerce.css';
 type CommerceData = { customers: CommerceCustomer[]; orders: CommerceOrder[] };
 const dateFormat = new Intl.DateTimeFormat('en-GB', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Yangon' });
 
-export default function AdminCommerce({ view, customerId, telegramContact, onDirtyChange, clearCustomer, showCustomerOrders }: {
+export default function AdminCommerce({ view, customerId, initialRecordId, telegramContact, onDirtyChange, clearCustomer, showCustomerOrders }: {
   view: 'orders' | 'customers';
+  initialRecordId: string | null;
   customerId: string | null;
   telegramContact: string | null;
   onDirtyChange: (dirty: boolean) => void;
@@ -23,9 +24,11 @@ export default function AdminCommerce({ view, customerId, telegramContact, onDir
 }) {
   const [data, setData] = useState<CommerceData | null>(null);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | CommerceOrder['status']>(customerId ? 'all' : 'pending');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [editingCustomer, setEditingCustomer] = useState<{ id: string; deleting: boolean } | null>(null);
+  const [filter, setFilter] = useState<'all' | CommerceOrder['status']>(customerId || initialRecordId ? 'all' : 'pending');
+  const [selectedId, setSelectedId] = useState<string | null>(view === 'orders' ? initialRecordId : null);
+  const [editingCustomer, setEditingCustomer] = useState<{ id: string; deleting: boolean } | null>(
+    view === 'customers' && initialRecordId ? { id: initialRecordId, deleting: false } : null,
+  );
   const [creatingOrder, setCreatingOrder] = useState<{ customerId: string | null; fromCustomerEditor: boolean } | null>(null);
   const [removingOrder, setRemovingOrder] = useState<CommerceOrder | null>(null);
   const removeTrigger = useRef<HTMLButtonElement | null>(null);

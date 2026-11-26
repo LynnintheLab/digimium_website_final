@@ -36,7 +36,7 @@ globalThis.fetch = async function runningHubTelegramFixture(input, options) {
   }
   if (method.startsWith('send')) {
     assert.equal(String(fields.chat_id), process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID);
-    assert.equal(String(fields.message_thread_id), process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID);
+    assert.equal(String(fields.message_thread_id), process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_RUNNINGHUB_TOPIC_ID);
     assert.ok(fields.protect_content === true || fields.protect_content === 'true', 'Private receipts and prompts must be protected.');
     assert.equal(fields.parse_mode, undefined, 'Alerts use plain text.');
   }

@@ -209,7 +209,6 @@ function AccountDetails({ customer, lang, t }: { customer: Customer; lang: ShopL
   return <dl className="customer-profile-details">
     <div><dt>{t("Email", "အီးမေးလ်")}</dt><dd>{customer.email ? <bdi>{customer.email}</bdi> : <span className="customer-profile-missing">{t("Not provided", "ထည့်ထားခြင်း မရှိပါ")}</span>}</dd></div>
     <div><dt>Telegram</dt><dd>{customer.telegram?.username ? <bdi>@{customer.telegram.username}</bdi> : <span className="customer-profile-missing">{customer.telegram ? t("No username", "Username မရှိပါ") : t("Not connected", "ချိတ်ထားခြင်း မရှိပါ")}</span>}</dd></div>
-    {customer.telegram && <div><dt>Telegram ID</dt><dd><bdi>{customer.telegram.id}</bdi></dd></div>}
     <div><dt>{t("Joined", "ဖွင့်သည့်နေ့")}</dt><dd><time dateTime={customer.createdAt}>{formatDate(customer.createdAt, lang)}</time></dd></div>
   </dl>;
 }

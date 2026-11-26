@@ -66,6 +66,6 @@ export type TelegramCheckout = {
   id: string;
   customerId: string | null;
   order: TelegramOrder;
-  customer: { name: string; email: string | null; telegram?: CommerceCustomer['telegram']; guest?: false } | { name: string | null; email: null; guest: true };
+  customer: { name: string; email: string | null; telegram?: Pick<NonNullable<CommerceCustomer['telegram']>, 'username'>; guest?: false } | { name: string | null; email: null; guest: true };
   telegram: string;
 };

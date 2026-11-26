@@ -24,7 +24,7 @@ export class AdminOrdersActionError extends CommerceError {
 }
 
 export type AdminOrdersBotConfig = {
-  token: string; ownerId: string; botId: string; secret: string; topicId?: number; origin: string;
+  token: string; ownerId: string; botId: string; secret: string; topicId?: number; runningHubTopicId?: number; origin: string;
 };
 const positiveId = (value: string | undefined) => value && /^[1-9]\d{0,15}$/.test(value) &&
   Number(value) <= 2 ** 52 - 1 ? value : null;
@@ -48,7 +48,32 @@ export function adminOrdersBotConfig(): AdminOrdersBotConfig | null {
   const topic = process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID?.trim();
   const topicId = topic ? Number(positiveId(topic)) : undefined;
   if (topic && (!topicId || topicId > 0x7fffffff)) return null;
-  return { token, ownerId, botId, secret, origin, ...(topicId ? { topicId } : {}) };
+  const runningHubTopicId = readTopicId(process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_RUNNINGHUB_TOPIC_ID);
+  const generalTopics = [process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID,
+    process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_REGISTRATION_TOPIC_ID].map(readTopicId);
+  return { token, ownerId, botId, secret, origin, topicId,
+    runningHubTopicId: runningHubTopicId && !generalTopics.includes(runningHubTopicId) ? runningHubTopicId : undefined };
+}
+
+function readTopicId(value: string | undefined) {
+  const id = Number(positiveId(value?.trim()));
+  return id >= 2 && id <= 0x7fffffff ? id : undefined;
+}
+
+export function adminOrdersNotificationTopicsConfigured() {
+  return Boolean(process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID?.trim() ||
+    process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_REGISTRATION_TOPIC_ID?.trim());
+}
+
+export function adminOrdersNotificationTopics() {
+  const config = adminOrdersBotConfig();
+  const ordersTopicId = readTopicId(process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID);
+  const registrationTopicId = readTopicId(process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_REGISTRATION_TOPIC_ID);
+  const reserved = [config?.topicId, readTopicId(process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_RUNNINGHUB_TOPIC_ID)];
+  if (!config || !ordersTopicId || !registrationTopicId || ordersTopicId === registrationTopicId ||
+      reserved.includes(ordersTopicId) || reserved.includes(registrationTopicId)) return null;
+  return { token: config.token, ownerId: config.ownerId, origin: config.origin,
+    ordersTopicId, registrationTopicId, runningHubTopicId: config.runningHubTopicId };
 }
 export function equalAdminOrdersBotSecret(expected: string, provided: string | null) {
   if (!provided || provided.length !== expected.length) return false;

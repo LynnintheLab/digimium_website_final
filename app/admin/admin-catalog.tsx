@@ -70,13 +70,19 @@ function validateCatalog(catalog: Catalog): ValidationIssue | null {
   return null;
 }
 
-export default function AdminCatalog({ identity, signOutHref, postSignOut }: { identity: Identity; signOutHref: string; postSignOut: boolean }) {
+export default function AdminCatalog({ identity, signOutHref, postSignOut, initialRecord }: {
+  identity: Identity; signOutHref: string; postSignOut: boolean;
+  initialRecord?: { view: 'orders' | 'customers'; id: string };
+}) {
   const router = useRouter();
   const [saved, setSaved] = useState<Catalog | null>(null);
   const [draft, setDraft] = useState<Catalog | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showServiceEditor, setShowServiceEditor] = useState(false);
-  const [view, setView] = useState<'services' | 'settings' | 'orders' | 'customers' | 'giveaway'>('services');
+  const [view, setView] = useState<'services' | 'settings' | 'orders' | 'customers' | 'giveaway'>(
+    commerceEnabled ? initialRecord?.view ?? 'services' : 'services',
+  );
+  const [linkedRecordId, setLinkedRecordId] = useState<string | null>(initialRecord?.id ?? null);
   const [orderCustomerId, setOrderCustomerId] = useState<string | null>(null);
   const [orderDirty, setOrderDirty] = useState(false);
   const [search, setSearch] = useState('');
@@ -234,6 +240,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
     if (orderDirty && view !== next && !window.confirm('Leave this page and discard your edits?')) return;
     if (view !== next) setOrderDirty(false);
     setOrderCustomerId(customerId);
+    setLinkedRecordId(null);
     setView(next);
     if (next === 'services') setShowServiceEditor(false);
   }
@@ -281,7 +288,7 @@ export default function AdminCatalog({ identity, signOutHref, postSignOut }: { i
         </div>}
       </header>
 
-      {commerceView ? <AdminCommerce key={commerceView} view={commerceView} customerId={orderCustomerId}
+      {commerceView ? <AdminCommerce key={commerceView} view={commerceView} customerId={orderCustomerId} initialRecordId={linkedRecordId}
         telegramContact={saved ? resolveTelegramContact(saved.settings) : null}
         onDirtyChange={setOrderDirty} clearCustomer={() => setOrderCustomerId(null)}
         showCustomerOrders={id => navigate('orders', id)} /> : view === 'giveaway' ? <AdminGiveaway onDirtyChange={setOrderDirty} /> : <>

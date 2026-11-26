@@ -136,16 +136,17 @@ test('guest Telegram drafts identify the nickname without an invented email or a
   }
 });
 
-test('Telegram account drafts identify the stable Telegram user without inventing an email', () => {
+test('Telegram order drafts show only the username and omit the underlying account ID', () => {
   const order = { id: 'aa2d6549-fbd2-4602-a445-c6d99526afcb', totalMmk: 2000,
     lines: [{ productName: 'Canva', planName: 'Monthly', duration: '1 month', price: '2,000 MMK', quantity: 1 }] };
   const customer = { name: 'မောင်မြ', email: null, telegram: { id: '9999000012345', username: 'real_buyer' } };
   for (const lang of ['en', 'my']) {
     const [message] = orderTelegramMessages(order, customer, lang);
-    assert.ok(message.includes(customer.name) && message.includes('@real_buyer') && message.includes('ID 9999000012345'));
-    assert.doesNotMatch(message, /null|Email|အီးမေးလ်|Guest order|အကောင့်မသုံးဘဲ/);
+    assert.ok(message.includes('@real_buyer') && message.includes(order.id.toUpperCase()));
+    assert.ok(!message.includes(customer.name));
+    assert.doesNotMatch(message, /9999000012345|null|Email|အီးမေးလ်|Guest order|အကောင့်မသုံးဘဲ/);
     const [withoutUsername] = orderTelegramMessages(order, { ...customer, telegram: { ...customer.telegram, username: null } }, lang);
-    assert.ok(withoutUsername.includes('Telegram — ID 9999000012345'));
-    assert.doesNotMatch(withoutUsername, /null|undefined|@/);
+    assert.ok(withoutUsername.includes(order.id.toUpperCase()) && withoutUsername.includes('Canva'));
+    assert.doesNotMatch(withoutUsername, /9999000012345|null|undefined|@/);
   }
 });

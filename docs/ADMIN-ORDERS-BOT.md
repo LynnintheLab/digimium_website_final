@@ -1,8 +1,16 @@
 # Digimium Admin Orders bot
 
-Use [Digimium Admin Orders](https://t.me/DigimiumAdminOrdersBot) as the private owner bot for the main store. Running HUB is its first payment approval integration. Add later website checkout flows to the same bot and webhook.
+Use [Digimium Admin Orders](https://t.me/DigimiumAdminOrdersBot) as the private owner bot for the main store. The bot shows new orders as soon as the website saves them.
 
-Create a separate bot with [BotFather](https://core.telegram.org/bots/features#botfather) and press **Start** in its private chat from the store owner's account. Use a normal private chat, or enable Threaded mode and supply the ID of its existing private **Payment approval** topic.
+| Topic | What appears |
+| --- | --- |
+| Orders | New standard storefront orders with the order reference, products, total, and an Admin link |
+| Running HUB Orders | New Running HUB API Key reservations, original payment receipts with the approval button, and payment confirmations |
+| Account Registration | New website accounts with the sign-up method and an Admin link |
+
+Website Telegram order drafts show the customer's verified `@username` if available. The order reference can be used to look up the record in Admin.
+
+Enable Threaded mode and the topic sidebar for the dedicated bot in Telegram. Create the topics in the store owner's existing private chat and retain their IDs. Keep `callback_query_mode` set to `default` for the existing approval buttons. [Telegram bot settings](https://core.telegram.org/bots/api#setmysettings)
 
 Create an ignored owner-only setup file with a generated webhook secret:
 
@@ -16,16 +24,19 @@ Add the bot token and owner's positive numeric Telegram ID in `.env.admin-orders
 node --env-file=.env.admin-orders-bot.local scripts/configure-admin-orders-bot.mjs --discover-owner @yourusername
 ```
 
-Set the private values as individual runtime variables on the **production** Hostinger app for `buywith-digimium.store`. Preserve the app's current settings. Leave the last variable blank for an ordinary private chat.
+Set the private values as individual runtime variables on the **production** Hostinger app for `buywith-digimium.store`. Add the three topic IDs in the same Hostinger environment update. Leave an existing legacy payment-topic setting in place so older signed buttons can still be used.
 
 | Variable | Value |
 | --- | --- |
 | `DIGIMIUM_ADMIN_ORDERS_TELEGRAM_BOT_TOKEN` | Token of the shared Digimium Admin Orders bot |
 | `DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID` | Numeric Telegram ID of the store owner |
 | `DIGIMIUM_ADMIN_ORDERS_TELEGRAM_WEBHOOK_SECRET` | Random secret in the ignored setup file |
-| `DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID` | Optional existing private Payment approval topic ID |
+| `DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID` | Private Orders topic ID |
+| `DIGIMIUM_ADMIN_ORDERS_TELEGRAM_RUNNINGHUB_TOPIC_ID` | Private Running HUB Orders topic ID |
+| `DIGIMIUM_ADMIN_ORDERS_TELEGRAM_REGISTRATION_TOPIC_ID` | Private Account Registration topic ID |
+| `DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID` | Optional legacy payment topic ID, used for older signed approvals |
 
-After the production deployment has the matching values, connect and verify the webhook:
+For existing installations, verify the bot and webhook using `--check`. For a fresh installation, connect and verify the webhook after the production deployment has the matching settings:
 
 ```sh
 node --env-file=.env.admin-orders-bot.local scripts/configure-admin-orders-bot.mjs --apply
@@ -33,6 +44,6 @@ node --env-file=.env.admin-orders-bot.local scripts/configure-admin-orders-bot.m
 
 A receipt alert identifies the product as **Running HUB API Key** and includes the submitted image, order reference, payment method and expected amount. Check the transfer amount and recipient in the receiving wallet, then tap **Approve payment** on the receipt alert. This records the decision and issues the reserved key to the buyer’s website account in one action. If the exact same screenshot was already used for an approved order, the bot identifies it as a duplicate. Get the payment-specific receipt before approving a different transfer.
 
-After a successful approval, the same private Admin chat gets a Running HUB API Key payment confirmation with the order reference, the customer account name, and their registered email or verified Telegram username when available. The buyer opens the issued key on the website.
+After a successful approval, the Running HUB Orders topic gets a confirmation with the order reference and available contact label. Telegram customers are shown by their verified username when available. Email accounts can be identified by their registered email. The buyer opens the issued key on the website.
 
 The standalone scheduler retries receipts and approval confirmations, and queues still-pending receipts when the bot is first enabled. For an older alert whose signing secret has been changed, review the order through the Admin website. The original receipt stays available to the owner in the private Telegram chat and the Admin order.

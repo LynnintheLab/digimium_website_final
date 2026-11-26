@@ -7,6 +7,7 @@ import { CommerceError } from '../lib/commerce-http';
 import type { CustomerNotification, CustomerNotificationPage } from '../lib/notification-types';
 import { normalizeNotificationActionLabel, normalizeNotificationActionUrl } from '../lib/notification-action';
 import { getSubscriptionTerm, todayInMyanmar } from '../lib/subscription-term';
+import { adminOrdersNotificationTopics, adminOrdersNotificationTopicsConfigured } from './admin-orders-telegram';
 import { getPool } from './mysql';
 
 const uuid = z.string().uuid();
@@ -147,13 +148,14 @@ export async function sendCustomerNotification(id: string, body: unknown) {
   finally { connection.release(); }
 }
 
+const creationAlertKinds = ['order-created', 'customer-created', 'runninghub-order-created'] as const;
 export type NotificationAlertInput = {
-  kind: 'order-created' | 'customer-created'; dedupeKey: string; entityId: string;
+  kind: typeof creationAlertKinds[number]; dedupeKey: string; entityId: string;
   customerName?: string; authProvider?: 'email' | 'google' | 'telegram'; orderReference?: string;
   productSummary?: string; totalMmk?: number | null;
 };
 const alertSchema = z.object({
-  kind: z.enum(['order-created', 'customer-created']), dedupeKey: z.string().min(1).max(200).regex(/^[a-zA-Z0-9:_-]+$/), entityId: uuid,
+  kind: z.enum(creationAlertKinds), dedupeKey: z.string().min(1).max(200).regex(/^[a-zA-Z0-9:_-]+$/), entityId: uuid,
   customerName: z.string().max(200).optional(), authProvider: z.enum(['email', 'google', 'telegram']).optional(),
   orderReference: z.string().max(40).optional(), productSummary: z.string().max(350).optional(),
   totalMmk: z.number().int().nonnegative().safe().nullable().optional(),
@@ -168,7 +170,17 @@ export async function enqueueNotificationAlert(connection: PoolConnection, candi
   [randomUUID(), payload.dedupeKey, payload.kind, payload.entityId, JSON.stringify(payload)]);
 }
 
-function telegramConfiguration() {
+type AlertConfig = {
+  token: string;
+  chat: string;
+  topics?: NonNullable<ReturnType<typeof adminOrdersNotificationTopics>>;
+};
+
+function telegramConfiguration(): AlertConfig | null {
+  const topics = adminOrdersNotificationTopics();
+  if (topics) return { token: topics.token, chat: topics.ownerId, topics };
+  // Partial topic configuration must not send owner alerts back through customer login.
+  if (adminOrdersNotificationTopicsConfigured()) return null;
   const token = process.env.ADMIN_TELEGRAM_BOT_TOKEN?.trim() || process.env.TELEGRAM_BOT_TOKEN?.trim();
   const chat = process.env.ADMIN_TELEGRAM_CHAT_ID?.trim();
   return token && token.length <= 256 && chat && /^[1-9]\d{0,15}$/.test(chat)
@@ -181,23 +193,53 @@ function cleanAlert(value: string | undefined, maximum: number) {
   for (const point of clean) { if (result.length + point.length > maximum) break; result += point; }
   return result.trim();
 }
-function alertText(payload: NotificationAlertInput) {
-  const rows = [payload.kind === 'order-created' ? 'New Digimium order' : 'New Digimium customer',
-    payload.kind === 'order-created' ? 'Order #' + cleanAlert(payload.orderReference || payload.entityId.slice(0, 8).toUpperCase(), 40) : 'Account #' + payload.entityId.slice(0, 8).toUpperCase()];
+function alertText(payload: NotificationAlertInput, dedicated: boolean) {
+  const registration = payload.kind === 'customer-created';
+  const shortId = payload.entityId.slice(0, 8).toUpperCase();
+  const reference = registration ? 'Account #' + shortId : 'Order #' + cleanAlert(payload.orderReference || shortId, 40);
+  const total = payload.totalMmk == null ? 'Price on request' : payload.totalMmk.toLocaleString('en-US') + ' MMK';
+  if (dedicated) {
+    if (registration) {
+      const providerLabels = { email: 'Email', google: 'Google', telegram: 'Telegram' };
+      return [reference, payload.authProvider && 'Sign-up method: ' + providerLabels[payload.authProvider]].filter(Boolean).join('\n');
+    }
+    const items = payload.productSummary?.split('\n').map(line => cleanAlert(line, 350).replace(' · ', ' — ')).filter(Boolean);
+    return [reference, items?.join('\n'), 'Total ' + total].filter(Boolean).join('\n\n');
+  }
+  const rows = [registration ? 'New Digimium customer' : 'New Digimium order', reference];
   if (payload.customerName) rows.push('Name: ' + cleanAlert(payload.customerName, 100));
   if (payload.authProvider) rows.push('Sign-in: ' + payload.authProvider);
   if (payload.productSummary) rows.push('Items: ' + cleanAlert(payload.productSummary, 350));
-  if (payload.kind === 'order-created') rows.push('Total: ' + (payload.totalMmk === null || payload.totalMmk === undefined ? 'Price on request' : payload.totalMmk.toLocaleString('en-US') + ' MMK'));
+  if (!registration) rows.push('Total: ' + total);
   return rows.join('\n');
 }
 
+function topicFields(payload: NotificationAlertInput, topics: NonNullable<AlertConfig['topics']>) {
+  const registration = payload.kind === 'customer-created';
+  const runningHub = payload.kind === 'runninghub-order-created';
+  const url = new URL(runningHub ? '/admin/runninghub' : '/admin', topics.origin);
+  url.searchParams.set(registration ? 'customer' : 'order', payload.entityId);
+  return {
+    message_thread_id: registration ? topics.registrationTopicId : runningHub ? topics.runningHubTopicId : topics.ordersTopicId,
+    protect_content: true,
+    reply_markup: { inline_keyboard: [[{ text: registration ? 'Open customer in Admin' : 'Open order in Admin', url: url.href }]] },
+  };
+}
+
+const alertEntityQueries: Record<NotificationAlertInput['kind'], string> = {
+  'customer-created': 'SELECT id FROM digimium_customers WHERE id = ?',
+  'order-created': 'SELECT id FROM digimium_orders WHERE id = ?',
+  'runninghub-order-created': "SELECT id FROM digimium_runninghub_orders WHERE id = ? AND status NOT IN ('expired', 'rejected')",
+};
+
 /** Bounded, leased outbox delivery; invoke only after the creation transaction has committed. */
-export async function drainAdminNotificationAlerts(options: { limit?: number; budgetMs?: number } = {}) {
+export async function drainAdminNotificationAlerts(options: { limit?: number; budgetMs?: number; dedupeKey?: string } = {}) {
   const config = telegramConfiguration();
   if (!config) return { sent: 0, failed: 0, configured: false };
   await ensureNotifications();
   const limit = Math.min(5, Math.max(1, Math.floor(options.limit ?? 1)));
   const deadline = Date.now() + Math.min(5000, Math.max(250, options.budgetMs ?? 2000));
+  const eligibleKinds = config.topics?.runningHubTopicId ? creationAlertKinds : creationAlertKinds.slice(0, 2);
   let sent = 0, failed = 0;
   for (let index = 0; index < limit && Date.now() < deadline; index++) {
     const connection = await getPool().getConnection();
@@ -208,7 +250,9 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
       const [rows] = await connection.execute<(RowDataPacket & { id: string; payload: string; attempts: number })[]>(
         `SELECT id, payload, attempts FROM digimium_notification_outbox WHERE sent_at IS NULL AND cancelled_at IS NULL AND attempts < 5
          AND next_attempt_at <= UTC_TIMESTAMP(3) AND (lease_until IS NULL OR lease_until < UTC_TIMESTAMP(3))
+         AND kind IN (${eligibleKinds.map(() => '?').join(', ')})${options.dedupeKey ? ' AND dedupe_key = ?' : ''}
          ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED`,
+        options.dedupeKey ? [...eligibleKinds, options.dedupeKey] : [...eligibleKinds],
       );
       row = rows[0];
       if (row) await connection.execute(`UPDATE digimium_notification_outbox SET lease_token = ?,
@@ -220,17 +264,19 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
     let ok = false;
     try {
       const payload = alertSchema.parse(JSON.parse(row.payload));
-      const [entities] = await getPool().execute<RowDataPacket[]>(payload.kind === 'customer-created'
-        ? 'SELECT id FROM digimium_customers WHERE id = ?' : 'SELECT id FROM digimium_orders WHERE id = ?', [payload.entityId]);
+      const [entities] = await getPool().execute<RowDataPacket[]>(alertEntityQueries[payload.kind], [payload.entityId]);
       if (!entities.length) {
-        // Erased entities must not cause a delayed alert or retain their copied display data.
+        // Removed entities and inactive Running HUB orders must not cause a delayed alert.
         await getPool().execute(`UPDATE digimium_notification_outbox SET cancelled_at = UTC_TIMESTAMP(3), payload = '{}',
           lease_token = NULL, lease_until = NULL, last_error = 'entity-removed' WHERE id = ? AND lease_token = ?`, [row.id, lease]);
         continue;
       }
       const response = await fetch('https://api.telegram.org/bot' + config.token + '/sendMessage', {
         method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: config.chat, text: alertText(payload), link_preview_options: { is_disabled: true } }),
+        body: JSON.stringify({
+          chat_id: config.chat, text: alertText(payload, Boolean(config.topics)), link_preview_options: { is_disabled: true },
+          ...(config.topics ? topicFields(payload, config.topics) : {}),
+        }),
         signal: AbortSignal.timeout(Math.max(1, Math.min(2000, deadline - Date.now()))),
       });
       // Telegram can return HTTP 200 with ok:false. Bound the response before parsing.

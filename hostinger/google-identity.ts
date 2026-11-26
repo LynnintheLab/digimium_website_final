@@ -113,7 +113,7 @@ async function resolveWithRetry(identity: GoogleIdentity, name?: string, proof?:
     try {
       const result = await resolveTransaction(identity, name, proof);
       // resolveTransaction releases its connection before the worker borrows another one.
-      if (result.status === 'success') await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000 }).catch(() => {});
+      if (result.status === 'success') await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: 'customer-created:' + result.customer.id }).catch(() => {});
       return result;
     }
     catch (error) {

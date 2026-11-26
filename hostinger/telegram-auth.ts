@@ -181,7 +181,7 @@ export async function telegramComplete(request: Request) {
     // This notice follows successful atomic consumption; acknowledgement retries do
     // not send it again. A separate message cannot be overwritten by a slow approval edit.
     await completedNotice(flow);
-    await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000 }).catch(() => {});
+    await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: 'customer-created:' + data.customer.id }).catch(() => {});
     return response;
   } catch (error) { return errorReply(error); }
 }

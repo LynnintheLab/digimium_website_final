@@ -323,7 +323,7 @@ async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSc
     connection.release();
   }
   if (createdOrder) {
-    await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000 }).catch(() => {});
+    await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: 'order-created:' + createdOrder.order.id }).catch(() => {});
     return createdOrder;
   }
   // A simultaneous retry can win the unique key while this transaction is in flight.

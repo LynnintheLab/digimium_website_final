@@ -6,11 +6,12 @@ import { z } from 'zod';
 import { CommerceError } from '../lib/commerce-http';
 import { LOGO_PATH_PATTERN } from '../lib/logo-path';
 import { identifyLogo, LogoInputError, validateLogoReferences } from '../lib/logo-storage';
-import { RUNNINGHUB_PACKS, RUNNINGHUB_PROOF_MAX_BYTES, RUNNINGHUB_RESERVATION_MINUTES, normalizeRunningHubReference,
+import { RUNNINGHUB_PACKS, RUNNINGHUB_PRODUCT_NAME, RUNNINGHUB_PROOF_MAX_BYTES, RUNNINGHUB_RESERVATION_MINUTES, normalizeRunningHubReference,
   type RunningHubOrder, type RunningHubPackId, type RunningHubPaymentMethod, type RunningHubStock } from '../lib/runninghub';
 import { ensureCustomerSchema } from './customer-auth';
 import { AdminOrdersActionError } from './admin-orders-telegram';
 import { getPool } from './mysql';
+import { drainAdminNotificationAlerts, enqueueNotificationAlert } from './notifications';
 import { drainRunningHubAdminReceipts, enqueueRunningHubAdminReceipt } from './runninghub-admin-bot-outbox';
 import { drainRunningHubAdminApprovals, enqueueRunningHubAdminApproval } from './runninghub-admin-approval-outbox';
 
@@ -160,7 +161,7 @@ export async function createRunningHubOrder(customerId: string, body: unknown) {
   const input = parse(createSchema, body, 'Select a Running HUB bundle and payment method.');
   if (input.expectedCustomerId !== customerId) throw new CommerceError(409, 'Your signed-in account changed. Review the purchase again.');
   const hash = digest('order-request', JSON.stringify([customerId, input.packId, input.method]));
-  return transaction(async (connection, settings) => {
+  const result = await transaction(async (connection, settings) => {
     const [customers] = await connection.execute<RowDataPacket[]>('SELECT id FROM digimium_customers WHERE id = ? FOR UPDATE', [customerId]);
     if (!customers.length) throw new CommerceError(401, 'Sign in again before purchasing.');
     const [previous] = await connection.execute<OrderRow[]>('SELECT ' + columns +
@@ -186,8 +187,18 @@ export async function createRunningHubOrder(customerId: string, body: unknown) {
     [id, customerId, input.requestId, hash, pack.id, pack.label, pack.priceMmk, now.toISOString(), expires, JSON.stringify(method), stock[0].id]);
     await connection.execute('UPDATE digimium_runninghub_stock SET reserved_order_id = ? WHERE id = ?', [id, stock[0].id]);
     await audit(connection, 'order-created', id, stock[0].id, customerId);
+    await enqueueNotificationAlert(connection, {
+      kind: 'runninghub-order-created',
+      dedupeKey: 'runninghub-order-created:' + id,
+      entityId: id,
+      orderReference: id.slice(0, 8).toUpperCase(),
+      productSummary: RUNNINGHUB_PRODUCT_NAME + ' · ' + pack.label + ' × 1',
+      totalMmk: pack.priceMmk,
+    });
     return { order: present(await rowFor(connection, id)), created: true };
   });
+  await drainAdminNotificationAlerts({ dedupeKey: 'runninghub-order-created:' + result.order.id }).catch(() => {});
+  return result;
 }
 export async function runningHubOrder(id: string, customerId?: string) {
   validId(id);
@@ -243,25 +254,25 @@ export async function runningHubAdminBotReceipt(id: string, proofRequestId: stri
     }
     const contentType = z.enum(['image/png', 'image/jpeg', 'image/webp']).parse(row.proof_mime);
     const paymentMethod = methodId.parse((JSON.parse(row.payment) as RunningHubPaymentMethod).id);
-    return { id: row.id, proofRequestId, revision: row.revision, priceMmk: row.price_mmk, paymentMethod, contentType,
+    return { id: row.id, proofRequestId, revision: row.revision, packLabel: row.pack_label, priceMmk: row.price_mmk, paymentMethod, contentType,
       bytes: decrypt('proof/' + id + '/' + row.customer_id, row.proof_cipher) };
   });
 }
 
-/** Approval notices may disclose the requested account name + one sign-in identity only to the owner bot. */
+/** Minimal approved-order details for the private owner bot. */
 export async function runningHubAdminBotApproval(id: string) {
   validId(id);
   await ensureRunningHub();
-  const [rows] = await getPool().execute<(RowDataPacket & { id: string; price_mmk: number; payment_method: string;
+  const [rows] = await getPool().execute<(RowDataPacket & { id: string; pack_label: string; price_mmk: number; payment_method: string;
     customer_name: string; customer_email: string | null; telegram_username: string | null })[]>(
-    `SELECT o.id, o.price_mmk, JSON_UNQUOTE(JSON_EXTRACT(o.payment, '$.id')) AS payment_method,
+    `SELECT o.id, o.pack_label, o.price_mmk, JSON_UNQUOTE(JSON_EXTRACT(o.payment, '$.id')) AS payment_method,
        c.name AS customer_name, c.email AS customer_email, t.username AS telegram_username
      FROM digimium_runninghub_orders o JOIN digimium_customers c ON c.id = o.customer_id
      LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id
      WHERE o.id = ? AND o.status = 'approved' AND o.delivery_cipher IS NOT NULL`, [id]);
   const row = rows[0];
   if (!row) throw new CommerceError(404, 'Approved Running HUB order not found.');
-  return { id: row.id, priceMmk: row.price_mmk, paymentMethod: methodId.parse(row.payment_method),
+  return { id: row.id, packLabel: row.pack_label, priceMmk: row.price_mmk, paymentMethod: methodId.parse(row.payment_method),
     customerName: row.customer_name, customerEmail: row.customer_email, telegramUsername: row.telegram_username };
 }
 

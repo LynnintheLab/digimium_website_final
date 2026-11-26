@@ -2,14 +2,14 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { CommerceError } from '../lib/commerce-http';
-import { RUNNINGHUB_PRODUCT_NAME, RUNNINGHUB_PROOF_MAX_BYTES } from '../lib/runninghub';
+import { RUNNINGHUB_PROOF_MAX_BYTES } from '../lib/runninghub';
 import { getPool } from './mysql';
 import { adminOrdersBotConfig } from './admin-orders-telegram';
-import { signRunningHubApproval } from './runninghub-admin-bot';
+import { runningHubAdminMessage, signRunningHubApproval } from './runninghub-admin-bot';
 
 const uuid = z.string().uuid();
 type QueueRow = RowDataPacket & { id: string; order_id: string; proof_request_id: string; attempts: number };
-// Every product adapter shares one configured private owner and optional payment topic.
+// All Running HUB events share the owner’s private Running HUB Orders topic.
 type BotConfig = NonNullable<ReturnType<typeof adminOrdersBotConfig>>;
 type Receipt = Awaited<ReturnType<typeof import('./runninghub').runningHubAdminBotReceipt>>;
 export type RunningHubAlertResult = { configured: boolean; sent: number; failed: number; cancelled: number; backfilled: number };
@@ -59,8 +59,7 @@ async function sendReceipt(config: BotConfig, receipt: Receipt, deadline: number
   if (!extension || !receipt.bytes.length || receipt.bytes.length > RUNNINGHUB_PROOF_MAX_BYTES || Date.now() >= deadline) return false;
   // The owner requires the original uploaded image, including on the document fallback.
   const image = new Blob([new Uint8Array(receipt.bytes)], { type: receipt.contentType });
-  const shortReference = receipt.id.replaceAll('-', '').slice(0, 8).toUpperCase();
-  const caption = `${RUNNINGHUB_PRODUCT_NAME} — payment review\nOrder #${shortReference}\n${receipt.paymentMethod === 'kpay' ? 'KPay' : 'AYA Pay'} · ${receipt.priceMmk.toLocaleString('en-US')} MMK`;
+  const caption = runningHubAdminMessage(receipt, 'Payment review').join('\n');
   const keyboard = { inline_keyboard: [
     [{ text: 'Review on website', url: `${config.origin}/admin/runninghub?order=${receipt.id}` }],
     [{ text: 'Approve payment', callback_data: signRunningHubApproval(config.secret, {
@@ -70,7 +69,8 @@ async function sendReceipt(config: BotConfig, receipt: Receipt, deadline: number
   function upload(kind: 'photo' | 'document') {
     const form = new FormData();
     form.set('chat_id', config.ownerId);
-    if (config.topicId !== undefined) form.set('message_thread_id', String(config.topicId));
+    const topicId = config.runningHubTopicId ?? config.topicId;
+    if (topicId !== undefined) form.set('message_thread_id', String(topicId));
     form.set('protect_content', 'true');
     form.set('caption', caption);
     form.set('reply_markup', JSON.stringify(keyboard));

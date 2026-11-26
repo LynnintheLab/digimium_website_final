@@ -17,11 +17,24 @@ import mysql from 'mysql2/promise';
 const scratch = await mkdtemp(join(tmpdir(), 'digimium-notifications-protocol-'));
 const fakeToken = '99990000:fixture_notifications_only_abcdefghijklmnopqrstuvwxyz';
 const fallbackToken = '99990000:fixture_fallback_only_abcdefghijklmnopqrstuvwxyz';
+const sharedBotEnvironment = {
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_BOT_TOKEN: '99990000:fixture_shared_admin_only_abcdefghijklmnopqrstuvwxyz',
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID: '999900005',
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_WEBHOOK_SECRET: randomBytes(32).toString('base64url'),
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID: '21',
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_REGISTRATION_TOPIC_ID: '22',
+};
+
 const env = { ...process.env, ADMIN_EMAIL: 'owner@example.invalid', ADMIN_AUTH_SECRET: randomUUID(), ORDER_FULFILLMENT_SECRET: randomUUID(),
   RESEND_FROM_EMAIL: 'digimium@example.invalid', RESEND_API_KEY: 're_integration_fixture', NOTIFICATIONS_CRON_SECRET: randomUUID(),
   GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', TELEGRAM_BOT_TOKEN: '', TELEGRAM_BOT_USERNAME: '', TELEGRAM_WEBHOOK_SECRET: '',
   ADMIN_TELEGRAM_BOT_TOKEN: fakeToken, ADMIN_TELEGRAM_CHAT_ID: '', NOTIFICATION_FIXTURE_TOKEN: fakeToken,
   NOTIFICATION_FIXTURE_FALLBACK_TOKEN: fallbackToken, NOTIFICATION_FIXTURE_CHAT: '999900001',
+  NOTIFICATION_FIXTURE_SHARED_TOKEN: sharedBotEnvironment.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_BOT_TOKEN,
+  NOTIFICATION_FIXTURE_SHARED_CHAT: sharedBotEnvironment.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID,
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_BOT_TOKEN: '', DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID: '',
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_WEBHOOK_SECRET: '', DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID: '',
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID: '', DIGIMIUM_ADMIN_ORDERS_TELEGRAM_REGISTRATION_TOPIC_ID: '',
   NOTIFICATION_FIXTURE_LOG: join(scratch, 'telegram.jsonl'), NOTIFICATION_FIXTURE_CONTROL: join(scratch, 'control.json') };
 const base = new URL(env.APP_ORIGIN);
 assert.ok(base.origin === env.APP_ORIGIN && base.protocol === 'http:' && base.hostname === '127.0.0.1' && base.port
@@ -342,7 +355,31 @@ try {
   assert.equal((await notifications.drainAdminNotificationAlerts()).sent, 1);
   process.env.ADMIN_TELEGRAM_BOT_TOKEN = fakeToken; process.env.TELEGRAM_BOT_TOKEN = '';
 
-  await stop(); await start({ ADMIN_TELEGRAM_CHAT_ID: env.NOTIFICATION_FIXTURE_CHAT });
+  const pendingAtCutover = { ...alert('Queued before topic cutover'), authProvider: 'email' };
+  await enqueue(notifications, pendingAtCutover);
+  const beforeTopics = (await calls()).length;
+  process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID = sharedBotEnvironment.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID;
+  assert.equal((await notifications.drainAdminNotificationAlerts({ dedupeKey: pendingAtCutover.dedupeKey })).configured, false,
+    'Partial topic configuration must queue owner alerts instead of silently using the old bot.');
+  assert.equal((await calls()).length, beforeTopics);
+  Object.assign(process.env, sharedBotEnvironment);
+  assert.equal((await notifications.drainAdminNotificationAlerts({ dedupeKey: pendingAtCutover.dedupeKey })).sent, 1);
+  const registration = (await calls()).at(-1);
+  assert.equal(registration.shared, true);
+  assert.equal(registration.fields.message_thread_id, 22);
+  assert.equal(registration.fields.protect_content, true);
+  assert.equal(registration.fields.text, 'Account #' + alice.id.slice(0, 8).toUpperCase() + '\nSign-up method: Email');
+  assert.equal(registration.fields.reply_markup.inline_keyboard[0][0].url, base.origin + '/admin?customer=' + alice.id);
+  const oldDueAlert = alert('Independent old alert');
+  await enqueue(notifications, oldDueAlert);
+
+  await stop(); await start({ ...sharedBotEnvironment, ADMIN_TELEGRAM_CHAT_ID: env.NOTIFICATION_FIXTURE_CHAT });
+  const topicCustomer = await register('Topic Registration Fixture');
+  const newRegistration = (await calls()).at(-1);
+  assert.equal(newRegistration.shared, true);
+  assert.equal(newRegistration.fields.message_thread_id, 22);
+  assert.equal(newRegistration.fields.text, 'Account #' + topicCustomer.id.slice(0, 8).toUpperCase() + '\nSign-up method: Email');
+  assert.equal(newRegistration.fields.reply_markup.inline_keyboard[0][0].url, base.origin + '/admin?customer=' + topicCustomer.id);
   const original = await json(await get('/api/admin/catalog', owner));
   const products = Array.from({ length: 6 }, (_, index) => ({ ...original.products[0], id: 'notification-fixture-' + index,
     name: 'Long product ' + index + ' ' + 'X'.repeat(50), published: true, availability: 'available',
@@ -351,6 +388,20 @@ try {
   const cart = { requestId: randomUUID(), items: products.map(product => ({ productId: product.id, planId: 'month', quantity: 1 })) };
   const checkout = await json(await mutate('/api/customer/orders', 'POST', cart, alice.cookie), 201);
   assert.equal(checkout.order.lines.length, 6, 'Long valid cart labels cannot roll back checkout because of alert display bounds.');
+  const newOrder = (await calls()).at(-1);
+  assert.equal(newOrder.shared, true);
+  assert.equal(newOrder.fields.message_thread_id, 21);
+  assert.equal(newOrder.fields.protect_content, true);
+  assert.match(newOrder.fields.text, /^Order #[A-F0-9]{8}\n\nLong product 0 .+ — Long plan .+ × 1\n/);
+  assert.match(newOrder.fields.text, /\n\nTotal 96,000 MMK$/);
+  assert.doesNotMatch(newOrder.fields.text, /Notification Alice|Items:|New Digimium order/);
+  assert.equal(newOrder.fields.reply_markup.inline_keyboard[0][0].url, base.origin + '/admin?order=' + checkout.id);
+  assert.match(await (await get('/admin?order=' + checkout.id, owner)).text(), /<h1>Orders<\/h1>/);
+  assert.match(await (await get('/admin?customer=' + topicCustomer.id, owner)).text(), /<h1>Customers<\/h1>/);
+  assert.ok([302, 303, 307, 308].includes((await get('/admin?order=' + checkout.id)).status));
+  const [[oldDueRow]] = await db.execute('SELECT attempts, sent_at FROM digimium_notification_outbox WHERE dedupe_key = ?', [oldDueAlert.dedupeKey]);
+  assert.equal(oldDueRow.attempts, 0, 'A new order or registration delivers immediately even with older queued alerts.');
+  assert.equal(oldDueRow.sent_at, null);
   await json(await mutate('/api/customer/orders', 'POST', cart, alice.cookie));
   assert.equal(Number((await db.execute('SELECT COUNT(*) AS n FROM digimium_notification_outbox WHERE dedupe_key=?', ['order-created:' + checkout.id]))[0][0].n), 1);
   await control({ delayMs: 200 });
@@ -371,7 +422,7 @@ try {
   await json(await get('/api/customer/notifications', bob.cookie), 401);
   const sentText = JSON.stringify(await calls());
   assert.doesNotMatch(sentText, /PRIVATE-NOTIFICATION-(?:DELIVERY|PASSWORD)|BOB-PRIVATE-NOTIFICATION|Website fixture|secret@example.invalid/);
-  console.log('Notification integration passed: optional safe buttons/legacy migration/normalized retry, owner-only messages/read state, strict bounded inputs, exact retry/rate limits, validated 3/1-day expiry, transactional leased alerts/retries/deletion, long-cart/astral-name/pool regressions and private-data isolation.');
+  console.log('Notification integration passed: optional safe buttons/legacy migration/normalized retry, owner-only messages/read state, strict bounded inputs, exact retry/rate limits, separate shared Admin bot topics and record links, validated 3/1-day expiry, transactional leased alerts/retries/deletion, long-cart/astral-name/pool regressions and private-data isolation.');
 } finally {
   await stop(); if (pool) await pool.end(); await db.end(); await rm(scratch, { recursive: true, force: true });
 }

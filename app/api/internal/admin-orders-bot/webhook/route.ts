@@ -24,12 +24,15 @@ function empty(status = 200) { return new Response(null, { status, headers }); }
 function answer(callbackId: string, text: string, alert = false) {
   return Response.json({ method: 'answerCallbackQuery', callback_query_id: callbackId, text, show_alert: alert }, { headers });
 }
-function say(config: AdminOrdersBotConfig, text: string) {
+function say(config: AdminOrdersBotConfig, text: string, sourceTopic?: number) {
+  const topic = sourceTopic && sourceTopic > 1 ? sourceTopic : config.runningHubTopicId ?? config.topicId;
   return Response.json({ method: 'sendMessage', chat_id: Number(config.ownerId), text, protect_content: true,
-    link_preview_options: { is_disabled: true }, ...(config.topicId ? { message_thread_id: config.topicId } : {}) }, { headers });
+    link_preview_options: { is_disabled: true }, ...(topic ? { message_thread_id: topic } : {}) }, { headers });
 }
 function topicAllowed(config: AdminOrdersBotConfig, topic: number | undefined) {
-  return config.topicId === undefined || config.topicId === topic;
+  if (config.runningHubTopicId !== undefined && topic === config.runningHubTopicId) return true;
+  // Previously issued signed approval messages remain valid in their original private topic.
+  return config.topicId !== undefined ? topic === config.topicId : topic === undefined || topic === 1;
 }
 
 export async function POST(request: Request) {
@@ -67,10 +70,10 @@ export async function POST(request: Request) {
   const matching = adapters.filter(adapter => adapter.matchesReply(config.secret, prompt.text));
   if (matching.length !== 1) return empty();
   try {
-    return say(config, await matching[0].completeApproval(config, prompt.text, message.text));
+    return say(config, await matching[0].completeApproval(config, prompt.text, message.text), message.message_thread_id);
   } catch (error) {
     if (error instanceof CommerceError && error.status < 500) {
-      return say(config, 'The order or payment reference could not be approved. Review the current order and wallet payment in Admin.');
+      return say(config, 'The order or payment reference could not be approved. Review the current order and wallet payment in Admin.', message.message_thread_id);
     }
     return empty(503);
   }

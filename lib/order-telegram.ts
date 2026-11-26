@@ -7,10 +7,11 @@ export function orderTelegramMessages(order: TelegramOrder, customer: TelegramCh
   const header = [
     my ? 'မင်္ဂလာပါ Digimium၊ ဒီဝန်ဆောင်မှုတွေကို မှာယူချင်ပါတယ်။' : 'Hi Digimium, I’d like to order the following.',
     (my ? 'အော်ဒါအမှတ်' : 'Order') + ' #' + order.id.toUpperCase(),
-    customer.name && (customer.guest ? (my ? 'နာမည်' : 'Name') : (my ? 'အကောင့်နာမည်' : 'Account name')) + ' — ' + customer.name,
+    customer.guest || !customer.telegram
+      ? customer.name && (customer.guest ? (my ? 'နာမည်' : 'Name') : (my ? 'အကောင့်နာမည်' : 'Account name')) + ' — ' + customer.name
+      : customer.telegram.username && 'Telegram — @' + customer.telegram.username,
     customer.guest ? (my ? 'အကောင့်မသုံးဘဲ မှာယူခြင်း' : 'Guest order')
-      : customer.email ? (my ? 'အီးမေးလ်' : 'Email') + ' — ' + customer.email
-      : customer.telegram ? 'Telegram — ' + [customer.telegram.username && '@' + customer.telegram.username, 'ID ' + customer.telegram.id].filter(Boolean).join(' · ') : '',
+      : !customer.telegram && customer.email ? (my ? 'အီးမေးလ်' : 'Email') + ' — ' + customer.email : '',
   ].filter(Boolean).join('\n');
   const rows = order.lines.map(line => {
     const duration = durationDetail(line.duration, line.planName || '', lang);

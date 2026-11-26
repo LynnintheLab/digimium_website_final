@@ -399,7 +399,7 @@ export async function customerSession(request: Request): Promise<Response> {
       throw error;
     } finally { connection.release(); }
 
-    if (creating) await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000 }).catch(() => {});
+    if (creating) await drainAdminNotificationAlerts({ limit: 1, budgetMs: 2000, dedupeKey: 'customer-created:' + customer.id }).catch(() => {});
     return reply({ customer }, creating ? 201 : 200, cookie(token, sessionSeconds));
   } catch (error) {
     if (error instanceof CommerceError) return reply({ error: "invalid" }, error.status);

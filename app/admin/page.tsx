@@ -9,7 +9,16 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function AdminPage() {
+const recordId = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
+
+export default async function AdminPage({ searchParams }: {
+  searchParams: Promise<{ order?: string | string[]; customer?: string | string[] }>;
+}) {
   const user = await requireAdminPage();
-  return <AdminCatalog identity={{ name: user.displayName, email: user.email }} signOutHref={signOutPath} postSignOut={emailCodeLogin} />;
+  const { order, customer } = await searchParams;
+  const initialRecord = typeof order === 'string' && recordId.test(order) ? { view: 'orders' as const, id: order.toLowerCase() }
+    : typeof customer === 'string' && recordId.test(customer) ? { view: 'customers' as const, id: customer.toLowerCase() }
+    : undefined;
+  return <AdminCatalog identity={{ name: user.displayName, email: user.email }} signOutHref={signOutPath}
+    postSignOut={emailCodeLogin} initialRecord={initialRecord} />;
 }

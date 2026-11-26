@@ -19,7 +19,11 @@ const env = { ...process.env, ADMIN_EMAIL: 'owner@example.invalid', ADMIN_AUTH_S
   ORDER_FULFILLMENT_SECRET: randomUUID(), NOTIFICATIONS_CRON_SECRET: randomUUID(), RESEND_FROM_EMAIL: 'digimium@example.invalid', RESEND_API_KEY: 're_integration_fixture',
   GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', TELEGRAM_BOT_TOKEN: '', TELEGRAM_BOT_USERNAME: '', TELEGRAM_WEBHOOK_SECRET: '',
   DIGIMIUM_ADMIN_ORDERS_TELEGRAM_BOT_TOKEN: '99990001:fixture_admin_orders_12345678901234567890',
-  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID: '987654321', DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID: '42',
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID: '987654321',
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID: '42',
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_RUNNINGHUB_TOPIC_ID: '43',
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID: '44',
+  DIGIMIUM_ADMIN_ORDERS_TELEGRAM_REGISTRATION_TOPIC_ID: '45',
   DIGIMIUM_ADMIN_ORDERS_TELEGRAM_WEBHOOK_SECRET: randomBytes(32).toString('base64url'),
   RUNNINGHUB_FIXTURE_LOG: join(fixtureDirectory, 'telegram.jsonl'), RUNNINGHUB_FIXTURE_CONTROL: join(fixtureDirectory, 'control.json') };
 const base = new URL(env.APP_ORIGIN || 'http://invalid');
@@ -70,6 +74,28 @@ function uniqueProofPng() {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr),
     chunk('IDAT', deflateSync(Buffer.concat(rows))), chunk('IEND', Buffer.alloc(0))]);
 }
+async function start(overrides = {}) {
+  server = spawn(process.execPath, ['--import', new URL('tests/fixtures/runninghub-telegram-fetch.mjs', root).href,
+    fileURLToPath(new URL('.next/standalone/server.js', root))], {
+    cwd: fileURLToPath(root), env: { ...env, ...overrides, FIXTURE_MAIL_FAILURE: '0', NODE_ENV: 'production', HOSTNAME: base.hostname, PORT: base.port },
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+  });
+  for (const stream of [server.stdout, server.stderr]) stream.on('data', chunk => { serverOutput = (serverOutput + chunk).slice(-1000000); });
+  for (let attempt = 0; ; attempt++) {
+    try { assert.equal((await request('/admin/login')).status, 200); break; }
+    catch (error) {
+      if (attempt > 120 || server.exitCode !== null || !['ECONNREFUSED', 'UND_ERR_SOCKET'].includes(error.cause?.code)) throw error;
+      await delay(100);
+    }
+  }
+}
+async function stop() {
+  if (server && server.exitCode === null && server.signalCode === null) {
+    const closed = once(server, 'exit');
+    server.kill('SIGTERM');
+    await Promise.race([closed, delay(3000)]);
+  }
+}
 try {
   assert.equal((await db.query('SHOW TABLES'))[0].length, 0, 'Refusing to mutate a nonempty database.');
   const probe = createServer();
@@ -81,19 +107,7 @@ try {
   }
   await writeFile(env.RUNNINGHUB_FIXTURE_LOG, '', { mode: 0o600 });
   await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, '{}', { mode: 0o600 });
-  server = spawn(process.execPath, ['--import', new URL('tests/fixtures/runninghub-telegram-fetch.mjs', root).href,
-    fileURLToPath(new URL('.next/standalone/server.js', root))], {
-    cwd: fileURLToPath(root), env: { ...env, FIXTURE_MAIL_FAILURE: '0', NODE_ENV: 'production', HOSTNAME: base.hostname, PORT: base.port },
-    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-  });
-  for (const stream of [server.stdout, server.stderr]) stream.on('data', chunk => { serverOutput = (serverOutput + chunk).slice(-1000000); });
-  for (let attempt = 0; ; attempt++) {
-    try { assert.equal((await request('/admin/login')).status, 200); break; }
-    catch (error) {
-      if (attempt > 120 || server.exitCode !== null || !['ECONNREFUSED', 'UND_ERR_SOCKET'].includes(error.cause?.code)) throw error;
-      await delay(100);
-    }
-  }
+  await start();
   const admin = '/api/admin/runninghub';
   const customer = '/api/customer/runninghub';
   const alice = await addCustomer('RunningHubFixture');
@@ -138,7 +152,8 @@ try {
   const markup = fields => typeof fields.reply_markup === 'string' ? JSON.parse(fields.reply_markup) : fields.reply_markup;
   const botOwnerId = Number(env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID);
   const botId = Number(env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_BOT_TOKEN.split(':')[0]);
-  const botTopic = Number(env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID);
+  const botTopic = Number(env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_RUNNINGHUB_TOPIC_ID);
+  const legacyPaymentTopic = Number(env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID);
   const botUser = { id: botId, is_bot: true, first_name: 'Synthetic Digimium Admin Orders' };
   const adminUser = { id: botOwnerId, is_bot: false, first_name: 'Synthetic Owner' };
   const ownerChat = { id: botOwnerId, type: 'private' };
@@ -215,7 +230,20 @@ try {
   assert.equal(first.priceMmk, 70000);
   assert.equal(first.payment.id, 'kpay');
   assert.ok(Date.parse(first.expiresAt) > Date.now());
+  const firstReference = 'Order #' + first.id.slice(0, 8).toUpperCase();
+  const firstAlert = call => call.method === 'sendMessage' && call.fields.text?.includes(firstReference);
+  const orderCreated = await providerCall(firstAlert);
+  assert.match(orderCreated.fields.text, /Running HUB API Key — 10 USD bundle × 1/);
+  assert.match(orderCreated.fields.text, /70,000 MMK/);
+  assert.equal(Number(orderCreated.fields.message_thread_id), botTopic);
+  assert.ok(markup(orderCreated.fields).inline_keyboard.flat().some(button =>
+    button.url === base.origin + '/admin/runninghub?order=' + first.id));
+  for (const privateDetail of [alice.email, alice.id, ...settings.methods.map(method => method.accountNumber)]) {
+    assert.ok(!JSON.stringify(orderCreated.fields).includes(privateDetail));
+  }
+  redacted(orderCreated);
   assert.equal((await json(await create(alice, 'usd10', 'kpay', requestId))).order.id, first.id);
+  assert.equal((await calls()).filter(firstAlert).length, 1, 'Replaying order creation sends no duplicate notice.');
   await json(await create(alice, 'usd10', 'aya', requestId), 409);
   await json(await create(alice, 'usd20', 'aya'), 409);
   const firstPath = customer + '/' + first.id;
@@ -414,7 +442,8 @@ try {
     assert.equal(String(receipt.fields.chat_id), String(botOwnerId));
     assert.equal(String(receipt.fields.message_thread_id), String(botTopic));
     assert.equal(String(receipt.fields.protect_content), 'true');
-    assert.match(receipt.fields.caption, /^Running HUB API Key — payment review\n/);
+    assert.match(receipt.fields.caption, /^Order #[\dA-F]{8}\n\nRunning HUB API Key — 10 USD bundle\n/);
+    assert.match(receipt.fields.caption, /\nStatus: Payment review$/);
     assert.match(receipt.fields.caption, /70[,. ]?000/);
     assert.match(receipt.fields.caption, method === 'kpay' ? /KPay/i : /AYA/i);
     const buttons = markup(receipt.fields).inline_keyboard.flat();
@@ -445,7 +474,9 @@ try {
     update => { update.callback_query.from.is_bot = true; },
     update => { update.callback_query.message.chat.id++; },
     update => { update.callback_query.message.chat.type = 'group'; },
-    update => { update.callback_query.message.message_thread_id++; },
+    update => { update.callback_query.message.message_thread_id = Number(env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID); },
+    update => { update.callback_query.message.message_thread_id = Number(env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_REGISTRATION_TOPIC_ID); },
+    update => { update.callback_query.message.message_thread_id = 1; },
     update => { delete update.callback_query.message.message_thread_id; },
     update => { update.callback_query.message.from.id++; },
     update => { update.callback_query.message.from.is_bot = false; },
@@ -487,8 +518,8 @@ try {
   assert.match(oldReply.body.text, /reference is no longer needed/i);
   assert.equal((await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie))).order.status, 'payment_review');
   async function approvalMessages(order) {
-    return (await calls()).filter(call => call.method === 'sendMessage' && call.fields.text?.startsWith('Running HUB API Key — payment approved\n') &&
-      call.fields.text.includes('Order #' + order.id.slice(0, 8).toUpperCase()));
+    return (await calls()).filter(call => call.method === 'sendMessage' && call.fields.text?.includes('\nStatus: Payment approved') &&
+      call.fields.text.startsWith('Order #' + order.id.slice(0, 8).toUpperCase() + '\n\nRunning HUB API Key — '));
   }
   // A provider outage cannot undo the approval or key delivery.
   const beforeApproval = (await calls()).length;
@@ -525,6 +556,10 @@ try {
   assert.equal((await webhook(reply)).response.status, 200, 'Redelivery of the same update is harmless.');
   assert.equal((await webhook(referenceReply(prompt, telegramReference))).response.status, 200, 'Legacy replies never issue another key.');
   assert.equal((await webhook(callback(telegram.receipt, telegram.token))).response.status, 200);
+  const oldCallback = callback(telegram.receipt, telegram.token);
+  oldCallback.callback_query.message.message_thread_id = legacyPaymentTopic;
+  const oldCallbackResponse = await webhook(oldCallback);
+  assert.match(oldCallbackResponse.body.text, /already approved/i, 'A valid existing payment-topic button survives cutover.');
   assert.equal((await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie))).apiKey, delivered.apiKey);
   await json(await get(customer + '/' + telegram.order.id, telegramSecond.cookie), 404);
   const [[telegramAudit]] = await db.execute("SELECT COUNT(*) AS total FROM digimium_runninghub_audit WHERE order_id = ? AND event = 'payment-approved'", [telegram.order.id]);
@@ -539,7 +574,7 @@ try {
   assert.equal((await json(await decide(fallback.order, legacyBotDecision))).applied, false);
   const [websiteNotice] = await approvalMessages(fallback.order);
   assert.ok(websiteNotice, 'Website approval also posts a persistent confirmation.');
-  assert.ok(websiteNotice.fields.text.includes('Customer: ' + telegramSecond.name));
+  assert.ok(!websiteNotice.fields.text.includes(telegramSecond.name), 'Telegram identity is shown only as its verified username.');
   assert.ok(websiteNotice.fields.text.includes('Telegram: @' + telegramUsername));
   assert.ok(!websiteNotice.fields.text.includes(telegramIdentity));
   assert.ok(!websiteNotice.fields.text.includes(telegramSecond.id));
@@ -580,17 +615,24 @@ try {
   await checkRunningHubHistory({ db, get, json, addCustomer, adminCookie: owner });
 
   const [[legacy]] = await db.query('SELECT COUNT(*) AS total FROM digimium_orders');
-  const [[notifications]] = await db.query('SELECT COUNT(*) AS total FROM digimium_notification_outbox');
+  const [notificationKinds] = await db.query('SELECT DISTINCT kind FROM digimium_notification_outbox');
   assert.equal(Number(legacy.total), 0);
-  assert.equal(Number(notifications.total), 0);
+  assert.deepEqual(notificationKinds.map(row => row.kind), ['runninghub-order-created']);
   assert.deepEqual(await json(await get('/api/admin/catalog', owner)), catalogBefore);
+
+  // Some live alerts predate any topic. Their original signed buttons remain usable after cutover.
+  await stop();
+  await start({ DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID: '' });
+  for (const topic of [undefined, 1]) {
+    const oldGeneral = callback(telegram.receipt, telegram.token);
+    oldGeneral.callback_query.message.message_thread_id = topic;
+    const result = await webhook(oldGeneral);
+    assert.match(result.body.text, /already approved/i, 'A valid existing General button survives cutover.');
+    assert.equal((await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie))).apiKey, delivered.apiKey);
+  }
   console.log('Running HUB integration passed: isolated catalog, exact MMK prices, protected receipts, website and Admin Orders Telegram approval, signed owner/topic/bot checks, single-click proof/revision replay and duplicate-image prevention, protected approval confirmations and retries, document fallback, owner-only key delivery, customer history and concurrent customer removal.');
 } finally {
-  if (server && server.exitCode === null && server.signalCode === null) {
-    const closed = once(server, 'exit');
-    server.kill('SIGTERM');
-    await Promise.race([closed, delay(3000)]);
-  }
+  await stop();
   await db.end();
   await rm(fixtureDirectory, { recursive: true, force: true });
 }
