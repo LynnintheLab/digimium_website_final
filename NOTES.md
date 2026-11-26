@@ -2,6 +2,8 @@
 
 ## Current status
 
+Running HUB order progress shows aligned numbered steps and a subtle animated connector for the current step. Refresh actions use English throughout the shop. Hover feedback uses soft surface changes, and keyboard focus retains a single clear outline.
+
 Production Running HUB checkout has KPay and AYA Pay enabled. The owner-provided KPay receiving QR is saved. AYA Pay uses its receiving number while its QR is pending. The signed-in checkout showed the 10 USD bundle available and both payment methods on November 26, 2026.
 
 The production storefront lists Running HUB API Key as the first product card under All services and AI & productivity, with the official RunningHub mark. Storefront search finds Running HUB, RunningHub and API Key. This card opens the dedicated checkout, with both bundle prices coming from the checkout definitions. The subscription catalog data is separate.
@@ -93,6 +95,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Polished the customer checkout progress and shared hover and keyboard focus styles. Kept a static progress state for reduced motion. Verified aligned numbers at 320px, 390px and desktop widths, plus pointer hover, keyboard focus and forced colors in Chrome.
 
 Made Running HUB approval a single action in Telegram and website Admin. Existing orders now appear in the signed-in customer’s general Order history, with a link to the dedicated purchase page. Verified the Telegram callback, one-click website review, Pending-to-Purchased transition and owner-only key reveal with disposable orders. The recorded purchase receipt image also prevents issuing a second key against the exact same screenshot. Fixed the generic callback alert after comparing the two submitted images and confirming they were byte-identical.
 
@@ -249,6 +253,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+- When changing the progress indicator or shared controls, check Myanmar and English labels at phone and desktop widths, keyboard focus and reduced motion.
 
 - Buyers can use Products → Running HUB API Key (the green R logo) or open `/runninghub` directly. Check current stock before verifying purchase availability.
 

@@ -9,7 +9,7 @@
   box-shadow: 0 16px 48px -12px rgb(5 22 80 / 28%); text-align: start;
 }
 .shop-account-panel:focus { outline: none; }
-.shop-account-panel :is(button,a,input):focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.shop-account-panel input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .shop-account-heading { position: sticky; top: 0; z-index: 2; background: var(--brand-surface); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
 .shop-account-heading h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.02em; }
 .shop-account-heading > button { display: grid; place-items: center; width: 36px; height: 36px; border: 0; background: transparent; color: var(--muted); border-radius: 6px; flex: none; }

@@ -157,6 +157,6 @@ export function GiveawayDetails({ controller, lang }: { controller: GiveawayCont
       {!viewer.signedIn ? <a href="/account" className="button primary">{t('Log in / Create account', 'အကောင့်ဝင် / ဖွင့်မည်')}<ArrowRight size={16} aria-hidden/></a> : !viewer.telegramLinked ? <a href="/account#telegram-link-guide" className="button primary"><Link2 size={17} aria-hidden/>{t('How to connect', 'ချိတ်နည်းကြည့်မည်')}</a> : <button type="button" className="button primary" disabled={!viewer.canJoin || busy} onClick={() => { void controller.join(); }}>{busy ? t('Saving your entry…', 'ပါဝင်မှု သိမ်းနေသည်…') : campaign.status === 'open' ? t('Join giveaway', 'Giveaway ပါဝင်မည်') : statusText(campaign, lang)}<ArrowDown size={16} aria-hidden/></button>}
       </>}
     </div>
-    {error && !viewer.joined && <p className="giveaway-error" role="alert">{t('We could not confirm your entry. Refresh and check before trying again.', 'ပါဝင်မှုကို အတည်ပြုမရသေးပါ။ ပြန်မနှိပ်ခင် ပြန်ကြည့်ပြီး စစ်ပါ။')} <button type="button" onClick={() => { void controller.refresh(); }}>{t('Refresh', 'ပြန်ကြည့်မယ်')}</button></p>}
+    {error && !viewer.joined && <p className="giveaway-error" role="alert">{t('We could not confirm your entry. Refresh and check before trying again.', 'ပါဝင်မှုကို အတည်ပြုမရသေးပါ။ ပြန်မနှိပ်ခင် ပြန်ကြည့်ပြီး စစ်ပါ။')} <button type="button" lang="en" onClick={() => { void controller.refresh(); }}>Refresh</button></p>}
   </section>;
 }

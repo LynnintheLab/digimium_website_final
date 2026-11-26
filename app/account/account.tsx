@@ -457,7 +457,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
                 <button type="button" aria-pressed={selectedHistory === "pending"} aria-controls="customer-history-list" onClick={() => setHistoryFilter("pending")}>{t("Pending", "စောင့်ဆိုင်းဆဲ")} <span>{runningHub ? count(totalPending) : "…"}</span></button>
                 <button type="button" aria-pressed={selectedHistory === "rejected"} aria-controls="customer-history-list" onClick={() => setHistoryFilter("rejected")}>{t("Rejected", "ငြင်းပယ်ထားသည်")} <span>{runningHub ? count(totalRejected) : "…"}</span></button>
               </div>
-              <button type="button" className="customer-refresh" onClick={refresh} disabled={loading}><RefreshCw size={15} aria-hidden />{t("Refresh", "ပြန်ကြည့်ရန်")}</button>
+              <button type="button" className="customer-refresh" lang="en" onClick={refresh} disabled={loading}><RefreshCw size={15} aria-hidden />Refresh</button>
             </div>
             <div id="customer-history-list" aria-live="polite" aria-busy={loading}>
               <h2 id="customer-history-list-title" className="customer-history-list-title">{selectedHistory === "rejected" ? t("Rejected or expired orders", "ငြင်းပယ်ထားသော သို့မဟုတ် အချိန်ကုန်သွားသော အော်ဒါများ") : selectedHistory === "approved" ? t("Purchased plans", "ဝယ်ယူထားသော အစီအစဉ်များ") : t("Pending orders", "စောင့်ဆိုင်းဆဲ အော်ဒါများ")}</h2>

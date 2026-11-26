@@ -26,4 +26,5 @@ a.runninghub-store-entry {
   margin: 0;
   color: var(--blue);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }

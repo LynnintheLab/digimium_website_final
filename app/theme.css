@@ -11,7 +11,7 @@
   background: var(--brand-surface);
   color: var(--brand-text);
 }
-.shop-theme-toggle:hover { background: var(--soft); border-color: var(--brand-line-strong); }
+.shop-theme-toggle:hover { background: var(--soft); }
 .shop-theme-toggle .theme-icon-dark { display: none; }
 html[data-shop-theme="dark"] .shop-theme-toggle .theme-icon-light { display: none; }
 html[data-shop-theme="dark"] .shop-theme-toggle .theme-icon-dark { display: block; }
@@ -44,8 +44,8 @@ html[data-shop-theme="dark"] body {
   color: var(--ink);
   scrollbar-color: var(--muted) var(--canvas);
 }
-html[data-shop-theme="dark"] :is(button,a,input,textarea,select,summary):focus-visible {
-  outline-color: #c4d0ff;
+@media (forced-colors: none) {
+  html[data-shop-theme="dark"] :is(button,a,input,textarea,select,summary,[role="button"]):focus-visible { outline-color: #c4d0ff; }
 }
 html[data-shop-theme="dark"] ::selection { background: #aec0ff; color: #051650; }
 html[data-shop-theme="dark"] input::placeholder,
@@ -71,7 +71,7 @@ html[data-shop-theme="dark"] .contact { background: linear-gradient(125deg, #243
 html[data-shop-theme="dark"] .about h2 span { color: #ccd8ff; }
 
 html[data-shop-theme="dark"] .product { background: #1a2333; border-color: #334057; }
-html[data-shop-theme="dark"] .product:hover { background: #202c40; border-color: #899dc7; }
+html[data-shop-theme="dark"] .product:hover { background: #202c40; }
 html[data-shop-theme="dark"] .product::before { background: radial-gradient(circle, rgb(130 149 219 / 12%), transparent 69%); }
 html[data-shop-theme="dark"] .storefront-shell .header { background: rgb(16 22 32 / 94%); }
 html[data-shop-theme="dark"] :is(.shop-order,.shop-account-panel) { background: var(--brand-surface); }

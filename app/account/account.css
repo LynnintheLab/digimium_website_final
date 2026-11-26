@@ -161,7 +161,7 @@
 .customer-checkout-auth .customer-primary { min-height: 48px; }
 .customer-checkout-auth :is(.customer-switch button, .customer-guest-link) { min-height: 44px; padding: 4px 0; border: 0; background: transparent; font-family: inherit; }
 .customer-checkout-auth .customer-guest-link { margin-top: 2px; }
-.customer-page :is(a, button, input, summary):focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.customer-page input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 @media (max-width: 400px) {
   .customer-summary, .customer-heading { flex-wrap: wrap; gap: 4px 10px; }
   .customer-summary button, .customer-refresh { min-height: 44px; }
@@ -255,7 +255,7 @@
   .customer-dashboard .customer-order-meta { gap: 8px; }
 }
 .customer-auth.customer-auth-progressive button.customer-provider[data-ready] { background: #fff; border-color: var(--brand-line-strong); cursor: pointer; }
-.customer-auth.customer-auth-progressive button.customer-provider[data-ready]:hover { background: var(--brand-surface); border-color: var(--blue); }
+.customer-auth.customer-auth-progressive button.customer-provider[data-ready]:hover { background: var(--brand-surface); }
 .customer-auth.customer-auth-progressive button.customer-provider[data-ready]:disabled { cursor: wait; opacity: .65; }
 .customer-google-wait { padding: 12px; margin-top: 14px; border-radius: 8px; background: var(--brand-surface); color: var(--muted); font-size: 13px; }
 .customer-auth.customer-auth-progressive .customer-google-wait button { min-height: 40px; padding: 6px 0; border: 0; background: transparent; color: var(--blue); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
@@ -288,7 +288,7 @@
 .customer-page .customer-history-filters button[aria-pressed="true"],
 .customer-page .customer-history-filters button[aria-pressed="true"]:hover { border-color: var(--brand-navy); background: var(--brand-navy); color: #fff; }
 @media (hover: hover) {
-  .customer-page .customer-history-filters button:not([aria-pressed="true"]):hover { background: var(--soft); border-color: var(--blue); }
+  .customer-page .customer-history-filters button:not([aria-pressed="true"]):hover { background: var(--soft); }
 }
 .customer-history-filters button span { font-family: Manrope, Walone, sans-serif; font-variant-numeric: tabular-nums; }
 .customer-history-orders .customer-refresh { min-height: 44px; font-size: 14px; }

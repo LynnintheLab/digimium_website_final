@@ -38,6 +38,8 @@ export function RunningHubOrderPanel({ order, lang, onUpdated, onRefresh, onIden
   const expiredLocally = order.status === 'awaiting_payment' && (!Number.isFinite(expiry) || expiry <= now);
   const canPay = order.status === 'awaiting_payment' && !expiredLocally;
   const stage = expiredLocally ? 'expired' : order.status;
+  const progressStopped = stage === 'expired' || stage === 'rejected';
+  const progressStep = stage === 'approved' ? 2 : stage === 'payment_review' || stage === 'rejected' ? 1 : 0;
   const api = `/api/customer/runninghub/${order.id}`;
   const bundle = RUNNINGHUB_PACKS.find(pack => pack.id === order.packId);
 
@@ -146,8 +148,20 @@ export function RunningHubOrderPanel({ order, lang, onUpdated, onRefresh, onIden
   }
 
   return <section className="rh-panel rh-order" aria-labelledby={`rh-order-${order.id}`}>
-    <div className="rh-order-heading"><div><h2 id={`rh-order-${order.id}`}>{bundle?.usd} USD · {order.priceMmk.toLocaleString('en-US')} Ks</h2><p>#{order.id.slice(0, 8).toUpperCase()}</p></div><span className="rh-state" data-status={stage}>{stage === 'approved' && <Check size={17} />}{runningHubStatus(stage, lang)}</span></div>
-    <ol className="rh-progress" aria-label={t('Order progress', 'အော်ဒါအဆင့်များ')}>{[t('Order saved', 'အော်ဒါသိမ်းပြီး'), t('Payment review', 'ငွေပေးချေမှု စစ်ဆေးရန်'), t('API key', 'API Key')].map((label, index) => <li key={label} data-current={(order.status === 'approved' ? 2 : order.status === 'payment_review' ? 1 : 0) === index || undefined}><span>{index + 1}</span>{label}</li>)}</ol>
+    <div className="rh-order-heading"><div><h2 id={`rh-order-${order.id}`}>{bundle?.usd} USD · {order.priceMmk.toLocaleString('en-US')} Ks</h2><p>#{order.id.slice(0, 8).toUpperCase()}</p></div><span id={`rh-order-status-${order.id}`} className="rh-state" data-status={stage}>{stage === 'approved' && <Check size={17} />}{runningHubStatus(stage, lang)}</span></div>
+    <ol className="rh-progress" role="list" aria-label={t('Order progress', 'အော်ဒါအဆင့်များ')} aria-describedby={`rh-order-status-${order.id}`}
+      data-animate={!progressStopped && stage !== 'approved' && !error && !uncertain || undefined}>
+      {[t('Order saved', 'အော်ဒါသိမ်းပြီး'), t('Payment review', 'ငွေပေးချေမှု စစ်ဆေးရန်'), t('API key', 'API Key')].map((label, index) => {
+        const state = stage === 'approved' || index < progressStep ? 'complete' : index === progressStep ? progressStopped ? 'stopped' : 'current' : 'upcoming';
+        return <li key={label} data-state={state} aria-current={state === 'current' ? 'step' : undefined}>
+          <span className="rh-progress-number" lang="en" dir="ltr" aria-hidden="true">{index + 1}</span>
+          {index < 2 && <span className="rh-progress-connector" aria-hidden="true" />}
+          <span className="rh-progress-label">{label}</span>
+          {state === 'complete' && <span className="rh-sr-only">{t('Completed', 'ပြီးစီးပြီ')}</span>}
+          {state === 'stopped' && <span className="rh-sr-only">{t('Stopped', 'ရပ်ဆိုင်းထားသည်')}</span>}
+        </li>;
+      })}
+    </ol>
     {canPay && <>
       <p className="rh-deadline">{t('Reserved until', 'သီးသန့်ထားပေးချိန်')} <time dateTime={order.expiresAt!}>{new Intl.DateTimeFormat(lang === 'my' ? 'my-MM' : 'en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Yangon' }).format(new Date(expiry))}</time> {t('(Myanmar time)', '(မြန်မာစံတော်ချိန်)')} · {Math.max(0, Math.ceil((expiry - now) / 60000))} {t('min left', 'မိနစ် ကျန်')}</p>
       <div className="rh-recipient"><h3>{walletName(order.payment.id)}</h3><p>{t(`Transfer ${order.priceMmk.toLocaleString('en-US')} Ks in ${walletName(order.payment.id)}, then upload the receipt before the reservation expires.`, `${walletName(order.payment.id)} မှ ${order.priceMmk.toLocaleString('en-US')} Ks လွှဲပြီး သီးသန့်ထားပေးချိန် မကုန်မီ screenshot တင်ပါ။`)}</p><dl><div><dt>{t('Receiver', 'ငွေလက်ခံသူ')}</dt><dd>{order.payment.accountLabel}</dd></div><div><dt>{t('Account number', 'အကောင့်နံပါတ်')}</dt><dd><bdi>{order.payment.accountNumber}</bdi><button type="button" className="rh-icon-button" onClick={() => void copy('recipient')} aria-label={t('Copy account number', 'အကောင့်နံပါတ် ကူးယူရန်')}><Copy size={17} /></button></dd></div></dl>{copied === 'recipient' && <p className="rh-help" role="status">{t('Account number copied.', 'အကောင့်နံပါတ် ကူးယူပြီးပါပြီ။')}</p>}{order.payment.qrPath && <Image className="rh-qr" src={order.payment.qrPath} width={220} height={220} alt={`${walletName(order.payment.id)} QR`} unoptimized />}</div>
@@ -162,7 +176,7 @@ export function RunningHubOrderPanel({ order, lang, onUpdated, onRefresh, onIden
     {order.status === 'approved' && <div className="rh-key"><KeyRound size={26} aria-hidden="true" /><h3>{t('Your API key is ready', 'သင့် API Key ရပါပြီ')}</h3><p>{t('View and copy your key. It stays available in your Running HUB order history.', 'Key ကို ဖွင့်ကြည့်ပြီး ကူးယူနိုင်ပါတယ်။ Running HUB အော်ဒါမှတ်တမ်းမှာ နောက်မှ ပြန်ယူနိုင်ပါတယ်။')}</p><div className="rh-key-value"><code dir="ltr">{apiKey || '••••••••••••••••••••••••'}</code></div><div className="rh-key-actions"><button type="button" className="rh-secondary" disabled={busy} onClick={() => void revealKey()}>{apiKey ? <EyeOff size={17} /> : <Eye size={17} />}{busy ? t('Loading…', 'ဖော်ပြနေသည်…') : apiKey ? t('Hide key', 'Key ဖျောက်ရန်') : t('View API key', 'API Key ကြည့်ရန်')}</button>{apiKey && <button type="button" className="rh-primary" onClick={() => void copy('key')}><Copy size={17} />{t('Copy API key', 'API Key ကူးယူရန်')}</button>}</div>{copied === 'key' && <p role="status">{t('API key copied.', 'API Key ကူးယူပြီးပါပြီ။')}</p>}</div>}
     {/* Full document navigation keeps storefront scripts out of the private page. */}
     {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-    {stage === 'expired' && <div className="rh-notice"><h3>{t('This reservation has expired', 'သီးသန့်ထားပေးချိန် ကုန်သွားပါပြီ')}</h3><p>{t('Do not transfer money for this order. If you already paid, contact Digimium with this order reference and your receipt.', 'ဒီအော်ဒါအတွက် ငွေမလွှဲတော့ပါနှင့်။ ငွေလွှဲပြီးသားဖြစ်လျှင် အော်ဒါအမှတ်နှင့် screenshot ကိုယူပြီး Digimium ကို ဆက်သွယ်ပါ။')}</p><button type="button" className="rh-text-button" onClick={onRefresh}>{t('Refresh availability', 'ရနိုင်သော Package ပြန်ကြည့်ရန်')}</button><a href="/#contact">{t('Contact Digimium', 'Digimium ကို ဆက်သွယ်ရန်')}</a></div>}
+    {stage === 'expired' && <div className="rh-notice"><h3>{t('This reservation has expired', 'သီးသန့်ထားပေးချိန် ကုန်သွားပါပြီ')}</h3><p>{t('Do not transfer money for this order. If you already paid, contact Digimium with this order reference and your receipt.', 'ဒီအော်ဒါအတွက် ငွေမလွှဲတော့ပါနှင့်။ ငွေလွှဲပြီးသားဖြစ်လျှင် အော်ဒါအမှတ်နှင့် screenshot ကိုယူပြီး Digimium ကို ဆက်သွယ်ပါ။')}</p><button type="button" className="rh-text-button" onClick={onRefresh} lang="en">Refresh availability</button><a href="/#contact">{t('Contact Digimium', 'Digimium ကို ဆက်သွယ်ရန်')}</a></div>}
     {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Full document boundary for storefront scripts. */}
     {order.status === 'rejected' && <div className="rh-notice"><h3>{t('Payment was not approved', 'ငွေပေးချေမှု အတည်မပြုထားပါ')}</h3><p>{t('Read the note below. If you paid, contact Digimium with this order reference before placing another order.', 'အောက်က မှတ်ချက်ကို ဖတ်ပါ။ ငွေလွှဲပြီးသားဖြစ်လျှင် နောက်အော်ဒါ မတင်မီ ဒီအော်ဒါအမှတ်ဖြင့် Digimium ကို ဆက်သွယ်ပါ။')}</p><a href="/#contact">{t('Contact Digimium', 'Digimium ကို ဆက်သွယ်ရန်')}</a></div>}
     {order.note && <div className="rh-note"><strong>{t('Note from Digimium', 'Digimium မှ မှတ်ချက်')}</strong><p dir="auto">{order.note}</p></div>}

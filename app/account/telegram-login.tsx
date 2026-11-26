@@ -74,7 +74,7 @@ export function TelegramLogin({login,t}:{login:TelegramLoginController;t:Transla
     {status==='rejected'&&<p className="customer-telegram-login-note">{t('You can try again with a new code.','Code အသစ်နဲ့ ပြန်ကြိုးစားနိုင်ပါတယ်။')}</p>}
     {error&&<p className={'customer-telegram-login-note'+(error==='connection'?'':' customer-error')} role={error==='connection'?'status':'alert'}>{errors[error]||t('Telegram sign-in is unavailable. Try again or choose another method.','Telegram ဖြင့် ခေတ္တအကောင့်ဝင်မရပါ။ ပြန်ကြိုးစားပါ သို့မဟုတ် အခြားနည်းလမ်းရွေးပါ။')}</p>}
     <div className="customer-telegram-login-actions">
-      <button type="button" disabled={busy} onClick={()=>{void login.refresh();}}><RefreshCw size={15} aria-hidden/>{terminal?t('Get a new code','Code အသစ်ယူမယ်'):t('Refresh code','Code ပြန်ယူမယ်')}</button>
+      <button type="button" disabled={busy} onClick={()=>{void login.refresh();}}><RefreshCw size={15} aria-hidden/>{terminal?t('Get a new code','Code အသစ်ယူမယ်'):<span lang="en">Refresh code</span>}</button>
       <button type="button" disabled={status==='approved'} onClick={login.cancel}>{t('Cancel','ပယ်ဖျက်မယ်')}</button>
     </div>
   </div>;
