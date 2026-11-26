@@ -122,6 +122,8 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
+Reposted the four November 26 Account Registration notices in the private Telegram topic at the owner's request. Matched the exact saved accounts to the original registration notices and confirmed all four protected messages, original Myanmar-time registration timestamps, and Admin links.
+
 Updated the private registration and order alert text on November 27, 2026. Verified email, Google and Telegram account events and Running HUB new-order, receipt and approval messages in disposable databases with the Telegram API simulated. Checked existing queued alerts, order timestamps across Myanmar midnight, protected topic routing, and existing approval buttons. Node 24 build, typecheck, strict lint, and 103 unit tests passed.
 
 Implemented the checkout contact popup and inline Telegram connection on November 27, 2026. Verified the Burmese popup at 320 pixels, explicit theme selection, Viber checkout and Admin display, and English desktop checkout using the simulated Telegram bot. Local integrations confirmed existing order retries, private contact storage, and account binding. The Node 24 build, strict lint, typecheck, and 103 unit tests passed.
