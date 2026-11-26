@@ -2,6 +2,8 @@
 
 ## Current status
 
+The eight historical Running HUB orders confirmed for permanent deletion have been removed from production. Admin’s All orders view was empty after the cleanup.
+
 Running HUB can retain the fingerprint of an approved payment screenshot after its order is permanently removed. This keeps duplicate-receipt detection in place without storing the deleted image.
 
 Approved Running HUB orders display a red balance-check box beside the API key controls. Customers can open Keymeter or copy its public website link.
@@ -113,6 +115,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Permanently removed the four delivered, three rejected, and one expired Running HUB orders in a transaction scoped to the confirmed records. Verified that the four issued keys stayed outside sellable stock and the four approved receipt fingerprints remained available for duplicate detection.
 
 Verified that a previous approved screenshot still fails duplicate approval after its old order is removed. The disposable MariaDB integration also checked that an issued key stays outside available stock and the deleted order returns 404.
 
