@@ -24,8 +24,8 @@ function readAttempt(customerId: string): Attempt | null {
   } catch { return null; }
 }
 
-function Packages({ lang, signedIn = false }: { lang: ShopLanguage; signedIn?: boolean }) {
-  return <div className="rh-price-preview">{RUNNINGHUB_PACKS.map(pack => <div key={pack.id}><strong>{pack.usd} USD</strong><span>{pack.priceMmk.toLocaleString('en-US')} Ks</span></div>)}{!signedIn && <p>{lang === 'my' ? 'အကောင့်ဝင်ပြီး Package နှင့် ငွေချေနည်း ရွေးနိုင်ပါတယ်။' : 'Sign in to choose a bundle and payment method.'}</p>}</div>;
+function Packages() {
+  return <div className="rh-price-preview">{RUNNINGHUB_PACKS.map(pack => <div key={pack.id}><strong>{pack.usd} USD</strong><span>{pack.priceMmk.toLocaleString('en-US')} Ks</span></div>)}</div>;
 }
 
 function Purchase({ data, lang, onSaved, onRefresh, onIdentityChange }: { data: Data; lang: ShopLanguage; onSaved: (order: RunningHubOrder) => void; onRefresh: () => void; onIdentityChange: () => void }) {
@@ -191,8 +191,15 @@ export default function RunningHub({ lang }: { lang: ShopLanguage }) {
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
       {error && <div className="rh-error" role="alert"><p>{error}</p><a href="/#contact">{t('Contact Digimium', 'Digimium ကို ဆက်သွယ်ရန်')}</a></div>}
       {loading && <p className="rh-loading" role="status">{t('Loading your bundles and orders…', 'Package နှင့် အော်ဒါများ ဖော်ပြနေသည်…')}</p>}
-      {!loading && !customer && <div className="rh-signed-out"><Packages lang={lang} /><AuthForm checkout={false} embedded history={false} t={t} onSuccess={() => { setLoading(true); refresh(); }} /></div>}
-      {customer && !data && !loading && <section className="rh-panel"><h2>{t('Purchasing is not available yet', 'ဝယ်ယူရန် အဆင်သင့် မဖြစ်သေးပါ')}</h2><p>{t('Bundle availability and receiving accounts must be ready before you pay. Refresh this page to check again.', 'ငွေမချေမီ Package နှင့် ငွေလက်ခံအကောင့်များ အဆင်သင့် ဖြစ်ရန်လိုပါတယ်။ ဒီစာမျက်နှာကို ပြန်ကြည့်ပါ။')}</p><Packages lang={lang} signedIn /></section>}
+      {!loading && !customer && <div className="rh-signed-out">
+        <section className="rh-account-gate" aria-labelledby="rh-account-title">
+          <h2 id="rh-account-title">{t('A Digimium account is required to buy', 'ဝယ်ယူရန် Digimium အကောင့် လိုအပ်ပါတယ်')}</h2>
+          <p>{t('Create an account or sign in to continue. You can find your orders and API keys in your account.', 'ဆက်လက်ဝယ်ယူရန် အကောင့်ဖွင့်ပါ သို့မဟုတ် ဝင်ပါ။ အော်ဒါနဲ့ API Key တွေကို သင့်အကောင့်မှာ ပြန်ကြည့်နိုင်ပါတယ်။')}</p>
+          <Packages />
+        </section>
+        <AuthForm checkout={false} embedded history={false} accountRequired t={t} onSuccess={() => { setLoading(true); refresh(); }} />
+      </div>}
+      {customer && !data && !loading && <section className="rh-panel"><h2>{t('Purchasing is not available yet', 'ဝယ်ယူရန် အဆင်သင့် မဖြစ်သေးပါ')}</h2><p>{t('Bundle availability and receiving accounts must be ready before you pay. Refresh this page to check again.', 'ငွေမချေမီ Package နှင့် ငွေလက်ခံအကောင့်များ အဆင်သင့် ဖြစ်ရန်လိုပါတယ်။ ဒီစာမျက်နှာကို ပြန်ကြည့်ပါ။')}</p><Packages /></section>}
       {customer && data && <div className="rh-layout" key={customer.id}><div>
         {selected ? <><RunningHubOrderPanel key={selected.id} order={selected} lang={lang} onUpdated={update} onRefresh={refresh} onIdentityChange={identityChanged} />{!pending(selected) && <button type="button" className="rh-secondary rh-new-order" onClick={() => { selection.current = null; setSelectedId(null); window.history.replaceState(window.history.state, '', '/runninghub'); }}>{t('Choose another bundle', 'နောက်ထပ် Package ရွေးရန်')}<ArrowRight size={16} /></button>}</>
           : <Purchase data={data} lang={lang} onSaved={order => { update(order); refresh(); }} onRefresh={refresh} onIdentityChange={identityChanged} />}

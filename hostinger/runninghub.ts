@@ -12,6 +12,7 @@ import { ensureCustomerSchema } from './customer-auth';
 import { AdminOrdersActionError } from './admin-orders-telegram';
 import { getPool } from './mysql';
 import { drainRunningHubAdminReceipts, enqueueRunningHubAdminReceipt } from './runninghub-admin-bot-outbox';
+import { drainRunningHubAdminApprovals, enqueueRunningHubAdminApproval } from './runninghub-admin-approval-outbox';
 
 const uuid = z.string().uuid();
 const revision = z.number().int().positive().max(0xfffffffe);
@@ -247,6 +248,37 @@ export async function runningHubAdminBotReceipt(id: string, proofRequestId: stri
   });
 }
 
+/** Approval notices may disclose the requested account name + one sign-in identity only to the owner bot. */
+export async function runningHubAdminBotApproval(id: string) {
+  validId(id);
+  await ensureRunningHub();
+  const [rows] = await getPool().execute<(RowDataPacket & { id: string; price_mmk: number; payment_method: string;
+    customer_name: string; customer_email: string | null; telegram_username: string | null })[]>(
+    `SELECT o.id, o.price_mmk, JSON_UNQUOTE(JSON_EXTRACT(o.payment, '$.id')) AS payment_method,
+       c.name AS customer_name, c.email AS customer_email, t.username AS telegram_username
+     FROM digimium_runninghub_orders o JOIN digimium_customers c ON c.id = o.customer_id
+     LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id
+     WHERE o.id = ? AND o.status = 'approved' AND o.delivery_cipher IS NOT NULL`, [id]);
+  const row = rows[0];
+  if (!row) throw new CommerceError(404, 'Approved Running HUB order not found.');
+  return { id: row.id, priceMmk: row.price_mmk, paymentMethod: methodId.parse(row.payment_method),
+    customerName: row.customer_name, customerEmail: row.customer_email, telegramUsername: row.telegram_username };
+}
+
+/** A matching historical button may recover one notice, never issue or reveal another key. */
+export async function recoverRunningHubAdminApproval(id: string, proofRequestId: string, approvedFromRevision: number) {
+  validId(id); validId(proofRequestId);
+  revision.parse(approvedFromRevision);
+  await transaction(async connection => {
+    const row = await rowFor(connection, id, undefined, ', delivery_cipher IS NOT NULL AS has_delivery');
+    if (row.status !== 'approved' || row.proof_request_id !== proofRequestId || row.revision !== approvedFromRevision + 1 || !row.has_delivery) {
+      throw new AdminOrdersActionError('order_changed');
+    }
+    await enqueueRunningHubAdminApproval(connection, id);
+  });
+  await drainRunningHubAdminApprovals({ orderId: id, limit: 1, budgetMs: 2000 }).catch(() => {});
+}
+
 export async function adminRunningHub() {
   return transaction(async (connection, settings) => {
     const [stock] = await connection.execute<StockRow[]>(`SELECT id, pack_id, reserved_order_id, issued_order_id, retired, created_at
@@ -319,7 +351,7 @@ export async function decideRunningHubOrder(id: string, body: unknown, actor: st
   const hash = input.action === 'approve' && !reference
     ? digest('decision-request-v2', JSON.stringify([id, input.action, input.revision, input.proofRequestId, input.note ?? '']))
     : digest('decision-request', JSON.stringify([id, input.action, input.action === 'approve' ? input.proofRequestId : null, reference, input.note ?? '']));
-  return transaction(async connection => {
+  const result = await transaction(async connection => {
     const previous = await replay(connection, input.requestId, hash).catch(error => {
       if (error instanceof CommerceError && error.status === 409) throw new AdminOrdersActionError('request_conflict');
       throw error;
@@ -328,7 +360,10 @@ export async function decideRunningHubOrder(id: string, body: unknown, actor: st
       if (error instanceof CommerceError && error.status === 404) throw new AdminOrdersActionError('order_missing');
       throw error;
     });
-    if (previous) return { order: present(row), applied: false };
+    if (previous) {
+      if (input.action === 'approve' && row.status === 'approved') await enqueueRunningHubAdminApproval(connection, id);
+      return { order: present(row), applied: false };
+    }
     if (row.status === 'rejected') throw new AdminOrdersActionError('order_rejected');
     if (row.status === 'expired') throw new AdminOrdersActionError('order_expired');
     if (row.status === 'approved') throw new AdminOrdersActionError('order_approved');
@@ -361,6 +396,7 @@ export async function decideRunningHubOrder(id: string, body: unknown, actor: st
       if (referenceHash) await connection.execute('INSERT INTO digimium_runninghub_payments (method, reference_hash, order_id, created_at) VALUES (?, ?, ?, ?)',
         [payment.id, referenceHash, id, now]);
       await audit(connection, 'payment-approved', id, row.stock_id, actor);
+      await enqueueRunningHubAdminApproval(connection, id);
     } else {
       await connection.execute("UPDATE digimium_runninghub_orders SET status = 'rejected', expires_at = NULL, note = ?, revision = revision + 1 WHERE id = ?", [input.note ?? '', id]);
       await connection.execute('UPDATE digimium_runninghub_stock SET reserved_order_id = NULL WHERE id = ?', [row.stock_id]);
@@ -369,6 +405,8 @@ export async function decideRunningHubOrder(id: string, body: unknown, actor: st
     await receipt(connection, input.requestId, hash, { orderId: id });
     return { order: present(await rowFor(connection, id)), applied: true };
   });
+  if (result.order.status === 'approved') await drainRunningHubAdminApprovals({ orderId: id, limit: 1, budgetMs: 2000 }).catch(() => {});
+  return result;
 }
 export async function revealRunningHubKey(id: string, body: unknown, actor: string) {
   validId(id);

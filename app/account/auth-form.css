@@ -1,6 +1,8 @@
 .customer-auth.customer-auth-progressive input:not(:focus) {
   border-color: color-mix(in srgb, var(--brand-navy) 56%, white);
 }
+.customer-auth-account-switch { display: flex; align-items: center; flex-wrap: wrap; gap: 0 8px; margin: -8px 0 14px; font-size: 14px; color: var(--muted); }
+.customer-auth .customer-auth-account-switch button { min-height: 44px; padding: 6px 0; border: 0; background: transparent; color: var(--blue); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
 .customer-password-field { display: grid; gap: 6px; min-width: 0; }
 .customer-password-entry { display: flex; align-items: stretch; gap: 8px; min-width: 0; }
 .customer-password-entry input { flex: 1; min-width: 0; width: 0; }

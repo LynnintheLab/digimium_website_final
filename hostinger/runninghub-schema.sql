@@ -86,3 +86,18 @@ CREATE TABLE IF NOT EXISTS digimium_runninghub_admin_outbox (
   INDEX runninghub_admin_outbox_due (sent_at, cancelled_at, next_attempt_at, lease_until),
   CONSTRAINT runninghub_admin_outbox_order FOREIGN KEY (order_id) REFERENCES digimium_runninghub_orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS digimium_runninghub_approval_outbox (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  next_attempt_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  attempts INT UNSIGNED NOT NULL DEFAULT 0,
+  lease_token BINARY(16) NULL,
+  lease_until DATETIME(3) NULL,
+  sent_at DATETIME(3) NULL,
+  cancelled_at DATETIME(3) NULL,
+  last_error VARCHAR(32) CHARACTER SET ascii NULL,
+  INDEX runninghub_approval_outbox_due (sent_at, cancelled_at, next_attempt_at, lease_until),
+  CONSTRAINT runninghub_approval_outbox_order FOREIGN KEY (order_id) REFERENCES digimium_runninghub_orders(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

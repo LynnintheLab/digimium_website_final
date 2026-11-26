@@ -55,13 +55,14 @@ export const runningHubAdminOrdersAdapter: AdminOrdersBotAdapter = {
   async beginApproval(config, code) {
     const binding = readRunningHubApproval(config.secret, code);
     if (!binding) throw new CommerceError(400, 'Invalid Running HUB approval.');
-    const { runningHubOrder, decideRunningHubOrder } = await import('./runninghub');
+    const { runningHubOrder, decideRunningHubOrder, recoverRunningHubAdminApproval } = await import('./runninghub');
     const { order } = await runningHubOrder(binding.id).catch(error => {
       if (error instanceof CommerceError && error.status === 404) throw new AdminOrdersActionError('order_missing');
       throw error;
     });
     // This also recognizes completed legacy reference-based approvals without changing their receipts.
     if (order.status === 'approved' && order.proofRequestId === binding.proofRequestId && order.revision === binding.revision + 1) {
+      await recoverRunningHubAdminApproval(binding.id, binding.proofRequestId, binding.revision);
       return 'This payment was already approved. The key is available in the customer’s website purchase details.';
     }
     if (order.status === 'rejected') throw new AdminOrdersActionError('order_rejected');

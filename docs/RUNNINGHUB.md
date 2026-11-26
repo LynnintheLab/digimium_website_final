@@ -1,6 +1,6 @@
 # Running HUB API Key
 
-Running HUB has its own checkout at `/runninghub` on the Hostinger storefront. It uses the existing website account. The two packs are 10 USD for 70,000 MMK and 20 USD for 138,000 MMK. The checkout supports KPay and AYA Pay.
+Running HUB has its own checkout at `/runninghub` on the Hostinger storefront. Buyers create a Digimium account or sign in at checkout before reserving a bundle. The two packs are 10 USD for 70,000 MMK and 20 USD for 138,000 MMK. The checkout supports KPay and AYA Pay.
 
 ## Prepare sales
 

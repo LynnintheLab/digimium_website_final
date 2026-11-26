@@ -344,5 +344,9 @@ export async function runScheduledNotifications() {
   const { drainRunningHubAdminReceipts } = await import('./runninghub-admin-bot-outbox');
   const runningHubAlerts = await drainRunningHubAdminReceipts({ limit: 2, budgetMs: 4000, backfill: true })
     .catch(() => ({ configured: true, sent: 0, failed: 1, cancelled: 0, backfilled: 0 }));
-  return { ...result, ...(runningHubAlerts.configured ? { runningHubAlerts } : {}) };
+  const { drainRunningHubAdminApprovals } = await import('./runninghub-admin-approval-outbox');
+  const runningHubApprovals = await drainRunningHubAdminApprovals({ limit: 2, budgetMs: 2000 })
+    .catch(() => ({ configured: true, sent: 0, failed: 1, cancelled: 0 }));
+  return { ...result, ...(runningHubAlerts.configured ? { runningHubAlerts } : {}),
+    ...(runningHubApprovals.configured ? { runningHubApprovals } : {}) };
 }

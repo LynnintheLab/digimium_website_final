@@ -16,7 +16,7 @@ import { checkRunningHubHistory } from './runninghub-history.integration-checks.
 
 const fixtureDirectory = await mkdtemp(join(tmpdir(), 'digimium-runninghub-telegram-test-'));
 const env = { ...process.env, ADMIN_EMAIL: 'owner@example.invalid', ADMIN_AUTH_SECRET: randomUUID(),
-  ORDER_FULFILLMENT_SECRET: randomUUID(), RESEND_FROM_EMAIL: 'digimium@example.invalid', RESEND_API_KEY: 're_integration_fixture',
+  ORDER_FULFILLMENT_SECRET: randomUUID(), NOTIFICATIONS_CRON_SECRET: randomUUID(), RESEND_FROM_EMAIL: 'digimium@example.invalid', RESEND_API_KEY: 're_integration_fixture',
   GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', TELEGRAM_BOT_TOKEN: '', TELEGRAM_BOT_USERNAME: '', TELEGRAM_WEBHOOK_SECRET: '',
   DIGIMIUM_ADMIN_ORDERS_TELEGRAM_BOT_TOKEN: '99990001:fixture_admin_orders_12345678901234567890',
   DIGIMIUM_ADMIN_ORDERS_TELEGRAM_OWNER_ID: '987654321', DIGIMIUM_ADMIN_ORDERS_TELEGRAM_PAYMENT_TOPIC_ID: '42',
@@ -168,6 +168,7 @@ try {
   await json(await get(admin), 401);
   await json(await get(admin, alice.cookie), 401);
   await json(await get(customer), 401);
+  await json(await mutate(customer, 'POST', { requestId: randomUUID(), expectedCustomerId: alice.id, packId: 'usd10', method: 'kpay' }), 401);
   const empty = await json(await get(admin, owner));
   assert.deepEqual(empty.packs.map(pack => [pack.id, pack.priceMmk]), [['usd10', 70000], ['usd20', 138000]]);
   assert.equal(empty.stock.length, 0);
@@ -384,6 +385,11 @@ try {
   const telegramBuyer = await addCustomer('TelegramBuyerFixture');
   const telegramSecond = await addCustomer('TelegramSecondFixture');
   const telegramStale = await addCustomer('TelegramStaleFixture');
+  const telegramUsername = 'digimium_fixture_buyer';
+  const telegramIdentity = '98765432111223';
+  await db.execute('UPDATE digimium_customers SET email = NULL WHERE id = ?', [telegramSecond.id]);
+  await db.execute('INSERT INTO digimium_telegram_identities (telegram_id, customer_id, username, created_at) VALUES (?, ?, ?, UTC_TIMESTAMP(3))',
+    [telegramIdentity, telegramSecond.id, telegramUsername]);
   const telegramKeys = Array.from({ length: 3 }, () => 'fixture-telegram-key-' + randomBytes(24).toString('hex'));
   keys.push(...telegramKeys);
   await json(await restock({ requestId: randomUUID(), packId: 'usd10', keys: telegramKeys }), 201);
@@ -479,8 +485,12 @@ try {
   assert.equal(oldReply.body.method, 'sendMessage');
   assert.match(oldReply.body.text, /reference is no longer needed/i);
   assert.equal((await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie))).order.status, 'payment_review');
+  async function approvalMessages(order) {
+    return (await calls()).filter(call => call.method === 'sendMessage' && call.fields.text?.startsWith('Running HUB payment approved\n') &&
+      call.fields.text.includes('Order #' + order.id.slice(0, 8).toUpperCase()));
+  }
+  // A provider outage cannot undo the approval or key delivery.
   const beforeApproval = (await calls()).length;
-  // Approval itself needs no second Telegram provider round trip or reference prompt.
   await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, JSON.stringify({ fail: true }));
   const buttonResponses = await Promise.all([webhook(acceptedCallback), webhook(acceptedCallback)]);
   await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, '{}');
@@ -489,9 +499,28 @@ try {
     assert.equal(result.body.method, 'answerCallbackQuery');
     assert.match(result.body.text, /approved|already recorded/i);
   }
-  assert.equal((await calls()).length, beforeApproval, 'One-click approval makes no ForceReply request.');
+  const attempts = (await calls()).slice(beforeApproval);
+  assert.equal(attempts.length, 1, 'Concurrent callbacks make just one attempt at the regular confirmation.');
+  const [failedNotice] = await approvalMessages(telegram.order);
+  assert.ok(failedNotice);
+  assert.equal(failedNotice.fields.reply_markup, undefined, 'Approval asks for no follow-up reply.');
+  assert.ok(failedNotice.fields.text.includes('Customer: ' + telegramBuyer.name));
+  assert.ok(failedNotice.fields.text.includes('Email: ' + telegramBuyer.email));
+  redacted(failedNotice);
+  const [[queuedNotice]] = await db.execute(
+    'SELECT attempts, sent_at FROM digimium_runninghub_approval_outbox WHERE order_id = ?', [telegram.order.id]);
+  assert.equal(queuedNotice.attempts, 1);
+  assert.equal(queuedNotice.sent_at, null);
   const delivered = await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie));
   assert.equal(delivered.order.status, 'approved'); assert.ok(telegramKeys.includes(delivered.apiKey));
+  await db.execute('UPDATE digimium_runninghub_approval_outbox SET next_attempt_at = UTC_TIMESTAMP(3) WHERE order_id = ?', [telegram.order.id]);
+  const run = await request('/api/internal/notifications/run', { method: 'POST', headers: { Authorization: 'Bearer ' + env.NOTIFICATIONS_CRON_SECRET } });
+  assert.equal(run.status, 200);
+  assert.equal((await run.json()).runningHubApprovals.sent, 1);
+  const [[sentNotice]] = await db.execute(
+    'SELECT attempts, sent_at FROM digimium_runninghub_approval_outbox WHERE order_id = ?', [telegram.order.id]);
+  assert.equal(sentNotice.attempts, 2);
+  assert.ok(sentNotice.sent_at);
   assert.equal((await webhook(reply)).response.status, 200, 'Redelivery of the same update is harmless.');
   assert.equal((await webhook(referenceReply(prompt, telegramReference))).response.status, 200, 'Legacy replies never issue another key.');
   assert.equal((await webhook(callback(telegram.receipt, telegram.token))).response.status, 200);
@@ -499,6 +528,7 @@ try {
   await json(await get(customer + '/' + telegram.order.id, telegramSecond.cookie), 404);
   const [[telegramAudit]] = await db.execute("SELECT COUNT(*) AS total FROM digimium_runninghub_audit WHERE order_id = ? AND event = 'payment-approved'", [telegram.order.id]);
   assert.equal(Number(telegramAudit.total), 1);
+  assert.equal((await approvalMessages(telegram.order)).length, 2, 'A replay does not resend an acknowledged confirmation.');
 
   const fallback = await reviewViaBot(telegramSecond, 'kpay', true);
   // Existing signed buttons remain usable after a legacy reference-based Admin approval.
@@ -506,9 +536,20 @@ try {
   const legacyBotDecision = { requestId: randomUUID(), paymentReference: legacyBotReference };
   await json(await decide(fallback.order, legacyBotDecision));
   assert.equal((await json(await decide(fallback.order, legacyBotDecision))).applied, false);
+  const [websiteNotice] = await approvalMessages(fallback.order);
+  assert.ok(websiteNotice, 'Website approval also posts a persistent confirmation.');
+  assert.ok(websiteNotice.fields.text.includes('Customer: ' + telegramSecond.name));
+  assert.ok(websiteNotice.fields.text.includes('Telegram: @' + telegramUsername));
+  assert.ok(!websiteNotice.fields.text.includes(telegramIdentity));
+  assert.ok(!websiteNotice.fields.text.includes(telegramSecond.id));
+  // Simulate an approved order from before confirmations were introduced.
+  await db.execute('DELETE FROM digimium_runninghub_approval_outbox WHERE order_id = ?', [fallback.order.id]);
   const legacyButton = await webhook(callback(fallback.receipt, fallback.token));
   assert.equal(legacyButton.response.status, 200);
   assert.match(legacyButton.body.text, /already approved/i);
+  assert.equal((await approvalMessages(fallback.order)).length, 2, 'The historical button recovers one missing confirmation.');
+  assert.equal((await webhook(callback(fallback.receipt, fallback.token))).response.status, 200);
+  assert.equal((await approvalMessages(fallback.order)).length, 2);
   const fallbackDelivery = await json(await get(customer + '/' + fallback.order.id, telegramSecond.cookie));
   assert.equal(fallbackDelivery.order.status, 'approved'); assert.notEqual(fallbackDelivery.apiKey, delivered.apiKey);
   assert.ok(telegramKeys.includes(fallbackDelivery.apiKey));
@@ -542,7 +583,7 @@ try {
   assert.equal(Number(legacy.total), 0);
   assert.equal(Number(notifications.total), 0);
   assert.deepEqual(await json(await get('/api/admin/catalog', owner)), catalogBefore);
-  console.log('Running HUB integration passed: isolated catalog, exact MMK prices, protected receipts, website and Admin Orders Telegram approval, signed owner/topic/bot checks, single-click proof/revision replay and duplicate-image prevention, document fallback, owner-only key delivery, customer history and concurrent customer removal.');
+  console.log('Running HUB integration passed: isolated catalog, exact MMK prices, protected receipts, website and Admin Orders Telegram approval, signed owner/topic/bot checks, single-click proof/revision replay and duplicate-image prevention, protected approval confirmations and retries, document fallback, owner-only key delivery, customer history and concurrent customer removal.');
 } finally {
   if (server && server.exitCode === null && server.signalCode === null) {
     const closed = once(server, 'exit');

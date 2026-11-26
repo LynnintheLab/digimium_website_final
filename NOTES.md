@@ -2,6 +2,8 @@
 
 ## Current status
 
+Running HUB checkout requires a signed-in Digimium account. Signed-out buyers can choose Create account or Sign in from checkout. The shared Admin bot sends a private approval confirmation with the order reference and customer account name, plus the registered email or verified Telegram username when available.
+
 Running HUB order progress shows aligned numbered steps and a subtle animated connector for the current step. Refresh actions use English throughout the shop. Hover feedback uses soft surface changes, and keyboard focus retains a single clear outline.
 
 Production Running HUB checkout has KPay and AYA Pay enabled. The owner-provided KPay receiving QR is saved. AYA Pay uses its receiving number while its QR is pending. The signed-in checkout showed the 10 USD bundle available and both payment methods on November 26, 2026.
@@ -95,6 +97,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Made the account requirement visible at Running HUB checkout. Added a regular private Admin Telegram message when an approval issues the key. Verified local account signup returns directly to checkout. Disposable integration verified email and Telegram identity display, old-button recovery, private delivery, and retry without reissuing the key. The production build, typecheck, strict lint and 103 unit tests passed locally.
 
 Polished the customer checkout progress and shared hover and keyboard focus styles. Kept a static progress state for reduced motion. Verified aligned numbers at 320px, 390px and desktop widths, plus pointer hover, keyboard focus and forced colors in Chrome.
 
@@ -253,6 +257,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+- During normal production use, confirm the private Admin Telegram message for the next verified Running HUB payment.
 
 - When changing the progress indicator or shared controls, check Myanmar and English labels at phone and desktop widths, keyboard focus and reduced motion.
 
