@@ -12,9 +12,9 @@ Running HUB has its own checkout at `/runninghub` on the Hostinger storefront. I
 
 The signed-in buyer chooses a pack and wallet. Their order holds one key for 30 minutes while they pay and upload the original receipt. A submitted receipt keeps the key reserved until payment review finishes.
 
-Open a pending receipt in **Admin → Running HUB → Orders**. Check the amount, payee and transaction against the actual wallet record. Enter the transaction reference and approve. Approval and key assignment happen in the same database transaction. A wallet reference can be used once per method. Rejection releases the key for another order.
+Open a pending receipt in **Admin → Running HUB → Orders**. Check the amount, payee and transaction against the actual wallet record. Select **Approve payment & issue key**. Approval and key assignment happen in the same database transaction. The same submitted image cannot approve a second order. Rejection releases the key for another order.
 
-The customer can open the completed order and copy the assigned key in the same checkout page. Admin Orders shows the customer and assigned stock ID. The Admin reveal control opens the exact key for a single issued order if needed. The regular lists show stock IDs and counts.
+The customer can open a pending or purchased Running HUB order from Order history. Its details page shows the current status and lets the customer copy an issued key. Admin Orders shows the customer and assigned stock ID. The Admin reveal control opens the exact key for a single issued order if needed. The regular lists show stock IDs and counts.
 
 The Hostinger app uses the dedicated `hostinger/runninghub-schema.sql` tables with the existing website database, authentication and fulfillment encryption secret. Back up the database and keep that secret available for previously imported stock and delivered keys.
 

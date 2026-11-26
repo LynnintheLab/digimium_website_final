@@ -6,9 +6,9 @@ Production Running HUB checkout has KPay and AYA Pay enabled. The owner-provided
 
 The production storefront lists Running HUB API Key as the first product card under All services and AI & productivity, with the official RunningHub mark. Storefront search finds Running HUB, RunningHub and API Key. This card opens the dedicated checkout, with both bundle prices coming from the checkout definitions. The subscription catalog data is separate.
 
-The Main site uses the shared `@DigimiumAdminOrdersBot` connection for private receipt delivery and payment approval. Running HUB is the first connected checkout flow and issues its reserved key when the owner replies with the checked wallet reference. Future website checkout products can use the same bot. See [Admin Orders bot setup](docs/ADMIN-ORDERS-BOT.md).
+The Main site uses the shared `@DigimiumAdminOrdersBot` connection for private receipt delivery and payment approval. Running HUB is the first connected checkout flow. The owner reviews the original receipt and checks the receiving wallet, then issues the reserved key with a single approval in Telegram or website Admin. Future website checkout products can use the same bot. See [Admin Orders bot setup](docs/ADMIN-ORDERS-BOT.md).
 
-Running HUB API Key is a separate Hostinger storefront purchase flow on the production branch. It offers 10 USD for 70,000 MMK and 20 USD for 138,000 MMK. Admin can set up KPay and AYA Pay, import encrypted stock, verify original receipts and issue the reserved key by approving payment. Buyers see their assigned key in the Running HUB checkout and can recover it in their dedicated order history. Admin Orders records the customer and issued stock ID. See [Running HUB setup](docs/RUNNINGHUB.md).
+Running HUB API Key is a separate Hostinger storefront purchase flow on the production branch. It offers 10 USD for 70,000 MMK and 20 USD for 138,000 MMK. Admin can set up KPay and AYA Pay, import encrypted stock, verify original receipts and issue the reserved key by approving payment. Buyers see their assigned key in the Running HUB checkout and can recover it in their dedicated order history. Admin Orders records the customer and issued stock ID. Customer Order history lists pending, purchased and closed Running HUB orders with links to their protected detail pages. See [Running HUB setup](docs/RUNNINGHUB.md).
 
 Admin can now record an earlier guest purchase for a selected registered customer through Customers, Customer details or Orders → Create order. The server creates an idempotent pending owner record from the saved catalog revision, allows validated actual whole-MMK unit prices, and keeps every old guest row unchanged. The existing approval editor supplies historical dates, optional encrypted credentials and the customer-visible note. Manual recording sends no checkout/Telegram alert. Clean Node 24 release-source lint (zero warnings), typecheck/build, 103 unit tests, the new manual-order integration and existing commerce/customer-administration integrations pass. Browser checks at 1440px, 390px and 320px cover customer/profile/global entry points, two-line totals, negotiated prices, duplicate validation, historical approval, Telegram-only identity, price-on-request amounts and an offline retry producing only one order. The phone form footer now scrolls below the fields. Native browser testing also found an existing Admin sign-in problem: no-referrer made form POST Origin opaque; Admin pages now use same-origin (external referrers still suppressed), while customer/API responses keep no-referrer and strict missing/null/foreign Origin rejection remains. Local tests used only isolated synthetic data; Kosai Namti and all live records were not touched. Release promotion and bounded hosted verification are next.
 
@@ -93,6 +93,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Made Running HUB approval a single action in Telegram and website Admin. Existing orders now appear in the signed-in customer’s general Order history, with a link to the dedicated purchase page. Verified the Telegram callback, one-click website review, Pending-to-Purchased transition and owner-only key reveal with disposable orders. The recorded purchase receipt image also prevents issuing a second key against the exact same screenshot.
 
 Saved and verified the production Running HUB payment configuration through Admin. Confirmed the live buyer could select 10 USD and continue to payment. At that check the 20 USD bundle had zero available keys. No live order was created during verification.
 
@@ -250,7 +252,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 - Buyers can use Products → Running HUB API Key (the green R logo) or open `/runninghub` directly. Check current stock before verifying purchase availability.
 
-- Use the shared Digimium Admin Orders bot with the verified store owner's private Telegram chat. The setup helper checks the bot identity and registered webhook. Use a synthetic receipt for local approval checks.
+- Use the shared Digimium Admin Orders bot with the verified store owner's private Telegram chat. The setup helper checks the bot identity and registered webhook. Check the receiving wallet before approving a live order. Use synthetic receipts for local approval checks.
 
 - Import funded API keys in Admin → Running HUB → Inventory for each bundle. Add the AYA Pay receiving QR in Payment settings when the owner supplies it.
 

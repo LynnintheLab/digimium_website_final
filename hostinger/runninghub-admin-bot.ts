@@ -1,8 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { CommerceError } from '../lib/commerce-http';
-import { normalizeRunningHubReference } from '../lib/runninghub';
-import type { AdminOrdersBotAdapter, AdminOrdersBotConfig } from './admin-orders-telegram';
+import type { AdminOrdersBotAdapter } from './admin-orders-telegram';
 
 type ApprovalBinding = { id: string; proofRequestId: string; revision: number };
 const uuid = z.string().uuid();
@@ -42,43 +41,13 @@ export function readRunningHubApprovalPrompt(secret: string, text: string) {
   const order = readRunningHubApproval(secret, code);
   return order && text === runningHubApprovalPrompt(code, order.id) ? { code, order } : null;
 }
-/** Repeated replies to the same proof/revision map to one durable mutation receipt. */
+/** Repeated clicks on the same proof/revision map to one durable mutation receipt. */
 export function runningHubApprovalRequestId(secret: string, code: string) {
   const bytes = createHmac('sha256', secret).update('digimium/runninghub/approval-request/v1/' + code).digest().subarray(0, 16);
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   return formatUuid(bytes);
 }
-/** Token-bearing transport is bounded, never redirected, logged, or returned to a caller. */
-export async function promptRunningHubApproval(config: AdminOrdersBotConfig, code: string, orderId: string) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 2500);
-  try {
-    const response = await fetch('https://api.telegram.org/bot' + config.token + '/sendMessage', {
-      method: 'POST', redirect: 'error', signal: controller.signal, headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: Number(config.ownerId), text: runningHubApprovalPrompt(code, orderId), protect_content: true,
-        link_preview_options: { is_disabled: true },
-        ...(config.topicId ? { message_thread_id: config.topicId } : {}),
-        reply_markup: { force_reply: true, selective: true, input_field_placeholder: 'Checked wallet reference' } }),
-    });
-    const reader = response.body?.getReader();
-    if (!reader) return false;
-    let size = 0, text = '';
-    const decoder = new TextDecoder();
-    try {
-      for (;;) {
-        const part = await reader.read();
-        if (part.done) break;
-        size += part.value.byteLength;
-        if (size > 16384) { await reader.cancel(); return false; }
-        text += decoder.decode(part.value, { stream: true });
-      }
-      return response.ok && JSON.parse(text + decoder.decode())?.ok === true;
-    } finally { reader.releaseLock(); }
-  } catch { return false; }
-  finally { clearTimeout(timeout); }
-}
-
 /** Running HUB is the first adapter of the store-wide Admin Orders bot. */
 export const runningHubAdminOrdersAdapter: AdminOrdersBotAdapter = {
   namespace: 'runninghub.approval.v1',
@@ -86,25 +55,25 @@ export const runningHubAdminOrdersAdapter: AdminOrdersBotAdapter = {
   async beginApproval(config, code) {
     const binding = readRunningHubApproval(config.secret, code);
     if (!binding) throw new CommerceError(400, 'Invalid Running HUB approval.');
-    const { runningHubOrder } = await import('./runninghub');
+    const { runningHubOrder, decideRunningHubOrder } = await import('./runninghub');
     const { order } = await runningHubOrder(binding.id);
+    // This also recognizes completed legacy reference-based approvals without changing their receipts.
+    if (order.status === 'approved' && order.proofRequestId === binding.proofRequestId && order.revision === binding.revision + 1) {
+      return 'This payment was already approved. The key is available in the customer’s website purchase details.';
+    }
     if (order.status !== 'payment_review' || order.proofRequestId !== binding.proofRequestId || order.revision !== binding.revision) {
       throw new CommerceError(409, 'The Running HUB order changed.');
     }
-    if (!await promptRunningHubApproval(config, code, binding.id)) throw new CommerceError(503, 'The approval prompt was not confirmed.');
-    return 'Reply to the payment-check message with the checked wallet reference.';
-  },
-  matchesReply: (secret, prompt) => readRunningHubApprovalPrompt(secret, prompt) !== null,
-  async completeApproval(config, prompt, value) {
-    const binding = readRunningHubApprovalPrompt(config.secret, prompt);
-    if (!binding) throw new CommerceError(400, 'Invalid Running HUB approval prompt.');
-    const reference = normalizeRunningHubReference(value);
-    if (!reference) return 'Use the checked wallet transaction reference: 6–80 letters or digits. Reply to the payment-check message again.';
-    const { decideRunningHubOrder } = await import('./runninghub');
-    const result = await decideRunningHubOrder(binding.order.id, {
-      action: 'approve', revision: binding.order.revision, proofRequestId: binding.order.proofRequestId,
-      requestId: runningHubApprovalRequestId(config.secret, binding.code), paymentReference: reference,
+    const result = await decideRunningHubOrder(binding.id, {
+      action: 'approve', revision: binding.revision, proofRequestId: binding.proofRequestId,
+      requestId: runningHubApprovalRequestId(config.secret, code),
     }, 'telegram:' + config.ownerId);
     return result.applied ? 'Payment approved. The key is available in the customer’s website purchase details.' : 'This approval was already recorded.';
+  },
+  matchesReply: (secret, prompt) => readRunningHubApprovalPrompt(secret, prompt) !== null,
+  async completeApproval(config, prompt) {
+    if (!readRunningHubApprovalPrompt(config.secret, prompt)) throw new CommerceError(400, 'Invalid Running HUB approval prompt.');
+    // Old ForceReply messages remain recognizable, but replies no longer authorize payment.
+    return 'A transaction reference is no longer needed. After checking the payment, tap Approve payment on the receipt or use website Admin.';
   },
 };

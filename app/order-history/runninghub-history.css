@@ -1,0 +1,14 @@
+.customer-runninghub-order > .customer-product-heading { margin-top: 18px; }
+.customer-runninghub-help { margin: 14px 0 4px; color: var(--account-muted); font-size: 14px; line-height: 1.85; }
+.customer-runninghub-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--blue); font-size: 14px; font-weight: 600; }
+.customer-runninghub-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.customer-runninghub-preview { display: flex; align-items: center; gap: 12px; min-height: 44px; min-width: 0; }
+.customer-runninghub-preview .customer-recent-copy { display: grid; gap: 2px; }
+.customer-runninghub-preview strong { font-size: 15px; line-height: 1.6; }
+.customer-runninghub-ready { font-size: 13px; color: var(--blue); }
+.customer-runninghub-preview > svg { flex: none; color: var(--blue); }
+.customer-runninghub-pending { display: block; padding-block: 4px; }
+.customer-runninghub-pending > small { display: block; color: var(--account-muted); font-size: 12px; margin-top: 4px; }
+.customer-runninghub-more { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+.customer-page .customer-runninghub-more button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--brand-line-strong); border-radius: 6px; color: var(--blue); font-size: 14px; }
+.customer-runninghub-more p { color: var(--account-muted); font-size: 13px; }

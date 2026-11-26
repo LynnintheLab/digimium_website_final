@@ -27,7 +27,8 @@ const importSchema = z.object({ requestId: uuid, packId,
   keys: z.array(z.string().trim().min(8).max(2048).refine(value => !/[\s\p{Cc}\u202a-\u202e\u2066-\u2069]/u.test(value))).min(1).max(100) }).strict();
 const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('approve'), revision, requestId: uuid, proofRequestId: uuid,
-    paymentReference: safeText(100).refine(value => normalizeRunningHubReference(value) !== null), note: safeText(1000).optional() }).strict(),
+    // Accepted only for older Admin clients; current approval needs no reference entry.
+    paymentReference: safeText(100).refine(value => normalizeRunningHubReference(value) !== null).optional(), note: safeText(1000).optional() }).strict(),
   z.object({ action: z.literal('reject'), revision, requestId: uuid, note: safeText(1000).optional() }).strict(),
 ]);
 const proofSchema = z.object({ revision, requestId: uuid }).strict();
@@ -311,12 +312,15 @@ export async function retireRunningHubStock(id: string, body: unknown, actor: st
 }
 export async function decideRunningHubOrder(id: string, body: unknown, actor: string) {
   validId(id);
-  const input = parse(actionSchema, body, 'Review the screenshot and enter the checked wallet transaction reference before approving.');
-  const reference = input.action === 'approve' ? normalizeRunningHubReference(input.paymentReference)! : null;
-  const hash = digest('decision-request', JSON.stringify([id, input.action, input.action === 'approve' ? input.proofRequestId : null, reference, input.note ?? '']));
+  const input = parse(actionSchema, body, 'Review the current payment screenshot before approving.');
+  const reference = input.action === 'approve' ? normalizeRunningHubReference(input.paymentReference) : null;
+  // Preserve existing rejection/legacy reference receipts; new approvals bind the full displayed tuple.
+  const hash = input.action === 'approve' && !reference
+    ? digest('decision-request-v2', JSON.stringify([id, input.action, input.revision, input.proofRequestId, input.note ?? '']))
+    : digest('decision-request', JSON.stringify([id, input.action, input.action === 'approve' ? input.proofRequestId : null, reference, input.note ?? '']));
   return transaction(async connection => {
     const previous = await replay(connection, input.requestId, hash);
-    const row = await rowFor(connection, id, undefined, ', proof_cipher');
+    const row = await rowFor(connection, id, undefined, ', proof_cipher, proof_hash');
     if (previous) return { order: present(row), applied: false };
     if (row.revision !== input.revision || !['awaiting_payment', 'payment_review'].includes(row.status)) {
       throw new CommerceError(409, 'This order changed. Reload before making a payment decision.');
@@ -326,20 +330,26 @@ export async function decideRunningHubOrder(id: string, body: unknown, actor: st
       throw new CommerceError(409, 'The reserved key is unavailable. Review stock before making this decision.');
     }
     if (input.action === 'approve') {
-      if (row.status !== 'payment_review' || !row.proof_cipher || row.proof_request_id !== input.proofRequestId) {
+      if (row.status !== 'payment_review' || !row.proof_cipher || !row.proof_hash || row.proof_request_id !== input.proofRequestId) {
         throw new CommerceError(409, 'Review the currently submitted payment screenshot first.');
       }
+      // The settings-row mutex serializes this check and issuance across all Running HUB orders.
+      const [sameProof] = await connection.execute<RowDataPacket[]>(
+        "SELECT id FROM digimium_runninghub_orders WHERE status = 'approved' AND proof_hash = ? LIMIT 1", [row.proof_hash]);
+      if (sameProof.length) throw new CommerceError(409, 'This exact payment screenshot was already used for an approved Running HUB order. Review the payment in Admin.');
       const payment = JSON.parse(row.payment) as RunningHubPaymentMethod;
-      const referenceHash = digest('payment-reference', reference!);
-      const [used] = await connection.execute<RowDataPacket[]>('SELECT order_id FROM digimium_runninghub_payments WHERE method = ? AND reference_hash = ?', [payment.id, referenceHash]);
-      if (used.length) throw new CommerceError(409, 'This wallet transaction reference was already used for an approved Running HUB order.');
+      const referenceHash = reference ? digest('payment-reference', reference) : null;
+      if (referenceHash) {
+        const [used] = await connection.execute<RowDataPacket[]>('SELECT order_id FROM digimium_runninghub_payments WHERE method = ? AND reference_hash = ?', [payment.id, referenceHash]);
+        if (used.length) throw new CommerceError(409, 'This wallet transaction reference was already used for an approved Running HUB order.');
+      }
       const key = decrypt('stock/' + stock[0].id + '/' + stock[0].pack_id, Buffer.from(stock[0].key_cipher, 'base64'));
       const delivery = encrypt('delivery/' + id + '/' + row.customer_id, key).toString('base64');
       const now = new Date().toISOString();
       await connection.execute(`UPDATE digimium_runninghub_orders SET status = 'approved', approved_at = ?, expires_at = NULL,
         delivery_cipher = ?, note = ?, revision = revision + 1 WHERE id = ?`, [now, delivery, input.note ?? '', id]);
       await connection.execute('UPDATE digimium_runninghub_stock SET reserved_order_id = NULL, issued_order_id = ? WHERE id = ?', [id, row.stock_id]);
-      await connection.execute('INSERT INTO digimium_runninghub_payments (method, reference_hash, order_id, created_at) VALUES (?, ?, ?, ?)',
+      if (referenceHash) await connection.execute('INSERT INTO digimium_runninghub_payments (method, reference_hash, order_id, created_at) VALUES (?, ?, ?, ?)',
         [payment.id, referenceHash, id, now]);
       await audit(connection, 'payment-approved', id, row.stock_id, actor);
     } else {

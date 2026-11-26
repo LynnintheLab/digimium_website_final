@@ -4,7 +4,7 @@
 
 import Image from "next/image";
 import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, Eye, EyeOff, LogOut, RefreshCw, Settings } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { telegramDraft } from "@/lib/cart-order";
 import { orderTelegramMessages } from "@/lib/order-telegram";
 import type { CommerceCustomer as Customer, CommerceOrder, CommerceOrderLine } from "@/lib/commerce-types";
@@ -18,11 +18,25 @@ import { MobileDock } from "../mobile-dock";
 import { Mark } from "../product-mark";
 import { AccountConnections } from "./account-connections";
 import { CustomerNotifications } from "../customer-notifications";
+import type { RunningHubHistoryOrder, RunningHubHistoryPage, RunningHubHistoryStatus } from "@/lib/runninghub-history";
+import { mergeHistory, RunningHubHistoryCard, RunningHubRecentPurchase, runningHubHistoryStatus } from "../order-history/runninghub-history";
 
 type AccountProps = { lang: ShopLanguage; checkout?: boolean; embedded?: boolean; history?: boolean; resumeGoogle?: boolean; googleReturnTo?: "checkout" | "account" | "history"; onClose?: () => void };
 type Translate = (en: string, my: string) => string;
 
 const sessionPath = "/api/customer/session";
+type RunningHubHistory = {
+  customerId: string;
+  counts: RunningHubHistoryPage["counts"];
+  pages: Partial<Record<RunningHubHistoryStatus, Pick<RunningHubHistoryPage, "orders" | "nextCursor">>>;
+};
+
+async function fetchRunningHubHistory(status: RunningHubHistoryStatus, limit: number, signal: AbortSignal, cursor?: string) {
+  const query = new URLSearchParams({ status, limit: String(limit), ...(cursor ? { cursor } : {}) });
+  const response = await fetch(`/api/customer/runninghub/history?${query}`, { cache: "no-store", signal });
+  if (!response.ok) throw new Error(response.status === 401 ? "identity" : "runninghub");
+  return response.json() as Promise<RunningHubHistoryPage>;
+}
 
 function PasswordForm({ t, onUpdated, onSignedOut }: { t: Translate; onUpdated: (person: Customer) => void; onSignedOut: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -170,19 +184,24 @@ function OrderCard({ order, lang, t, customer, telegram, embedded, products, onC
   </article>;
 }
 
-function RecentOrders({ orders, lang, t, products, brief = false, onClose }: { orders: CommerceOrder[]; lang: ShopLanguage; t: Translate; products: Product[]; brief?: boolean; onClose?: () => void }) {
-  const recent = orders.flatMap(order => order.lines.map(line => ({ orderId: order.id, line }))).slice(0, brief ? 2 : 3);
+type RecentEntry = { kind: "runninghub"; order: RunningHubHistoryOrder; orderId: string; line: null }
+  | { kind: "commerce"; order: null; orderId: string; line: CommerceOrderLine };
+
+function RecentOrders({ orders, runningHub, lang, t, products, brief = false, onClose }: { orders: CommerceOrder[]; runningHub: RunningHubHistoryOrder[]; lang: ShopLanguage; t: Translate; products: Product[]; brief?: boolean; onClose?: () => void }) {
+  const recent = mergeHistory(orders, runningHub).flatMap<RecentEntry>(entry => entry.kind === "runninghub"
+    ? [{ kind: "runninghub" as const, order: entry.order, orderId: entry.order.id, line: null }]
+    : entry.order.lines.map(line => ({ kind: "commerce" as const, order: null, orderId: entry.order.id, line }))).slice(0, brief ? 2 : 3);
   return <section className="customer-section customer-recent" aria-labelledby="order-history">
     <div className="customer-heading"><h2 id="order-history">{brief ? t("Recent purchases", "လတ်တလော ဝယ်ယူမှုများ") : t("Order history", "အော်ဒါမှတ်တမ်း")}</h2>
       <a className="customer-history-link" href="/order-history" onClick={onClose}>{t("View all orders", "အားလုံးကြည့်ရန်")}<ArrowRight size={15} aria-hidden /></a>
     </div>
-    {recent.length ? <ul className="customer-recent-list">{recent.map(({ orderId, line }) => <li key={`${orderId}-${line.id}`} className={brief ? "customer-recent-brief" : undefined}>
+    {recent.length ? <ul className="customer-recent-list">{recent.map(entry => { if (entry.kind === "runninghub") return <RunningHubRecentPurchase key={`runninghub-${entry.orderId}`} order={entry.order} t={t} onClose={onClose}/>; const { orderId, line } = entry; return <li key={`${orderId}-${line.id}`} className={brief ? "customer-recent-brief" : undefined}>
       <div className="customer-product-heading"><PurchasedLogo line={line} products={products} /><div className="customer-recent-copy"><div className="customer-item-title"><strong title={brief ? line.productName : undefined}>{line.productName}</strong>{line.quantity > 1 && <span>{t("Qty", "အရေအတွက်")} {line.quantity}</span>}</div>
         {line.planName && <p className="customer-item-plan" title={brief ? line.planName : undefined}>{line.planName}</p>}
         {!brief && line.duration && <p className="customer-item-duration">{durationText(line.duration, lang)}</p>}
       </div></div>
       <SubscriptionTerm startDate={line.startDate} endDate={line.endDate} lang={lang} compact />
-    </li>)}</ul> : <p className="customer-empty">{t("Approved orders and subscription dates will appear here.", "အော်ဒါ အတည်ပြုပြီးရင် ဝယ်ယူမှုမှတ်တမ်းနဲ့ ဝန်ဆောင်မှုသက်တမ်းကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>}
+    </li>; })}</ul> : <p className="customer-empty">{t("Approved orders and subscription dates will appear here.", "အော်ဒါ အတည်ပြုပြီးရင် ဝယ်ယူမှုမှတ်တမ်းနဲ့ ဝန်ဆောင်မှုသက်တမ်းကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>}
   </section>;
 }
 
@@ -195,16 +214,20 @@ function AccountDetails({ customer, lang, t }: { customer: Customer; lang: ShopL
   </dl>;
 }
 
-function PendingPreview({ orders, lang, t, onClose }: { orders: CommerceOrder[]; lang: ShopLanguage; t: Translate; onClose?: () => void }) {
+function PendingPreview({ orders, runningHub, total, lang, t, onClose }: { orders: CommerceOrder[]; runningHub: RunningHubHistoryOrder[]; total: number | null; lang: ShopLanguage; t: Translate; onClose?: () => void }) {
   const number = (value: number) => new Intl.NumberFormat(lang === "my" ? "my-MM" : "en-GB").format(value);
+  const recent = mergeHistory(orders, runningHub).slice(0, 2);
   return <section className="customer-section customer-pending-preview" aria-labelledby="pending-orders">
-    <div className="customer-heading"><h2 id="pending-orders">{t("Pending orders", "စောင့်ဆိုင်းဆဲ အော်ဒါများ")} <span className="customer-section-count">{number(orders.length)}</span></h2>
+    <div className="customer-heading"><h2 id="pending-orders">{t("Pending orders", "စောင့်ဆိုင်းဆဲ အော်ဒါများ")} <span className="customer-section-count">{total === null ? "…" : number(total)}</span></h2>
       <a className="customer-history-link" href="/order-history" onClick={onClose}>{t("View all", "အားလုံးကြည့်ရန်")}<ArrowRight size={15} aria-hidden /></a>
     </div>
-    {orders.length ? <ul className="customer-pending-list">{orders.slice(0, 2).map(order => <li key={order.id}>
+    {recent.length ? <ul className="customer-pending-list">{recent.map(entry => { const order = entry.order; if (entry.kind === "runninghub") return <li key={`runninghub-${order.id}`}><a className="customer-runninghub-pending" href={`/runninghub?order=${order.id}`} onClick={onClose}>
+      <div className="customer-pending-item-heading"><strong><bdi>#{order.id.slice(0, 8).toUpperCase()}</bdi></strong><time dateTime={order.createdAt}>{new Intl.DateTimeFormat(lang === "my" ? "my-MM" : "en-GB", { dateStyle: "medium", timeZone: "Asia/Yangon" }).format(new Date(order.createdAt))}</time></div>
+      <div className="customer-pending-item-meta"><p>Running HUB API Key</p><strong>{priceText(entry.order.priceMmk.toLocaleString("en-US") + " MMK", lang)}</strong></div><small>{runningHubHistoryStatus(entry.order, t)} <ArrowRight size={13} aria-hidden /></small>
+    </a></li>; return <li key={order.id}>
       <div className="customer-pending-item-heading"><strong><bdi>#{order.id.slice(0, 8).toUpperCase()}</bdi></strong><time dateTime={order.createdAt}>{formatDate(order.createdAt, lang)}</time></div>
-      <div className="customer-pending-item-meta"><p>{order.lines.slice(0, 2).map(line => line.productName).join(" · ")}{order.lines.length > 2 && <span> +{number(order.lines.length - 2)}</span>}</p>{order.totalMmk !== null && <strong>{priceText(order.totalMmk.toLocaleString("en-US") + " MMK", lang)}</strong>}</div>
-    </li>)}</ul> : <p className="customer-empty">{t("No orders are awaiting approval.", "အတည်ပြုရန် စောင့်ဆိုင်းနေသော အော်ဒါ မရှိပါ။")}</p>}
+      <div className="customer-pending-item-meta"><p>{entry.order.lines.slice(0, 2).map(line => line.productName).join(" · ")}{entry.order.lines.length > 2 && <span> +{number(entry.order.lines.length - 2)}</span>}</p>{entry.order.totalMmk !== null && <strong>{priceText(entry.order.totalMmk.toLocaleString("en-US") + " MMK", lang)}</strong>}</div>
+    </li>; })}</ul> : <p className="customer-empty">{total === null ? t("Refresh to load all pending orders.", "စောင့်ဆိုင်းဆဲ အော်ဒါအားလုံးကို ဖော်ပြရန် ပြန်ကြည့်ပါ။") : t("No pending orders.", "စောင့်ဆိုင်းဆဲ အော်ဒါ မရှိပါ။")}</p>}
   </section>;
 }
 
@@ -215,6 +238,13 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [telegram, setTelegram] = useState("");
   const [orders, setOrders] = useState<CommerceOrder[] | null>(null);
+  const [runningHub, setRunningHub] = useState<RunningHubHistory | null>(null);
+  const [runningHubFailed, setRunningHubFailed] = useState(false);
+  const [moreStatus, setMoreStatus] = useState<RunningHubHistoryStatus | null>(null);
+  const [moreFailed, setMoreFailed] = useState<RunningHubHistoryStatus | null>(null);
+  const customerOwner = useRef<string | null>(null);
+  const generation = useRef(0);
+  const moreRequest = useRef<AbortController | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -232,34 +262,55 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
+    const loadGeneration = ++generation.current;
+    moreRequest.current?.abort(); moreRequest.current = null;
+    const current = () => active && !controller.signal.aborted && loadGeneration === generation.current;
     const options = { cache: "no-store", signal: controller.signal } as const;
     async function load() {
       try {
         const session = await fetch(sessionPath, options);
         if (!session.ok) throw new Error("session");
         const { customer: person } = await session.json() as { customer: Customer | null };
-        if (!active) return;
-        if (resumeGoogle) { setCustomer(null); setOrders(null); setFailed(false); setLoading(false); return; }
+        if (!current()) return;
+        if (resumeGoogle) { customerOwner.current = null; setCustomer(null); setOrders(null); setRunningHub(null); setFailed(false); setLoading(false); return; }
+        customerOwner.current = person?.id ?? null;
         setCustomer(person);
         setOrders(null);
+        setRunningHub(null); setRunningHubFailed(false); setMoreStatus(null); setMoreFailed(null);
         if (person && checkout && !embedded) { window.location.replace("/?checkout=1"); return; }
         if (person && (embedded || history)) {
           const response = await fetch(`/api/customer/orders?view=${history ? "history" : "overview"}`, options);
-          if (!active) return;
-          if (response.status === 401) { setCustomer(null); }
+          if (!current()) return;
+          if (response.status === 401) { customerOwner.current = null; setCustomer(null); }
           else {
             if (!response.ok) throw new Error("orders");
             const data = await response.json() as { orders: CommerceOrder[]; telegram: string; customer: Customer };
-            if (active) { setCustomer(data.customer); setTelegram(data.telegram); setOrders(data.orders); }
+            if (!current()) return;
+            customerOwner.current = data.customer.id;
+            setCustomer(data.customer); setTelegram(data.telegram); setOrders(data.orders);
+            try {
+              const statuses: RunningHubHistoryStatus[] = history ? ["purchased", "pending", "rejected"] : ["purchased", "pending"];
+              const pages = await Promise.all(statuses.map(status => fetchRunningHubHistory(status, history ? 25 : 2, controller.signal)));
+              if (!current()) return;
+              if (pages.some(page => page.customerId !== data.customer.id)) throw new Error("identity");
+              setRunningHub({ customerId: data.customer.id, counts: pages[0].counts,
+                pages: Object.fromEntries(statuses.map((status, index) => [status, { orders: pages[index].orders, nextCursor: pages[index].nextCursor }])) });
+            } catch (error) {
+              if (!current()) return;
+              if (error instanceof Error && error.message === "identity") {
+                customerOwner.current = null; setCustomer(null); setOrders(null); setRunningHub(null); setReload(value => value + 1); return;
+              }
+              setRunningHubFailed(true);
+            }
           }
         }
-        if (active) setFailed(false);
+        if (current()) setFailed(false);
       } catch {
-        if (active) setFailed(true);
-      } finally { if (active) setLoading(false); }
+        if (current()) setFailed(true);
+      } finally { if (current()) setLoading(false); }
     }
     void load();
-    return () => { active = false; controller.abort(); };
+    return () => { active = false; controller.abort(); moreRequest.current?.abort(); };
   }, [reload, checkout, embedded, history, resumeGoogle]);
 
   useEffect(() => {
@@ -275,16 +326,18 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
   }, [customerId, embedded, history]);
 
   useEffect(() => {
-    function clearOnLeave() { setCustomer(null); setOrders(null); setLoading(true); }
+    function clearOnLeave() { generation.current += 1; moreRequest.current?.abort(); customerOwner.current = null; setCustomer(null); setOrders(null); setRunningHub(null); setLoading(true); }
     function restore(event: PageTransitionEvent) { if (event.persisted) setReload(value => value + 1); }
     function checkOnReturn() { if (!document.hidden) setReload(value => value + 1); }
     window.addEventListener("pagehide", clearOnLeave);
     window.addEventListener("pageshow", restore);
     document.addEventListener("visibilitychange", checkOnReturn);
+    window.addEventListener("focus", checkOnReturn);
     return () => {
       window.removeEventListener("pagehide", clearOnLeave);
       window.removeEventListener("pageshow", restore);
       document.removeEventListener("visibilitychange", checkOnReturn);
+      window.removeEventListener("focus", checkOnReturn);
     };
   }, []);
 
@@ -302,6 +355,7 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
       if (!embedded) { window.location.replace(history ? "/order-history" : "/account"); return; }
       setCustomer(null);
       setOrders(null);
+      customerOwner.current = null; generation.current += 1; moreRequest.current?.abort(); setRunningHub(null);
       setFailed(false);
       setLoggingOut(false);
       window.dispatchEvent(new Event("digimium-account-changed"));
@@ -323,9 +377,42 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
   const pending = orders?.filter(order => order.status === "pending") ?? [];
   const approved = orders?.filter(order => order.status === "approved") ?? [];
   const rejected = orders?.filter(order => order.status === "rejected") ?? [];
-  const selectedHistory = historyFilter ?? (approved.length > 0 ? "approved" : pending.length > 0 ? "pending" : rejected.length > 0 ? "rejected" : "approved");
+  const totalApproved = approved.length + (runningHub?.counts.purchased ?? 0);
+  const totalPending = pending.length + (runningHub?.counts.pending ?? 0);
+  const totalRejected = rejected.length + (runningHub?.counts.rejected ?? 0);
+  const selectedHistory = historyFilter ?? (totalApproved > 0 ? "approved" : totalPending > 0 ? "pending" : totalRejected > 0 ? "rejected" : "approved");
   const historyOrders = selectedHistory === "approved" ? approved : selectedHistory === "pending" ? pending : rejected;
+  const runningHubStatus: RunningHubHistoryStatus = selectedHistory === "approved" ? "purchased" : selectedHistory;
+  const runningHubPage = runningHub?.pages[runningHubStatus];
+  const historyEntries = mergeHistory(historyOrders, runningHubPage?.orders ?? []);
   const count = (value: number) => new Intl.NumberFormat(lang === "my" ? "my-MM" : "en-GB").format(value);
+
+  async function loadOlderRunningHub() {
+    if (!runningHubPage?.nextCursor || !customer || moreRequest.current || loading) return;
+    const controller = new AbortController(); moreRequest.current = controller;
+    const requestedGeneration = generation.current, ownerId = customer.id, status = runningHubStatus;
+    const current = () => !controller.signal.aborted && requestedGeneration === generation.current && customerOwner.current === ownerId;
+    setMoreStatus(status); setMoreFailed(null);
+    try {
+      const page = await fetchRunningHubHistory(status, 25, controller.signal, runningHubPage.nextCursor);
+      if (!current()) return;
+      if (page.customerId !== ownerId) throw new Error("identity");
+      setRunningHub(previous => {
+        if (!previous || previous.customerId !== ownerId) return previous;
+        const rows = previous.pages[status]?.orders ?? [];
+        return { ...previous, counts: page.counts, pages: { ...previous.pages, [status]: {
+          orders: [...rows, ...page.orders.filter(order => !rows.some(existing => existing.id === order.id))], nextCursor: page.nextCursor,
+        } } };
+      });
+    } catch (error) {
+      if (!current()) return;
+      if (error instanceof Error && error.message === "identity") { customerOwner.current = null; setCustomer(null); setOrders(null); setRunningHub(null); refresh(); }
+      else setMoreFailed(status);
+    } finally {
+      if (moreRequest.current === controller) moreRequest.current = null;
+      if (current()) setMoreStatus(null);
+    }
+  }
   return <Container className={"customer-page" + (embedded ? " customer-embedded" : "") + (history ? " customer-history-page" : !embedded ? " customer-profile-page" : "")} lang={lang}>
     {!embedded && <header className="customer-header">
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- The storefront and account use separate documents. */}
@@ -359,22 +446,30 @@ export function AccountContent({ lang, checkout = false, embedded = false, histo
         {!embedded && !history && customer.passwordAvailable === false && <p className="customer-google-connected">{customer.telegram ? t("Telegram account", "Telegram အကောင့်") : t("Google account", "Google အကောင့်")}</p>}
         {(embedded || history) && !orders && !failed && <p role="status">{t("Loading orders…", "အော်ဒါများကို ဖော်ပြနေပါတယ်…")}</p>}
         {orders && <>
-          {embedded && !history && <RecentOrders orders={approved} lang={lang} t={t} products={products} brief onClose={onClose} />}
-          {embedded && !history && <PendingPreview orders={pending} lang={lang} t={t} onClose={onClose} />}
+          {!runningHub && loading && <p role="status">{t("Loading Running HUB orders…", "Running HUB အော်ဒါများ ဖော်ပြနေသည်…")}</p>}
+          {runningHubFailed && <div className="customer-alert" role="alert">{t("Running HUB orders could not be loaded.", "Running HUB အော်ဒါများ ဖော်ပြ၍ မရသေးပါ။")}<button type="button" onClick={refresh} disabled={loading}>{t("Retry", "ပြန်ကြိုးစားရန်")}</button></div>}
+          {embedded && !history && <RecentOrders orders={approved} runningHub={runningHub?.pages.purchased?.orders ?? []} lang={lang} t={t} products={products} brief onClose={onClose} />}
+          {embedded && !history && <PendingPreview orders={pending} runningHub={runningHub?.pages.pending?.orders ?? []} total={runningHub ? totalPending : null} lang={lang} t={t} onClose={onClose} />}
           {history && <section className="customer-section customer-history-orders" aria-labelledby="customer-history-list-title">
             <div className="customer-history-toolbar">
               <div className="customer-history-filters" role="group" aria-label={t("Order status", "အော်ဒါ အခြေအနေ ရွေးရန်")}>
-                <button type="button" aria-pressed={selectedHistory === "approved"} aria-controls="customer-history-list" onClick={() => setHistoryFilter("approved")}>{t("Purchased", "ဝယ်ယူပြီး")} <span>{count(approved.length)}</span></button>
-                <button type="button" aria-pressed={selectedHistory === "pending"} aria-controls="customer-history-list" onClick={() => setHistoryFilter("pending")}>{t("Pending", "စောင့်ဆိုင်းဆဲ")} <span>{count(pending.length)}</span></button>
-                <button type="button" aria-pressed={selectedHistory === "rejected"} aria-controls="customer-history-list" onClick={() => setHistoryFilter("rejected")}>{t("Rejected", "ငြင်းပယ်ထားသည်")} <span>{count(rejected.length)}</span></button>
+                <button type="button" aria-pressed={selectedHistory === "approved"} aria-controls="customer-history-list" onClick={() => setHistoryFilter("approved")}>{t("Purchased", "ဝယ်ယူပြီး")} <span>{runningHub ? count(totalApproved) : "…"}</span></button>
+                <button type="button" aria-pressed={selectedHistory === "pending"} aria-controls="customer-history-list" onClick={() => setHistoryFilter("pending")}>{t("Pending", "စောင့်ဆိုင်းဆဲ")} <span>{runningHub ? count(totalPending) : "…"}</span></button>
+                <button type="button" aria-pressed={selectedHistory === "rejected"} aria-controls="customer-history-list" onClick={() => setHistoryFilter("rejected")}>{t("Rejected", "ငြင်းပယ်ထားသည်")} <span>{runningHub ? count(totalRejected) : "…"}</span></button>
               </div>
               <button type="button" className="customer-refresh" onClick={refresh} disabled={loading}><RefreshCw size={15} aria-hidden />{t("Refresh", "ပြန်ကြည့်ရန်")}</button>
             </div>
             <div id="customer-history-list" aria-live="polite" aria-busy={loading}>
-              <h2 id="customer-history-list-title" className="customer-history-list-title">{selectedHistory === "rejected" ? t("Rejected orders", "ငြင်းပယ်ထားသော အော်ဒါများ") : selectedHistory === "approved" ? t("Purchased plans", "ဝယ်ယူထားသော အစီအစဉ်များ") : t("Awaiting shop approval", "ဆိုင်အတည်ပြုရန် စောင့်ဆိုင်းဆဲ")}</h2>
-              {selectedHistory === "pending" && pending.length > 0 && <p className="customer-section-help">{t("Send your order in Telegram and wait for shop approval.", "အော်ဒါစာကို Telegram မှာ ပို့ပြီး ဆိုင်အတည်ပြုချက်ကို စောင့်ပါ။")}</p>}
-              {historyOrders.length ? <div className="customer-order-grid">{historyOrders.map(order => <OrderCard key={order.id} order={order} customer={customer} telegram={telegram} lang={lang} t={t} embedded={embedded} products={products} onClose={onClose} />)}</div>
-                : <p className="customer-empty">{selectedHistory === "rejected" ? t("No rejected orders.", "ငြင်းပယ်ထားသော အော်ဒါ မရှိပါ။") : selectedHistory === "pending" ? t("No orders are awaiting approval.", "အတည်ပြုရန် စောင့်ဆိုင်းနေသော အော်ဒါ မရှိပါ။") : t("Approved orders and subscription dates will appear here.", "အော်ဒါ အတည်ပြုပြီးရင် ဝယ်ယူမှုမှတ်တမ်းနဲ့ ဝန်ဆောင်မှုသက်တမ်းကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>}
+              <h2 id="customer-history-list-title" className="customer-history-list-title">{selectedHistory === "rejected" ? t("Rejected or expired orders", "ငြင်းပယ်ထားသော သို့မဟုတ် အချိန်ကုန်သွားသော အော်ဒါများ") : selectedHistory === "approved" ? t("Purchased plans", "ဝယ်ယူထားသော အစီအစဉ်များ") : t("Pending orders", "စောင့်ဆိုင်းဆဲ အော်ဒါများ")}</h2>
+              {selectedHistory === "pending" && pending.length > 0 && <p className="customer-section-help">{t("For Telegram orders, send your order message and wait for shop approval.", "Telegram မှ မှာယူသော အော်ဒါများအတွက် အော်ဒါစာပို့ပြီး ဆိုင်အတည်ပြုချက်ကို စောင့်ပါ။")}</p>}
+              {historyEntries.length ? <div className="customer-order-grid">{historyEntries.map(entry => entry.kind === "runninghub"
+                ? <RunningHubHistoryCard key={`runninghub-${entry.order.id}`} order={entry.order} lang={lang} t={t}/>
+                : <OrderCard key={entry.order.id} order={entry.order} customer={customer} telegram={telegram} lang={lang} t={t} embedded={embedded} products={products} onClose={onClose} />)}</div>
+                : runningHub && <p className="customer-empty">{selectedHistory === "rejected" ? t("No rejected or expired orders.", "ငြင်းပယ်ထားသော သို့မဟုတ် အချိန်ကုန်သွားသော အော်ဒါ မရှိပါ။") : selectedHistory === "pending" ? t("No pending orders.", "စောင့်ဆိုင်းဆဲ အော်ဒါ မရှိပါ။") : t("Approved orders and subscription dates will appear here.", "အော်ဒါ အတည်ပြုပြီးရင် ဝယ်ယူမှုမှတ်တမ်းနဲ့ ဝန်ဆောင်မှုသက်တမ်းကို ဒီမှာ ကြည့်နိုင်ပါတယ်။")}</p>}
+              {runningHubPage?.nextCursor && <div className="customer-runninghub-more"><button type="button" onClick={() => void loadOlderRunningHub()} disabled={loading || !!moreStatus}>{moreStatus === runningHubStatus ? t("Loading…", "ဖော်ပြနေသည်…") : t("Load older Running HUB orders", "Running HUB အော်ဒါအဟောင်းများ ဆက်ကြည့်ရန်")}</button>
+                <p>{t(`${runningHubPage.orders.length} of ${runningHub?.counts[runningHubStatus]} Running HUB orders shown`, `Running HUB အော်ဒါ ${count(runningHub?.counts[runningHubStatus] ?? 0)} ခုအနက် ${count(runningHubPage.orders.length)} ခု ပြထားသည်`)}</p>
+              </div>}
+              {moreFailed === runningHubStatus && <p className="customer-error" role="alert">{t("Older Running HUB orders could not be loaded. Try the button again.", "Running HUB အော်ဒါအဟောင်းများ ဖော်ပြ၍ မရပါ။ ခလုတ်ကို ပြန်နှိပ်ပြီး ကြိုးစားပါ။")}</p>}
             </div>
             <a href="/account" className="customer-history-account">{t("Account settings", "အကောင့်အချက်အလက် ကြည့်ရန်")}<ArrowRight size={16} aria-hidden /></a>
           </section>}

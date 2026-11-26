@@ -11,6 +11,8 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import mysql from 'mysql2/promise';
+import { crc32, deflateSync } from 'node:zlib';
+import { checkRunningHubHistory } from './runninghub-history.integration-checks.mjs';
 
 const fixtureDirectory = await mkdtemp(join(tmpdir(), 'digimium-runninghub-telegram-test-'));
 const env = { ...process.env, ADMIN_EMAIL: 'owner@example.invalid', ADMIN_AUTH_SECRET: randomUUID(),
@@ -54,6 +56,19 @@ async function addCustomer(name) {
   await db.execute('INSERT INTO digimium_customer_sessions (token_hash, customer_id, expires_at) VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 HOUR))',
     [hash(token), id]);
   return { id, name, email, cookie: 'digimium_local_customer=' + token };
+}
+// Distinct valid synthetic receipt images model distinct payments; no real receipts are used.
+function uniqueProofPng() {
+  const chunk = (kind, data) => {
+    const body = Buffer.concat([Buffer.from(kind), data]);
+    const length = Buffer.alloc(4), checksum = Buffer.alloc(4);
+    length.writeUInt32BE(data.length); checksum.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, checksum]);
+  };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(32); ihdr.writeUInt32BE(32, 4); ihdr[8] = 8; ihdr[9] = 2;
+  const rows = Array.from({ length: 32 }, () => Buffer.concat([Buffer.from([0]), randomBytes(32 * 3)]));
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(Buffer.concat(rows))), chunk('IEND', Buffer.alloc(0))]);
 }
 try {
   assert.equal((await db.query('SHOW TABLES'))[0].length, 0, 'Refusing to mutate a nonempty database.');
@@ -109,7 +124,7 @@ try {
   );
   const decide = (order, fields, session = owner, origin = base.origin) => mutate(admin + '/orders/' + order.id, 'PATCH',
     { action: 'approve', revision: order.revision, requestId: randomUUID(), proofRequestId: order.proofRequestId,
-      paymentReference: walletRef, ...fields }, session, origin);
+      ...fields }, session, origin);
   const restock = (body, session = owner) => mutate(admin + '/stock', 'POST', body, session);
   const calls = async () => (await readFile(env.RUNNINGHUB_FIXTURE_LOG, 'utf8')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
   async function providerCall(predicate, after = 0) {
@@ -231,11 +246,20 @@ try {
   await json(await decide(review, {}, owner, 'https://foreign.invalid'), 403);
   await json(await decide(review, { proofRequestId: randomUUID() }), 409);
   const decision = { requestId: randomUUID() };
-  const approved = await json(await decide(review, decision));
+  const simultaneous = await Promise.all([decide(review, decision), decide(review, decision)]);
+  const approvals = await Promise.all(simultaneous.map(response => json(response)));
+  assert.deepEqual(approvals.map(result => result.applied).sort(), [false, true], 'Concurrent identical approval clicks issue once.');
+  const approved = approvals.find(result => result.applied);
   redacted(approved);
   assert.equal(approved.order.status, 'approved');
   assert.ok(approved.order.keyId);
-  const replay = await json(await decide(review, { ...decision, paymentReference: 'fixture 881201' }));
+  const replay = await json(await decide(review, decision));
+  assert.equal(replay.applied, false);
+  for (const changed of [{ revision: review.revision + 1 }, { proofRequestId: randomUUID() }, { note: 'Changed decision' }]) {
+    await json(await decide(review, { ...decision, ...changed }), 409);
+  }
+  const [[newReferenceRows]] = await db.execute('SELECT COUNT(*) AS total FROM digimium_runninghub_payments WHERE order_id = ?', [review.id]);
+  assert.equal(Number(newReferenceRows.total), 0, 'Single-click approval does not invent or store a wallet reference.');
   assert.equal(replay.order.keyId, approved.order.keyId);
   const detail = await json(await get(firstPath, alice.cookie));
   assert.ok(keys.slice(0, 2).includes(detail.apiKey));
@@ -255,10 +279,11 @@ try {
 
   const duplicate = (await json(await create(bob, 'usd10', 'kpay'), 201)).order;
   const duplicateReview = (await json(await proof(bob, duplicate))).order;
-  await json(await decide(duplicateReview, { paymentReference: 'fixture 881201' }), 409);
+  const duplicateResult = await json(await decide(duplicateReview, {}), 409);
+  assert.match(JSON.stringify(duplicateResult), /screenshot.*already used/i);
   assert.equal((await json(await get(customer + '/' + duplicate.id, bob.cookie))).order.status, 'payment_review');
   const rejected = (await json(await decide(duplicateReview, {
-    action: 'reject', paymentReference: undefined, proofRequestId: undefined, note: 'Payment reference could not be reconciled.',
+    action: 'reject', paymentReference: undefined, proofRequestId: undefined, note: 'Synthetic screenshot already used.',
   }))).order;
   assert.equal(rejected.status, 'rejected');
   assert.equal((await json(await get(customer + '/' + duplicate.id, bob.cookie))).apiKey, undefined);
@@ -271,8 +296,12 @@ try {
   const second = (await json(lastUnit[winnerIndex], 201)).order;
   assert.equal(second.priceMmk, 138000);
   assert.equal(second.payment.id, 'aya');
-  const secondReview = (await json(await proof(winner, second))).order;
-  const secondFilled = (await json(await decide(secondReview, { paymentReference: 'AYA-88122102' }))).order;
+  const secondReview = (await json(await proof(winner, second, uniqueProofPng()))).order;
+  const legacyDecision = { requestId: randomUUID(), paymentReference: walletRef };
+  const secondFilled = (await json(await decide(secondReview, legacyDecision))).order;
+  assert.equal((await json(await decide(secondReview, { ...legacyDecision, paymentReference: 'fixture 881201' }))).applied, false, 'Legacy reference-based request receipts still replay.');
+  const [[oldReferenceRows]] = await db.execute('SELECT COUNT(*) AS total FROM digimium_runninghub_payments WHERE order_id = ?', [secondReview.id]);
+  assert.equal(Number(oldReferenceRows.total), 1, 'Legacy reference verification is retained.');
   assert.equal((await json(await get(customer + '/' + secondFilled.id, winner.cookie))).apiKey, keys[2]);
   await json(await get(customer + '/' + secondFilled.id, loser.cookie), 404);
 
@@ -298,11 +327,11 @@ try {
     keys.push(raceKey);
     const imported = await json(await restock({ requestId: randomUUID(), packId: 'usd10', keys: [raceKey] }), 201);
     const pendingRace = (await json(await create(racing, 'usd10', 'kpay'), 201)).order;
-    const reviewRace = (await json(await proof(racing, pendingRace))).order;
+    const reviewRace = (await json(await proof(racing, pendingRace, uniqueProofPng()))).order;
     const customerPath = '/api/admin/customers/' + racing.id;
     const currentCustomer = await json(await get(customerPath, owner));
     const remove = () => mutate(customerPath, 'DELETE', { version: currentCustomer.version, confirmation: racing.id }, owner);
-    const approve = () => decide(reviewRace, { paymentReference: 'REMOVAL-RACE-' + index + '-991200' });
+    const approve = () => decide(reviewRace, {});
     const requests = index ? [approve(), remove()] : [remove(), approve()];
     const results = await Promise.all(requests);
     const removal = results[index ? 1 : 0], approval = results[index ? 0 : 1];
@@ -315,7 +344,7 @@ try {
     assert.equal(Number(remainingOrder.total), 0, 'Customer deletion erases the private order and its receipt/delivery');
     const [[verification]] = await db.execute('SELECT COUNT(*) AS total FROM digimium_runninghub_payments WHERE order_id = ?', [reviewRace.id]);
     const [[approvalAudit]] = await db.execute("SELECT COUNT(*) AS total FROM digimium_runninghub_audit WHERE order_id = ? AND event = 'payment-approved'", [reviewRace.id]);
-    assert.equal(Number(verification.total), didApprove ? 1 : 0);
+    assert.equal(Number(verification.total), 0, 'No wallet reference is stored by the single-click path.');
     assert.equal(Number(approvalAudit.total), didApprove ? 1 : 0);
     const afterRemoval = await json(await get(admin, owner));
     const raceStock = afterRemoval.stock.find(item => item.id === imported.ids[0]);
@@ -333,7 +362,7 @@ try {
     await json(await restock({ requestId: randomUUID(), packId: 'usd10', keys: [raceKey] }), 409);
   }
 
-  // Dedicated Admin bot: receipts, signed approval prompt, verified reference and owner-only delivery.
+  // Dedicated Admin bot: receipt-bound single-click approval, legacy button compatibility and owner-only delivery.
   const telegramBuyer = await addCustomer('TelegramBuyerFixture');
   const telegramSecond = await addCustomer('TelegramSecondFixture');
   const telegramStale = await addCustomer('TelegramStaleFixture');
@@ -344,18 +373,18 @@ try {
     const pendingOrder = (await json(await create(buyer, 'usd10', method), 201)).order;
     const after = (await calls()).length;
     if (fallback) await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, JSON.stringify({ rejectPhoto: true }));
-    const proofRequestId = randomUUID();
-    const reviewed = (await json(await proof(buyer, pendingOrder, proofPng, 'image/png', proofRequestId))).order;
+    const proofRequestId = randomUUID(), receiptBytes = uniqueProofPng();
+    const reviewed = (await json(await proof(buyer, pendingOrder, receiptBytes, 'image/png', proofRequestId))).order;
     const receipt = await providerCall(call => call.method === (fallback ? 'sendDocument' : 'sendPhoto') &&
       String(call.fields.caption).toLowerCase().includes(reviewed.id.slice(0, 8).toLowerCase()), after);
     await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, '{}');
     const callCount = (await calls()).length;
-    assert.equal((await json(await proof(buyer, pendingOrder, proofPng, 'image/png', proofRequestId))).order.id, reviewed.id);
+    assert.equal((await json(await proof(buyer, pendingOrder, receiptBytes, 'image/png', proofRequestId))).order.id, reviewed.id);
     assert.equal((await calls()).length, callCount, 'Retrying acknowledged proof must not resend its delivered alert.');
     const [[queued]] = await db.execute('SELECT COUNT(*) AS total, MAX(sent_at) AS sent FROM digimium_runninghub_admin_outbox WHERE order_id = ? AND proof_request_id = ?', [reviewed.id, proofRequestId]);
     assert.equal(Number(queued.total), 1); assert.ok(queued.sent);
-    assert.equal(receipt.upload.sha256, createHash('sha256').update(proofPng).digest('hex'));
-    assert.equal(receipt.upload.size, proofPng.length);
+    assert.equal(receipt.upload.sha256, createHash('sha256').update(receiptBytes).digest('hex'));
+    assert.equal(receipt.upload.size, receiptBytes.length);
     assert.equal(receipt.upload.type, 'image/png');
     assert.equal(receipt.upload.name, 'runninghub-payment-receipt.png');
     assert.equal(String(receipt.fields.chat_id), String(botOwnerId));
@@ -402,18 +431,10 @@ try {
   }
   assert.equal((await validPrompts()).length, promptsBefore, 'Mismatched callback bindings and proof signatures cannot open approval prompts.');
   assert.equal((await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie))).order.status, 'payment_review');
-  await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, JSON.stringify({ fail: true }));
-  assert.equal((await webhook(callback(telegram.receipt, telegram.token))).response.status, 503, 'A failed ForceReply delivery is retryable and cannot approve payment.');
-  await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, '{}');
-  const beforePrompt = (await calls()).length;
-  const buttonResponse = await webhook(acceptedCallback);
-  assert.equal(buttonResponse.response.status, 200);
-  assert.equal(buttonResponse.body.method, 'answerCallbackQuery');
-  const prompt = await providerCall(call => call.method === 'sendMessage' && markup(call.fields)?.force_reply, beforePrompt);
-  assert.equal(markup(prompt.fields).force_reply, true);
-  assert.ok(prompt.fields.text.endsWith('RH approval: ' + telegram.token));
-  assert.ok(prompt.fields.text.length <= 4096);
-  redacted(prompt);
+  // A previously delivered ForceReply is recognized safely, but text replies cannot approve now.
+  const prompt = { messageId: 45001, fields: { text: 'Running HUB payment check\nOrder #' + telegram.order.id.slice(0, 8).toUpperCase() +
+    '\nCheck the amount and recipient in your wallet, then reply to this message with that transaction reference.' +
+    '\nNever send an API key or password.\nRH approval: ' + telegram.token } };
   const telegramReference = 'RH-FIXTURE-WALLET-12345001'; sensitiveReferences.push(telegramReference);
   const reply = referenceReply(prompt, telegramReference);
   for (const change of [
@@ -435,16 +456,26 @@ try {
   }
   const stillReviewing = await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie));
   assert.equal(stillReviewing.order.status, 'payment_review'); assert.equal(stillReviewing.apiKey, undefined);
-  const approvedReply = await webhook(reply);
-  assert.equal(approvedReply.response.status, 200);
-  assert.equal(approvedReply.body.method, 'sendMessage');
-  assert.equal(String(approvedReply.body.chat_id), String(botOwnerId));
-  assert.equal(String(approvedReply.body.message_thread_id), String(botTopic));
-  assert.equal(approvedReply.body.protect_content, true);
+  const oldReply = await webhook(reply);
+  assert.equal(oldReply.response.status, 200);
+  assert.equal(oldReply.body.method, 'sendMessage');
+  assert.match(oldReply.body.text, /reference is no longer needed/i);
+  assert.equal((await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie))).order.status, 'payment_review');
+  const beforeApproval = (await calls()).length;
+  // Approval itself needs no second Telegram provider round trip or reference prompt.
+  await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, JSON.stringify({ fail: true }));
+  const buttonResponses = await Promise.all([webhook(acceptedCallback), webhook(acceptedCallback)]);
+  await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, '{}');
+  for (const result of buttonResponses) {
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.method, 'answerCallbackQuery');
+    assert.match(result.body.text, /approved|already recorded/i);
+  }
+  assert.equal((await calls()).length, beforeApproval, 'One-click approval makes no ForceReply request.');
   const delivered = await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie));
   assert.equal(delivered.order.status, 'approved'); assert.ok(telegramKeys.includes(delivered.apiKey));
   assert.equal((await webhook(reply)).response.status, 200, 'Redelivery of the same update is harmless.');
-  assert.equal((await webhook(referenceReply(prompt, telegramReference))).response.status, 200, 'Replaying the verified prompt never issues a second key.');
+  assert.equal((await webhook(referenceReply(prompt, telegramReference))).response.status, 200, 'Legacy replies never issue another key.');
   assert.equal((await webhook(callback(telegram.receipt, telegram.token))).response.status, 200);
   assert.equal((await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie))).apiKey, delivered.apiKey);
   await json(await get(customer + '/' + telegram.order.id, telegramSecond.cookie), 404);
@@ -452,13 +483,14 @@ try {
   assert.equal(Number(telegramAudit.total), 1);
 
   const fallback = await reviewViaBot(telegramSecond, 'kpay', true);
-  const fallbackAfter = (await calls()).length;
-  assert.equal((await webhook(callback(fallback.receipt, fallback.token))).response.status, 200);
-  const fallbackPrompt = await providerCall(call => call.method === 'sendMessage' && markup(call.fields)?.force_reply, fallbackAfter);
-  assert.equal((await webhook(referenceReply(fallbackPrompt, telegramReference))).response.status, 200);
-  assert.equal((await json(await get(customer + '/' + fallback.order.id, telegramSecond.cookie))).order.status, 'payment_review', 'A reused wallet reference cannot approve another order.');
-  const secondReference = 'RH-FIXTURE-WALLET-12345002'; sensitiveReferences.push(secondReference);
-  assert.equal((await webhook(referenceReply(fallbackPrompt, secondReference))).response.status, 200);
+  // Existing signed buttons remain usable after a legacy reference-based Admin approval.
+  const legacyBotReference = 'LEGACY-BOT-881201'; sensitiveReferences.push(legacyBotReference);
+  const legacyBotDecision = { requestId: randomUUID(), paymentReference: legacyBotReference };
+  await json(await decide(fallback.order, legacyBotDecision));
+  assert.equal((await json(await decide(fallback.order, legacyBotDecision))).applied, false);
+  const legacyButton = await webhook(callback(fallback.receipt, fallback.token));
+  assert.equal(legacyButton.response.status, 200);
+  assert.match(legacyButton.body.text, /already approved/i);
   const fallbackDelivery = await json(await get(customer + '/' + fallback.order.id, telegramSecond.cookie));
   assert.equal(fallbackDelivery.order.status, 'approved'); assert.notEqual(fallbackDelivery.apiKey, delivered.apiKey);
   assert.ok(telegramKeys.includes(fallbackDelivery.apiKey));
@@ -475,12 +507,14 @@ try {
   redacted(await json(await get(admin, owner)));
   redacted(await json(await get(customer, telegramBuyer.cookie)));
 
+  await checkRunningHubHistory({ db, get, json, addCustomer, adminCookie: owner });
+
   const [[legacy]] = await db.query('SELECT COUNT(*) AS total FROM digimium_orders');
   const [[notifications]] = await db.query('SELECT COUNT(*) AS total FROM digimium_notification_outbox');
   assert.equal(Number(legacy.total), 0);
   assert.equal(Number(notifications.total), 0);
   assert.deepEqual(await json(await get('/api/admin/catalog', owner)), catalogBefore);
-  console.log('Running HUB integration passed: isolated catalog, exact MMK prices, protected receipts, website and Admin Orders Telegram approval, signed owner/topic/bot checks, duplicate/replay prevention, document fallback, owner-only key delivery and concurrent customer removal.');
+  console.log('Running HUB integration passed: isolated catalog, exact MMK prices, protected receipts, website and Admin Orders Telegram approval, signed owner/topic/bot checks, single-click proof/revision replay and duplicate-image prevention, document fallback, owner-only key delivery, customer history and concurrent customer removal.');
 } finally {
   if (server && server.exitCode === null && server.signalCode === null) {
     const closed = once(server, 'exit');
