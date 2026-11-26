@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { CommerceError } from '../lib/commerce-http';
-import { RUNNINGHUB_PROOF_MAX_BYTES } from '../lib/runninghub';
+import { RUNNINGHUB_PRODUCT_NAME, RUNNINGHUB_PROOF_MAX_BYTES } from '../lib/runninghub';
 import { getPool } from './mysql';
 import { adminOrdersBotConfig } from './admin-orders-telegram';
 import { signRunningHubApproval } from './runninghub-admin-bot';
@@ -60,7 +60,7 @@ async function sendReceipt(config: BotConfig, receipt: Receipt, deadline: number
   // The owner requires the original uploaded image, including on the document fallback.
   const image = new Blob([new Uint8Array(receipt.bytes)], { type: receipt.contentType });
   const shortReference = receipt.id.replaceAll('-', '').slice(0, 8).toUpperCase();
-  const caption = `Running HUB payment review\nOrder #${shortReference}\n${receipt.paymentMethod === 'kpay' ? 'KPay' : 'AYA Pay'} · ${receipt.priceMmk.toLocaleString('en-US')} MMK`;
+  const caption = `${RUNNINGHUB_PRODUCT_NAME} — payment review\nOrder #${shortReference}\n${receipt.paymentMethod === 'kpay' ? 'KPay' : 'AYA Pay'} · ${receipt.priceMmk.toLocaleString('en-US')} MMK`;
   const keyboard = { inline_keyboard: [
     [{ text: 'Review on website', url: `${config.origin}/admin/runninghub?order=${receipt.id}` }],
     [{ text: 'Approve payment', callback_data: signRunningHubApproval(config.secret, {

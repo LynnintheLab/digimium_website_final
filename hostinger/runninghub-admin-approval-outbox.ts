@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { CommerceError } from '../lib/commerce-http';
+import { RUNNINGHUB_PRODUCT_NAME } from '../lib/runninghub';
 import { adminOrdersBotConfig } from './admin-orders-telegram';
 import { getPool } from './mysql';
 
@@ -28,7 +29,7 @@ async function sendApproval(config: BotConfig, approval: Approval, deadline: num
   const username = typeof approval.telegramUsername === 'string' && /^[A-Za-z0-9_]{5,32}$/.test(approval.telegramUsername)
     ? approval.telegramUsername : null;
   const text = [
-    'Running HUB payment approved',
+    `${RUNNINGHUB_PRODUCT_NAME} — payment approved`,
     'Order #' + approval.id.replaceAll('-', '').slice(0, 8).toUpperCase(),
     `${approval.paymentMethod === 'kpay' ? 'KPay' : 'AYA Pay'} · ${approval.priceMmk.toLocaleString('en-US')} MMK`,
     ...(name ? ['Customer: ' + name] : []),

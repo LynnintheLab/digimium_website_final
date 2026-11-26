@@ -1,3 +1,4 @@
+export const RUNNINGHUB_PRODUCT_NAME = 'Running HUB API Key';
 export const RUNNINGHUB_PACKS = [
   { id: 'usd10', label: '10 USD bundle', usd: 10, priceMmk: 70000 },
   { id: 'usd20', label: '20 USD bundle', usd: 20, priceMmk: 138000 },

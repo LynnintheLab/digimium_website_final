@@ -414,6 +414,7 @@ try {
     assert.equal(String(receipt.fields.chat_id), String(botOwnerId));
     assert.equal(String(receipt.fields.message_thread_id), String(botTopic));
     assert.equal(String(receipt.fields.protect_content), 'true');
+    assert.match(receipt.fields.caption, /^Running HUB API Key — payment review\n/);
     assert.match(receipt.fields.caption, /70[,. ]?000/);
     assert.match(receipt.fields.caption, method === 'kpay' ? /KPay/i : /AYA/i);
     const buttons = markup(receipt.fields).inline_keyboard.flat();
@@ -486,7 +487,7 @@ try {
   assert.match(oldReply.body.text, /reference is no longer needed/i);
   assert.equal((await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie))).order.status, 'payment_review');
   async function approvalMessages(order) {
-    return (await calls()).filter(call => call.method === 'sendMessage' && call.fields.text?.startsWith('Running HUB payment approved\n') &&
+    return (await calls()).filter(call => call.method === 'sendMessage' && call.fields.text?.startsWith('Running HUB API Key — payment approved\n') &&
       call.fields.text.includes('Order #' + order.id.slice(0, 8).toUpperCase()));
   }
   // A provider outage cannot undo the approval or key delivery.

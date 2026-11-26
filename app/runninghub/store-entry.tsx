@@ -1,11 +1,11 @@
 import Image from 'next/image';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
-import { RUNNINGHUB_PACKS } from '@/lib/runninghub';
+import { RUNNINGHUB_PACKS, RUNNINGHUB_PRODUCT_NAME } from '@/lib/runninghub';
 import { categoryName, type ShopLanguage } from '@/lib/shop-language';
 import './store-entry.css';
 
 const catalogCategory = 1; // AI & productivity
-const searchText = ['Running HUB API Key', 'RunningHub', ...RUNNINGHUB_PACKS.map(pack => pack.label)]
+const searchText = [RUNNINGHUB_PRODUCT_NAME, 'RunningHub', ...RUNNINGHUB_PACKS.map(pack => pack.label)]
   .join(' ').toLocaleLowerCase();
 
 export function runningHubMatchesCatalog(category: number, terms: string[]) {
@@ -19,7 +19,7 @@ export function RunningHubEntry({ lang }: { lang: ShopLanguage }) {
         <Image className="runninghub-store-mark" src="/assets/marks/runninghub.png" width={36} height={36} alt="" unoptimized />
         <ArrowUpRight size={20} aria-hidden="true" />
       </div>
-      <h3 id="runninghub-product">Running HUB API Key</h3>
+      <h3 id="runninghub-product">{RUNNINGHUB_PRODUCT_NAME}</h3>
       <span className="product-category">{categoryName(catalogCategory, lang)}</span>
       <dl id="runninghub-product-packs" className="runninghub-store-packs">
         {RUNNINGHUB_PACKS.map(pack => <div key={pack.id}>
