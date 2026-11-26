@@ -92,7 +92,21 @@ html[data-shop-theme="dark"] .rh-error { color: #ffb6c2; }
 .rh-recipient dt { color: var(--muted); font-size: 12px; }
 .rh-recipient dd { display: flex; align-items: center; gap: 8px; margin: 2px 0 0; overflow-wrap: anywhere; font-size: 15px; }
 .rh-recipient dd bdi { min-width: 0; }
-.rh-qr { width: min(100%, 220px); height: auto; max-height: 260px; object-fit: contain; margin: 16px auto 0; padding: 6px; border-radius: 6px; background: #fff; }
+.rh-qr-trigger { display: grid; justify-items: center; gap: 8px; width: min(100%, 220px); margin: 16px auto 0; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--blue); cursor: zoom-in; }
+.rh-qr-trigger > span { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; }
+.rh-qr-trigger:hover > span { text-decoration: underline; text-underline-offset: 3px; }
+.rh-qr-trigger:focus-visible, .rh-qr-dialog button:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.rh-qr, .rh-qr-full { width: 100%; height: auto; object-fit: contain; padding: 6px; border-radius: 6px; background: #fff; }
+.rh-qr { max-height: 260px; }
+.rh-qr-dialog { width: min(640px, calc(100% - 24px)); max-width: none; max-height: calc(100% - 24px); max-height: calc(100dvh - 24px); margin: auto; padding: 0; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 14px; background: var(--brand-surface); color: var(--ink); }
+.rh-qr-dialog::backdrop { background: rgb(5 12 28 / 76%); }
+.rh-qr-dialog-content { padding: 12px; }
+.rh-qr-dialog-content > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; padding-inline: 4px; }
+.rh-qr-full { max-height: max(350px, calc(100dvh - 104px)); }
+body:has(.rh-qr-dialog[open]) { overflow: hidden; }
+@media (max-height: 460px) {
+  .rh-qr-dialog-content > header { position: sticky; top: 0; z-index: 1; background: var(--brand-surface); }
+}
 .rh-proof-form { display: grid; gap: 14px; margin-top: 22px; }
 .rh-upload { display: grid; justify-items: center; gap: 14px; min-width: 0; padding: 26px 18px; border: 1px dashed var(--blue); border-radius: 12px; background: var(--brand-selected); text-align: center; }
 .rh-upload > svg { color: var(--blue); }

@@ -1,8 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { Check, Copy, Eye, EyeOff, ImagePlus, KeyRound, RefreshCw, Upload, X } from 'lucide-react';
-import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react';
+import { Check, Copy, Eye, EyeOff, ImagePlus, KeyRound, RefreshCw, Upload, X, ZoomIn } from 'lucide-react';
+import { useEffect, useId, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react';
 import { RUNNINGHUB_PACKS, RUNNINGHUB_PROOF_MAX_BYTES, type RunningHubOrder, type RunningHubPaymentMethod } from '@/lib/runninghub';
 import type { ShopLanguage } from '@/lib/shop-language';
 
@@ -10,6 +10,34 @@ export const walletName = (method: RunningHubPaymentMethod['id']) => method === 
 export function runningHubStatus(status: RunningHubOrder['status'], lang: ShopLanguage) {
   const labels = { awaiting_payment: ['Awaiting payment', 'ငွေပေးချေရန်'], payment_review: ['Payment under review', 'ငွေပေးချေမှု စစ်ဆေးနေသည်'], approved: ['API key ready', 'API Key ရပါပြီ'], rejected: ['Payment not approved', 'ငွေပေးချေမှု အတည်မပြုပါ'], expired: ['Reservation expired', 'သီးသန့်ထားပေးချိန် ကုန်သွားပါပြီ'] };
   return labels[status][lang === 'my' ? 1 : 0];
+}
+
+function PaymentQr({ src, method, lang }: { src: string; method: RunningHubPaymentMethod['id']; lang: ShopLanguage }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  const wallet = walletName(method);
+  const title = lang === 'my' ? `${wallet} ငွေပေးချေမှု QR` : `${wallet} payment QR`;
+
+  return <>
+    <button type="button" ref={trigger} className="rh-qr-trigger" aria-haspopup="dialog"
+      onClick={() => dialog.current?.showModal()}>
+      <Image className="rh-qr" src={src} width={220} height={220} alt="" unoptimized />
+      <span><ZoomIn size={17} aria-hidden="true" />{lang === 'my' ? 'QR အကြီးကြည့်ရန်' : 'Enlarge QR'}</span>
+    </button>
+    <dialog ref={dialog} className="rh-qr-dialog" aria-labelledby={titleId}
+      onClose={() => trigger.current?.focus({ preventScroll: true })}
+      onClick={event => { if (event.target === event.currentTarget) event.currentTarget.close(); }}>
+      <div className="rh-qr-dialog-content">
+        <header>
+          <h3 id={titleId}>{title}</h3>
+          <button type="button" className="rh-icon-button" aria-label={lang === 'my' ? 'ပိတ်ရန်' : 'Close'}
+            onClick={() => dialog.current?.close()}><X size={22} aria-hidden="true" /></button>
+        </header>
+        <Image className="rh-qr-full" src={src} width={640} height={640} alt={title} unoptimized />
+      </div>
+    </dialog>
+  </>;
 }
 
 export function RunningHubOrderPanel({ order, lang, onUpdated, onRefresh, onIdentityChange }: {
@@ -164,7 +192,7 @@ export function RunningHubOrderPanel({ order, lang, onUpdated, onRefresh, onIden
     </ol>
     {canPay && <>
       <p className="rh-deadline">{t('Reserved until', 'သီးသန့်ထားပေးချိန်')} <time dateTime={order.expiresAt!}>{new Intl.DateTimeFormat(lang === 'my' ? 'my-MM' : 'en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Yangon' }).format(new Date(expiry))}</time> {t('(Myanmar time)', '(မြန်မာစံတော်ချိန်)')} · {Math.max(0, Math.ceil((expiry - now) / 60000))} {t('min left', 'မိနစ် ကျန်')}</p>
-      <div className="rh-recipient"><h3>{walletName(order.payment.id)}</h3><p>{t(`Transfer ${order.priceMmk.toLocaleString('en-US')} Ks in ${walletName(order.payment.id)}, then upload the receipt before the reservation expires.`, `${walletName(order.payment.id)} မှ ${order.priceMmk.toLocaleString('en-US')} Ks လွှဲပြီး သီးသန့်ထားပေးချိန် မကုန်မီ screenshot တင်ပါ။`)}</p><dl><div><dt>{t('Receiver', 'ငွေလက်ခံသူ')}</dt><dd>{order.payment.accountLabel}</dd></div><div><dt>{t('Account number', 'အကောင့်နံပါတ်')}</dt><dd><bdi>{order.payment.accountNumber}</bdi><button type="button" className="rh-icon-button" onClick={() => void copy('recipient')} aria-label={t('Copy account number', 'အကောင့်နံပါတ် ကူးယူရန်')}><Copy size={17} /></button></dd></div></dl>{copied === 'recipient' && <p className="rh-help" role="status">{t('Account number copied.', 'အကောင့်နံပါတ် ကူးယူပြီးပါပြီ။')}</p>}{order.payment.qrPath && <Image className="rh-qr" src={order.payment.qrPath} width={220} height={220} alt={`${walletName(order.payment.id)} QR`} unoptimized />}</div>
+      <div className="rh-recipient"><h3>{walletName(order.payment.id)}</h3><p>{t(`Transfer ${order.priceMmk.toLocaleString('en-US')} Ks in ${walletName(order.payment.id)}, then upload the receipt before the reservation expires.`, `${walletName(order.payment.id)} မှ ${order.priceMmk.toLocaleString('en-US')} Ks လွှဲပြီး သီးသန့်ထားပေးချိန် မကုန်မီ screenshot တင်ပါ။`)}</p><dl><div><dt>{t('Receiver', 'ငွေလက်ခံသူ')}</dt><dd>{order.payment.accountLabel}</dd></div><div><dt>{t('Account number', 'အကောင့်နံပါတ်')}</dt><dd><bdi>{order.payment.accountNumber}</bdi><button type="button" className="rh-icon-button" onClick={() => void copy('recipient')} aria-label={t('Copy account number', 'အကောင့်နံပါတ် ကူးယူရန်')}><Copy size={17} /></button></dd></div></dl>{copied === 'recipient' && <p className="rh-help" role="status">{t('Account number copied.', 'အကောင့်နံပါတ် ကူးယူပြီးပါပြီ။')}</p>}{order.payment.qrPath && <PaymentQr src={order.payment.qrPath} method={order.payment.id} lang={lang} />}</div>
       <form className="rh-proof-form" onSubmit={submit}><h3>{t('Upload your payment screenshot', 'ငွေလွှဲ screenshot တင်ပါ')}</h3><div className="rh-upload" role="group" aria-label={t('Payment screenshot upload', 'ငွေလွှဲ screenshot တင်ရန်')} tabIndex={0} onDrop={drop} onDragOver={event => event.preventDefault()} onPaste={paste}>
         {preview ? <Image className="rh-local-preview" src={preview} width={300} height={220} alt={t('Selected payment screenshot', 'ရွေးထားသော ငွေလွှဲ screenshot')} unoptimized /> : <ImagePlus size={32} strokeWidth={1.5} aria-hidden="true" />}
         {file ? <p className="rh-filename">{file.name}</p> : <strong>{t('Choose, drop or paste your image here', 'ပုံရွေးပါ၊ ဆွဲထည့်ပါ သို့မဟုတ် paste လုပ်ပါ')}</strong>}
