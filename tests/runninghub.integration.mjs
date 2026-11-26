@@ -107,7 +107,8 @@ try {
   }
   const runningHubSchema = await readFile(new URL('hostinger/runninghub-schema.sql', root), 'utf8');
   // Model an already deployed database so CREATE TABLE IF NOT EXISTS alone cannot pass this test.
-  const oldRunningHubSchema = runningHubSchema.replace(/^[ \t]*key_name[ \t]+[^,\r\n]+,\r?\n/gmi, '');
+  const oldRunningHubSchema = runningHubSchema.replace(/^[ \t]*key_name[ \t]+[^,\r\n]+,\r?\n/gmi, '')
+    .replace(/CREATE TABLE IF NOT EXISTS digimium_runninghub_used_receipts\b[^;]+;/, '');
   assert.doesNotMatch(oldRunningHubSchema, /\bkey_name\b/i);
   await db.query(oldRunningHubSchema);
   for (const table of ['digimium_runninghub_stock', 'digimium_runninghub_orders']) {
@@ -380,6 +381,16 @@ try {
   }
   assert.equal((await json(await get(customer + '/' + duplicate.id, bob.cookie))).apiKey, undefined);
   assert.equal((await json(await get(customer + '/' + duplicate.id, bob.cookie))).order.status, 'payment_review');
+  await db.beginTransaction();
+  await db.execute(`INSERT INTO digimium_runninghub_used_receipts (proof_hash)
+    SELECT proof_hash FROM digimium_runninghub_orders WHERE id = ? AND status = 'approved' AND proof_hash IS NOT NULL`, [first.id]);
+  await db.execute('DELETE FROM digimium_runninghub_orders WHERE id = ?', [first.id]);
+  await db.commit();
+  await json(await get(firstPath, alice.cookie), 404);
+  await assertPublicStock(0, 1);
+  const archivedDuplicateResult = await json(await decide(duplicateReview, {}), 409);
+  assert.match(JSON.stringify(archivedDuplicateResult), /screenshot.*already used/i,
+    'The receipt fingerprint still blocks reuse after the approved order is permanently removed.');
   const rejected = (await json(await decide(duplicateReview, {
     action: 'reject', paymentReference: undefined, proofRequestId: undefined, note: 'Synthetic screenshot already used.',
   }))).order;

@@ -424,8 +424,9 @@ export async function decideRunningHubOrder(id: string, body: unknown, actor: st
       if (row.status !== 'payment_review' || !row.proof_cipher || !row.proof_hash) throw new AdminOrdersActionError('receipt_missing');
       if (row.proof_request_id !== input.proofRequestId) throw new AdminOrdersActionError('receipt_changed');
       // The settings-row mutex serializes this check and issuance across all Running HUB orders.
-      const [sameProof] = await connection.execute<RowDataPacket[]>(
-        "SELECT id FROM digimium_runninghub_orders WHERE status = 'approved' AND proof_hash = ? LIMIT 1", [row.proof_hash]);
+      const [sameProof] = await connection.execute<RowDataPacket[]>(`SELECT 1 FROM digimium_runninghub_used_receipts WHERE proof_hash = ?
+        UNION ALL SELECT 1 FROM digimium_runninghub_orders WHERE status = 'approved' AND proof_hash = ? LIMIT 1`,
+      [row.proof_hash, row.proof_hash]);
       if (sameProof.length) throw new AdminOrdersActionError('receipt_used');
       const payment = JSON.parse(row.payment) as RunningHubPaymentMethod;
       const referenceHash = reference ? digest('payment-reference', reference) : null;

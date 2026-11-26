@@ -62,6 +62,10 @@ CREATE TABLE IF NOT EXISTS digimium_runninghub_payments (
   PRIMARY KEY (method, reference_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS digimium_runninghub_used_receipts (
+  proof_hash BINARY(32) NOT NULL PRIMARY KEY
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS digimium_runninghub_audit (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
   event VARCHAR(32) CHARACTER SET ascii NOT NULL,
