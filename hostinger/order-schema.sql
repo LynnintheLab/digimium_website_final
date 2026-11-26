@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS digimium_orders (
   approved_at CHAR(24) CHARACTER SET ascii NULL,
   rejected_at CHAR(24) CHARACTER SET ascii NULL,
   customer_note TEXT NULL,
+  checkout_contact TEXT NULL,
   revision INT UNSIGNED NOT NULL DEFAULT 1,
   snapshot MEDIUMTEXT NOT NULL,
   fulfillment MEDIUMTEXT NULL,

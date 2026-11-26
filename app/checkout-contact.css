@@ -1,0 +1,103 @@
+.shop-order[data-screen="contact"] {
+  --contact-ink: light-dark(#182143, #eef1fc);
+  --contact-muted: light-dark(#505c78, #aab6d0);
+  --contact-paper: light-dark(#fcfdff, #131d31);
+  --contact-surface: light-dark(#f6f8fd, #172238);
+  --contact-line: light-dark(#ced7eb, #344362);
+  --contact-picked: light-dark(#e9eeff, #222f52);
+  --contact-accent: light-dark(#304a9b, #c0cbff);
+  --contact-action: light-dark(#334fa5, #b4c1ff);
+  --contact-hover: light-dark(#28428e, #c5cfff);
+  --contact-on-action: light-dark(#fff, #172449);
+  --contact-error: light-dark(#a02535, #ffacba);
+  --sheet-height: calc(100dvh - 32px);
+  width: min(444px, calc(100% - 32px));
+  margin: auto;
+  color: var(--contact-ink);
+  background: var(--contact-paper);
+  border: 1px solid var(--contact-line);
+  border-radius: 16px;
+  box-shadow: none;
+}
+html[data-shop-theme="dark"] .shop-order[data-screen="contact"] { background: var(--contact-paper); }
+
+.order-contact { padding: 18px; font-size: 14px; }
+.order-contact-header { display: flex; justify-content: space-between; align-items: start; gap: 6px; }
+.order-contact-header h2 { font: inherit; font-size: 20px; font-weight: 700; line-height: 1.55; outline: none; }
+.order-contact-header p { margin-top: 5px; color: var(--contact-muted); }
+.order-contact-close {
+  display: grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0;
+  margin: -8px -8px 0 0; border: 0; border-radius: 8px; color: var(--contact-muted); background: transparent;
+}
+.order-contact-close:hover { background: var(--contact-picked); color: var(--contact-accent); }
+
+.order-contact-form { display: grid; gap: 16px; margin-top: 20px; }
+.order-contact-methods {
+  display: grid; min-width: 0; margin: 0; padding: 0; overflow: hidden;
+  border: 1px solid var(--contact-line); border-radius: 10px; background: var(--contact-surface);
+}
+.order-contact-methods legend {
+  position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; white-space: nowrap;
+}
+.order-contact-methods label {
+  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  min-height: 44px; padding: 8px 12px; font-weight: 600; cursor: pointer;
+}
+.order-contact-methods label + label { border-top: 1px solid var(--contact-line); }
+.order-contact-methods label:is(:hover, :has(:checked)) { background: var(--contact-picked); }
+.order-contact-methods svg { color: var(--contact-muted); }
+.order-contact-methods label:has(:checked) :is(svg, span) { color: var(--contact-accent); font-weight: 700; }
+.order-contact-methods input { margin: 0; accent-color: var(--contact-accent); }
+.order-contact-methods:disabled label { cursor: wait; }
+
+.order-contact-field { display: grid; gap: 5px; }
+.order-contact-field label { font-weight: 700; }
+.order-contact-field input {
+  width: 100%; min-width: 0; min-height: 46px; padding: 8px 12px; border: 1px solid var(--contact-line);
+  border-radius: 10px; color: var(--contact-ink); background: var(--contact-surface); caret-color: var(--contact-accent);
+  font: inherit; font-size: 16px;
+}
+.order-contact-field input[aria-invalid="true"] { border-color: var(--contact-error); }
+.order-contact-field input::placeholder, .order-contact-field p { color: var(--contact-muted); }
+.order-contact-field p { font-size: 12px; }
+.order-contact-field .order-contact-error { color: var(--contact-error); font-size: 14px; }
+
+.order-contact-actions { display: grid; gap: 10px; }
+.order-contact-divider { display: flex; align-items: center; gap: 10px; color: var(--contact-muted); font-size: 12px; }
+.order-contact-divider::before,
+.order-contact-divider::after { content: ""; flex: 1; height: 1px; background: var(--contact-line); }
+.order-contact :is(.order-contact-primary, .order-contact-secondary, .customer-telegram-open) {
+  display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 46px;
+  padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; font: inherit; font-weight: 700; text-align: center;
+}
+.order-contact :is(.order-contact-primary, .customer-telegram-open) { color: var(--contact-on-action); background: var(--contact-action); }
+.order-contact :is(.order-contact-primary, .customer-telegram-open):hover { background: var(--contact-hover); }
+.order-contact .order-contact-secondary { color: var(--contact-accent); background: var(--contact-surface); border-color: var(--contact-line); }
+.order-contact .order-contact-secondary:hover { background: var(--contact-picked); }
+.order-contact-link-status { color: var(--contact-muted); font-size: 12px; text-align: center; }
+.order-contact :is(a, button, input):focus-visible { outline: 2px solid var(--contact-accent); outline-offset: 2px; }
+
+.order-contact .customer-telegram-login {
+  --blue: var(--contact-accent);
+  --muted: var(--contact-muted);
+  --brand-navy: var(--contact-ink);
+  --brand-line-strong: var(--contact-line);
+  --brand-surface: var(--contact-surface);
+  --soft: var(--contact-picked);
+}
+.order-contact .customer-telegram-qr-toggle,
+.order-contact .customer-telegram-login-actions button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 6px 8px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--contact-accent); font-size: 13px;
+}
+.order-contact .customer-telegram-qr-toggle { width: 100%; margin-top: 8px; border: 1px solid var(--contact-line); }
+.order-contact .customer-telegram-login-actions button:last-child { color: var(--contact-muted); }
+.order-contact :is(.customer-telegram-qr-toggle, .customer-telegram-login-actions button):hover { background: var(--contact-picked); }
+.order-contact .customer-telegram-login[data-state="approved"] .customer-telegram-login-status { color: light-dark(#17684f, #9adfc2); }
+.order-contact .customer-telegram-login[data-state="expired"] .customer-telegram-login-status { color: light-dark(#95600b, #f2c577); }
+.order-contact .customer-telegram-login:is([data-state="rejected"], [data-state="error"]) .customer-telegram-login-status,
+.order-contact .customer-telegram-login-note.customer-error { color: var(--contact-error); }
+
+@media (min-width: 440px) {
+  .order-contact { padding: 28px; }
+}

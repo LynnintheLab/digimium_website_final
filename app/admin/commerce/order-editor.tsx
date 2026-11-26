@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, Check, Eye, EyeOff, LoaderCircle, Save, Trash2, X } from 'lucide-react';
-import type { CommerceCustomer, CommerceOrder, CommerceOrderLine } from '@/lib/commerce-types';
+import { ArrowLeft, AtSign, Check, Eye, EyeOff, LoaderCircle, Phone, Save, Smartphone, Trash2, X } from 'lucide-react';
+import type { AdminCommerceOrder, CommerceCustomer, CommerceOrder, CommerceOrderLine } from '@/lib/commerce-types';
 import { customerContact } from '@/lib/customer-identity';
 import { suggestedEndDate, todayInMyanmar } from './order-dates';
 
@@ -21,10 +21,16 @@ function initialDetails(line: CommerceOrderLine) {
 }
 type LineDetails = ReturnType<typeof initialDetails>;
 
+const checkoutContactMethods = {
+  'telegram-username': { label: 'Telegram username', Icon: AtSign },
+  'telegram-phone': { label: 'Telegram phone number', Icon: Smartphone },
+  'viber-phone': { label: 'Viber phone number', Icon: Phone },
+};
+
 export default function OrderEditor({ order, customer, onSaved, onBack, onReload, onDirtyChange, onRemove, backLabel = 'Back to orders' }: {
-  order: CommerceOrder;
+  order: AdminCommerceOrder;
   customer?: CommerceCustomer;
-  onSaved: (order: CommerceOrder) => void;
+  onSaved: (order: AdminCommerceOrder) => void;
   onBack: () => void;
   onReload: () => Promise<void>;
   onDirtyChange: (dirty: boolean) => void;
@@ -33,6 +39,8 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
 }) {
   const pending = order.status === 'pending';
   const rejected = order.status === 'rejected';
+  const checkoutContact = order.checkoutContact;
+  const contactMethod = checkoutContact ? checkoutContactMethods[checkoutContact.method] : null;
   const [original] = useState(() => rejected ? [] : order.lines.map(initialDetails));
   const [details, setDetails] = useState(original);
   const [customerNote, setCustomerNote] = useState(order.customerNote ?? '');
@@ -72,7 +80,7 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
           ? { revision: order.revision, lines: details, customerNote }
           : { action, revision: order.revision, customerNote }),
       });
-      const result = await response.json() as { order: CommerceOrder; error?: string };
+      const result = await response.json() as { order: AdminCommerceOrder; error?: string };
       if (!response.ok) {
         setFailureStatus(response.status);
         setError(result.error || 'The order could not be saved. Try again.');
@@ -100,6 +108,10 @@ export default function OrderEditor({ order, customer, onSaved, onBack, onReload
       <button type="button" className="admin-text-button commerce-danger-link" disabled={busy} onClick={event => onRemove(order, event.currentTarget)}><Trash2 size={16}/>{rejected ? 'Remove rejected order' : pending ? 'Remove pending order' : 'Delete approved order'}</button>
       {customer && <div className="commerce-customer"><strong>{customer.name}</strong><span>{customerContact(customer)}</span></div>}
       {order.customerId === null && <div className="commerce-customer"><strong>{order.guestName ?? 'Telegram guest'}</strong><span>Guest order</span></div>}
+      {checkoutContact && contactMethod && <dl className="commerce-order-contact">
+        <dt><contactMethod.Icon size={16} aria-hidden />{contactMethod.label}</dt>
+        <dd dir="ltr">{checkoutContact.value}</dd>
+      </dl>}
       {pending && <p>{order.customerId === null ? 'Match the order reference with the Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.' : customer?.telegram ? 'Match the order reference and Telegram username if one is shown. Confirm payment and deliver access in that chat, then approve the dates here.' : 'Match the reference, name and email with the customer’s Telegram message. Confirm payment and deliver access in that chat, then approve the dates here.'}</p>}
       {rejected && <p>This order was rejected. You can update the customer note; no subscription dates or account details are assigned.</p>}
     </div>

@@ -47,6 +47,10 @@ async function register(input) {
   assert.deepEqual(Object.keys(customer).sort(), ['createdAt', 'email', 'id', 'name']);
   return { ...customer, cookie: session };
 }
+function withoutCheckoutContact({ checkoutContact, ...order }) {
+  assert.ok(checkoutContact);
+  return order;
+}
 
 try {
   const [tables] = await db.query('SHOW TABLES');
@@ -123,6 +127,8 @@ try {
   const legacyRows = [];
   for (const approved of [false, true]) {
     const legacyId = randomUUID(), lineId = randomUUID();
+    const legacySubmission = { requestId: randomUUID(), items: [{ productId: 'legacy', planId: null, quantity: 1 }] };
+    const hash = createHash('sha256').update(JSON.stringify([['legacy', null, 1]])).digest();
     const snapshot = JSON.stringify({ lines: [{ id: lineId, productId: 'legacy', productName: 'Legacy snapshot', planId: null,
       planName: null, duration: '1 month', price: '100 MMK', quantity: 1 }], totalMmk: 100 });
     let fulfillment = null;
@@ -133,22 +139,25 @@ try {
       fulfillment = Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString('base64');
     }
     await db.execute('INSERT INTO digimium_orders (id, customer_id, request_id, request_hash, created_at, approved_at, snapshot, fulfillment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [legacyId, alice.id, randomUUID(), randomBytes(32), '2028-01-01T00:00:00.000Z', approved ? '2028-01-01T01:00:00.000Z' : null, snapshot, fulfillment]);
-    legacyRows.push({ id: legacyId, snapshot, fulfillment, approved });
+      [legacyId, alice.id, legacySubmission.requestId, hash, '2028-01-01T00:00:00.000Z', approved ? '2028-01-01T01:00:00.000Z' : null, snapshot, fulfillment]);
+    legacyRows.push({ id: legacyId, snapshot, fulfillment, approved, legacySubmission });
   }
   const migrated = (await json(await get(adminCommerce, owner))).orders;
   for (const legacy of legacyRows) {
     const row = migrated.find(order => order.id === legacy.id);
     assert.equal(row.status, legacy.approved ? 'approved' : 'pending');
     assert.equal(row.customerNote, ''); assert.equal(row.rejectedAt, null);
+    assert.equal(row.checkoutContact, undefined);
     assert.equal(row.lines[0].accountInfo, legacy.approved ? 'legacy-fixture-delivery' : '');
+    const replay = await json(await mutate(customerOrders, 'POST', legacy.legacySubmission, alice.cookie));
+    assert.equal(replay.id, legacy.id, 'Legacy checkout receipts can still be recovered without supplying a contact');
     const [[savedLegacy]] = await db.execute('SELECT snapshot, fulfillment FROM digimium_orders WHERE id = ?', [legacy.id]);
     assert.equal(savedLegacy.snapshot, legacy.snapshot, 'Additive migration preserves legacy snapshots byte-for-byte');
     assert.equal(savedLegacy.fulfillment, legacy.fulfillment, 'Additive migration preserves encrypted credentials byte-for-byte');
     await db.execute('DELETE FROM digimium_orders WHERE id = ?', [legacy.id]);
   }
-  const [decisionColumns] = await db.query("SHOW COLUMNS FROM digimium_orders WHERE Field IN ('rejected_at', 'customer_note')");
-  assert.equal(decisionColumns.length, 2); assert.ok(decisionColumns.every(column => column.Null === 'YES'));
+  const [nullableColumns] = await db.query("SHOW COLUMNS FROM digimium_orders WHERE Field IN ('rejected_at', 'customer_note', 'checkout_contact')");
+  assert.equal(nullableColumns.length, 3); assert.ok(nullableColumns.every(column => column.Null === 'YES'));
   const accountList = await json(await get(adminCommerce, owner));
   assert.equal(accountList.customers.length, 2);
   assert.deepEqual(accountList.orders, []);
@@ -168,20 +177,32 @@ try {
   const item = { productId: product.id, planId: plan.id, quantity: 2 };
   const custom = { productId: inquiry.id, planId: null, quantity: 1 };
   const submission = { items: [item, custom], requestId: randomUUID() };
+  const fixtureContact = { method: 'viber-phone', value: ' ၀၉ ၇၇၇-၀၀၀-၁၂၃ ' };
+  const normalizedContact = { method: 'viber-phone', value: '09777000123' };
   const submit = (body = submission, session = alice.cookie, origin = base.origin) => mutate(customerOrders, 'POST', body, session, origin);
+  const submitWithContact = (body = submission, session = alice.cookie) =>
+    submit({ contact: fixtureContact, expectedCustomerId: session === bob.cookie ? bob.id : alice.id, ...body }, session);
   assert.equal((await submit(submission, '')).status, 401);
   assert.equal((await submit(submission, alice.cookie, 'https://foreign.invalid')).status, 403);
   assert.equal((await submit({ ...submission, customerId: bob.id })).status, 400);
   assert.equal((await submit({ ...submission, customer: { name: 'Spoofed', email: second.email } })).status, 400);
   assert.equal((await submit({ ...submission, items: [{ ...item, price: '1 MMK' }] })).status, 400);
+  assert.deepEqual(await json(await submit(), 422), { error: 'checkout_contact_required' });
+  assert.deepEqual(await json(await submit({ ...submission, contact: fixtureContact }), 409), { error: 'checkout_account_changed' });
+  assert.deepEqual(await json(await submitWithContact({ ...submission, expectedCustomerId: bob.id }), 409), { error: 'checkout_account_changed' });
+  for (const contact of [null, [], { method: 'email', value: first.email }, { method: 'telegram-username', value: '@x' },
+    { method: 'telegram-phone', value: '1234' }, { method: 'viber-phone', value: 'abc 123456789' },
+    { method: 'viber-phone', value: '1234567890', username: 'second_choice' }]) {
+    assert.deepEqual(await json(await submit({ ...submission, contact }), 422), { error: 'invalid_checkout_contact' });
+  }
   const oversizedItems = Array(3001).fill(null);
   const collectionLimitError = { error: 'An order can contain at most 3000 items.' };
   assert.deepEqual(await json(await submit({ ...submission, items: oversizedItems }), 400), collectionLimitError,
     'Oversized invalid checkout arrays are rejected before element validation');
   for (const invalid of [{ ...item, productId: hidden.id }, { ...item, productId: unavailable.id }, { ...item, planId: 'draft' }, { ...item, planId: null }]) {
-    assert.equal((await submit({ ...submission, items: [custom, invalid] })).status, 409, 'The entire cart must be accepted or rejected together');
+    assert.equal((await submitWithContact({ ...submission, items: [custom, invalid] })).status, 409, 'The entire cart must be accepted or rejected together');
   }
-  const submitted = await Promise.all([submit(), submit()]);
+  const submitted = await Promise.all([submitWithContact(), submitWithContact()]);
   assert.deepEqual(submitted.map(r => r.status).sort(), [200, 201]);
   const [checkout, duplicate] = await Promise.all(submitted.map(r => json(r, r.status)));
   const { id } = checkout;
@@ -189,6 +210,7 @@ try {
   assert.equal(checkout.customerId, alice.id, 'Checkout receipts bind to the actual saved account owner');
   assert.equal(checkout.telegram, telegram);
   assert.deepEqual(checkout.customer, { name: first.name, email: first.email });
+  assert.ok(!JSON.stringify(checkout).includes(normalizedContact.value), 'Checkout receipts never include a manual contact');
   assert.deepEqual(checkout.order, { id, totalMmk: null, lines: [
     { productName: product.name, planName: plan.name, duration: plan.duration, quantity: 2, price: '1,500 MMK' },
     { productName: inquiry.name, planName: null, duration: inquiry.duration, quantity: 1, price: '' },
@@ -201,7 +223,8 @@ try {
   assert.equal(before[0].totalMmk, null);
   assert.deepEqual(before[0].lines.map(line => [line.productName, line.price, line.quantity, line.accountInfo, line.startDate]),
     [[product.name, '1,500 MMK', 2, '', null], [inquiry.name, '', 1, '', null]]);
-  const priced = await json(await submit({ requestId: randomUUID(), items: [item] }), 201);
+  const telegramPhone = { method: 'telegram-phone', value: '+95 (9) 777-000-123' };
+  const priced = await json(await submitWithContact({ requestId: randomUUID(), items: [item], contact: telegramPhone }), 201);
   assert.ok(priced.id);
   const pricedRows = (await json(await get(customerOrders, alice.cookie))).orders;
   assert.equal(pricedRows.find(row => row.id === priced.id).totalMmk, 3000);
@@ -213,7 +236,10 @@ try {
   assert.equal(accountResponse.telegram, updatedContact);
   assert.deepEqual(accountResponse.customer, { id: alice.id, name: first.name, email: first.email, createdAt: alice.createdAt, signInMethods: { emailPassword: true, google: false, telegram: false } });
   assert.deepEqual((await json(await get(customerOrders + '?customerId=' + alice.id, bob.cookie))).orders, []);
-  assert.deepEqual((await json(await get(adminCommerce, owner))).orders.find(row => row.id === id), before[0]);
+  const adminOrders = (await json(await get(adminCommerce, owner))).orders;
+  assert.deepEqual(adminOrders.find(row => row.id === id), { ...before[0], checkoutContact: normalizedContact });
+  assert.deepEqual(adminOrders.find(row => row.id === priced.id).checkoutContact, { ...telegramPhone, value: '+959777000123' });
+  assert.ok(before.every(order => !Object.hasOwn(order, 'checkoutContact')), 'Customer history omits private checkout contact');
   const lines = before[0].lines.map(line => ({ id: line.id, startDate: '2028-02-29', endDate: '2028-03-29' }));
   const update = (payload, session = owner, origin = base.origin) => mutate(adminCommerce + '/' + id, 'PATCH', payload, session, origin);
   const approval = { lines, revision: before[0].revision };
@@ -240,7 +266,8 @@ try {
   assert.equal(approved.lines[0].accountInfo, '');
   assert.equal(approved.lines[1].accountInfo, '');
   assert.equal(approved.lines[0].accountDetails, undefined, 'Omitted optional fields never block approval');
-  assert.deepEqual((await json(await get(customerOrders, alice.cookie))).orders.find(row => row.id === id), approved);
+  assert.deepEqual(approved.checkoutContact, normalizedContact);
+  assert.deepEqual((await json(await get(customerOrders, alice.cookie))).orders.find(row => row.id === id), withoutCheckoutContact(approved));
   assert.deepEqual((await json(await get(customerOrders, bob.cookie))).orders, []);
   const deliveredAccount = {
     account: 'service-account-' + randomUUID(), password: '  private-password-' + randomUUID() + '  ',
@@ -251,7 +278,7 @@ try {
   assert.deepEqual(withDetails.lines[0].accountDetails, deliveredAccount);
   assert.equal(withDetails.lines[1].accountDetails, undefined);
   assert.deepEqual((await json(await get(adminCommerce, owner))).orders.find(order => order.id === id), withDetails);
-  assert.deepEqual((await json(await get(customerOrders + '?view=history', alice.cookie))).orders.find(order => order.id === id), withDetails,
+  assert.deepEqual((await json(await get(customerOrders + '?view=history', alice.cookie))).orders.find(order => order.id === id), withoutCheckoutContact(withDetails),
     'Only the owning customer can read approved structured delivery');
   assert.deepEqual((await json(await get(customerOrders + '?view=history&customerId=' + alice.id, bob.cookie))).orders, []);
   const structuredPreview = (await json(await get(customerOrders + '?view=overview', alice.cookie))).orders;
@@ -295,7 +322,7 @@ try {
   assert.equal((await get(customerOrders, alice.cookie)).status, 401);
   const again = await mutate(customerSession, 'POST', { action: 'login', email: first.email, password: first.password });
   const newCookie = cookie(again, 'digimium_local_customer');
-  assert.deepEqual((await json(await get(customerOrders, newCookie))).orders.find(row => row.id === id), edited);
+  assert.deepEqual((await json(await get(customerOrders, newCookie))).orders.find(row => row.id === id), withoutCheckoutContact(edited));
   const otherLogin = await mutate(customerSession, 'POST', { action: 'login', email: first.email, password: first.password });
   const otherCookie = cookie(otherLogin, 'digimium_local_customer');
   const nextPassword = randomUUID();
@@ -320,7 +347,7 @@ try {
   assert.equal((await mutate(customerSession, 'POST', { action: 'login', email: first.email, password: first.password })).status, 401);
   assert.equal((await mutate(customerSession, 'POST', { action: 'login', email: first.email, password: winnerPassword })).status, 200);
   assert.equal((await get(customerOrders, bob.cookie)).status, 200, 'Changing one account does not revoke another customer');
-  assert.deepEqual((await json(await get(customerOrders, activeCookie))).orders.find(row => row.id === id), edited);
+  assert.deepEqual((await json(await get(customerOrders, activeCookie))).orders.find(row => row.id === id), withoutCheckoutContact(edited));
   const [[{ password_hash: passwordHash }]] = await db.execute('SELECT password_hash FROM digimium_customers WHERE id = ?', [alice.id]);
   assert.ok(passwordHash.startsWith('scrypt-v1$') && !passwordHash.includes(winnerPassword));
   const attempts = [];
@@ -330,7 +357,7 @@ try {
   assert.ok(attempts.includes(429), 'Password changes share a bounded account attempt window');
 
   for (let index = 0; index < 2; index++) {
-    const added = await json(await submit({ requestId: randomUUID(), items: [custom] }, activeCookie), 201);
+    const added = await json(await submitWithContact({ requestId: randomUUID(), items: [custom] }, activeCookie), 201);
     const order = (await json(await get(adminCommerce, owner))).orders.find(row => row.id === added.id);
     await json(await mutate(adminCommerce + '/' + added.id, 'PATCH', { revision: order.revision,
       lines: order.lines.map(line => ({ id: line.id, startDate: '2028-01-01', endDate: '2028-03-01' })) }, owner));
@@ -368,7 +395,7 @@ try {
     'Guest checkout rejects oversized arrays before parsing or storing an order');
   assert.equal((await submit({ items: [custom], requestId: randomUUID() }, guestCookie)).status, 401,
     'A returning guest is offered the name form instead of an invalid-order error');
-  const signedInDuringGuestForm = await json(await submit({ ...guestBody, requestId: randomUUID() }, bob.cookie), 201);
+  const signedInDuringGuestForm = await json(await submitWithContact({ ...guestBody, requestId: randomUUID() }, bob.cookie), 201);
   assert.deepEqual(signedInDuringGuestForm.customer, { name: second.name, email: second.email },
     'The verified account wins when another tab signs in while the guest form is open');
   for (const guestName of ['', '  ', 'x'.repeat(101), 'First\nSecond', 12, null]) {
@@ -378,7 +405,8 @@ try {
   const direct = { items: [custom], requestId: randomUUID(), checkoutMode: 'guest' };
   const bothCookies = bob.cookie + '; ' + guestCookie;
   assert.equal((await submit(direct, bob.cookie)).status, 401, 'Telegram-only checkout needs its own guest cookie');
-  for (const malformed of [{ ...direct, checkoutMode: 'unknown' }, { ...direct, guestName: 'Unexpected' }, { ...direct, customerId: bob.id }]) {
+  for (const malformed of [{ ...direct, checkoutMode: 'unknown' }, { ...direct, guestName: 'Unexpected' }, { ...direct, customerId: bob.id },
+    { ...direct, contact: fixtureContact }]) {
     assert.equal((await submit(malformed, bothCookies)).status, 400);
   }
   const directCheckout = await json(await submit(direct, bothCookies), 201);
@@ -390,6 +418,7 @@ try {
   const directRow = (await json(await get(adminCommerce, owner))).orders.find(row => row.id === directCheckout.id);
   assert.equal(directRow.customerId, null);
   assert.equal(directRow.guestName, undefined);
+  assert.equal(directRow.checkoutContact, undefined);
   assert.ok(!(await json(await get(customerOrders, bob.cookie))).orders.some(order => order.id === directCheckout.id));
   const signedOutDirect = await json(await submit({ ...direct, requestId: randomUUID() }, guestCookie), 201);
   assert.deepEqual(signedOutDirect.customer, directCheckout.customer);
@@ -479,20 +508,24 @@ try {
   assert.deepEqual(telegramAdmin.customers.find(person => person.id === telegramId).telegram, telegramUser);
   assert.equal(telegramAdmin.customers.find(person => person.id === telegramId).email, null);
   const telegramOrder = telegramAdmin.orders.find(order => order.id === telegramCheckout.id);
+  assert.equal(telegramOrder.checkoutContact, undefined);
   const telegramApproved = (await json(await mutate(adminCommerce + '/' + telegramOrder.id, 'PATCH', {
     revision: telegramOrder.revision, lines: telegramOrder.lines.map(line => ({ id: line.id, startDate: '2028-03-01', endDate: '2028-04-01' })),
   }, owner))).order;
   assert.deepEqual((await json(await get(customerOrders + '?view=history', telegramCookie))).orders, [telegramApproved]);
   assert.ok(!(await json(await get(customerOrders + '?view=history', activeCookie))).orders.some(order => order.id === telegramOrder.id));
   assert.ok(!(await json(await get(customerOrders + '?view=history', bob.cookie))).orders.some(order => order.id === telegramOrder.id));
+  await db.execute('UPDATE digimium_telegram_identities SET username = NULL WHERE customer_id = ?', [telegramId]);
+  const linkedWithoutUsername = await json(await submit({ requestId: randomUUID(), items: [custom] }, telegramCookie), 201);
+  assert.deepEqual(linkedWithoutUsername.customer.telegram, { username: null }, 'A verified Telegram link is sufficient without a public username');
 
   // Removal is an explicit admin operation against one exact order revision.
   // Every fixture below lives in the disposable loopback database guarded above.
   const removeOrder = (orderId, payload, session = owner, origin = base.origin) =>
     mutate(adminCommerce + '/' + orderId, 'DELETE', payload, session, origin);
   const allOrderRows = async () => (await db.query('SELECT * FROM digimium_orders ORDER BY id'))[0];
-  const removableCheckout = await json(await submit({ requestId: randomUUID(), items: [custom] }, activeCookie), 201);
-  const unrelatedCheckout = await json(await submit({ requestId: randomUUID(), items: [custom] }, bob.cookie), 201);
+  const removableCheckout = await json(await submitWithContact({ requestId: randomUUID(), items: [custom] }, activeCookie), 201);
+  const unrelatedCheckout = await json(await submitWithContact({ requestId: randomUUID(), items: [custom] }, bob.cookie), 201);
   const removalOrder = (await json(await get(adminCommerce, owner))).orders.find(order => order.id === removableCheckout.id);
   const removalBody = { revision: removalOrder.revision, confirmation: removalOrder.id };
   const removalPath = adminCommerce + '/' + removalOrder.id;
@@ -539,7 +572,7 @@ try {
   assert.deepEqual(await json(await removeOrder(removalOrder.id, removalBody), 404), notFoundRemoval);
   const customerHistoryAfterRemoval = (await json(await get(customerOrders + '?view=history', activeCookie))).orders;
   assert.ok(!customerHistoryAfterRemoval.some(order => order.id === removalOrder.id));
-  assert.deepEqual(customerHistoryAfterRemoval.find(order => order.id === id), edited,
+  assert.deepEqual(customerHistoryAfterRemoval.find(order => order.id === id), withoutCheckoutContact(edited),
     'Approved purchases and encrypted delivery belonging to the same customer are preserved');
   assert.ok((await json(await get(customerOrders, bob.cookie))).orders.some(order => order.id === unrelatedCheckout.id),
     'Another customer’s pending order remains in that owner’s history');
@@ -598,7 +631,7 @@ try {
   // Approval increments revision under the same row lock. A previously confirmed
   // pending revision cannot remove the newly approved purchase without a fresh review.
   for (let attempt = 0; attempt < 3; attempt++) {
-    const raceCheckout = await json(await submit({ requestId: randomUUID(), items: [custom] }, activeCookie), 201);
+    const raceCheckout = await json(await submitWithContact({ requestId: randomUUID(), items: [custom] }, activeCookie), 201);
     const raceOrder = (await json(await get(adminCommerce, owner))).orders.find(order => order.id === raceCheckout.id);
     const beforeRace = await allOrderRows();
     const [approveResponse, removeResponse] = await Promise.all([
@@ -630,7 +663,7 @@ try {
   // Editing approved fulfillment also advances the revision. A deletion using
   // its older reviewed version must lose to that update, never erase it silently.
   for (let attempt = 0; attempt < 3; attempt++) {
-    const checkoutToApprove = await json(await submit({ requestId: randomUUID(), items: [custom] }, activeCookie), 201);
+    const checkoutToApprove = await json(await submitWithContact({ requestId: randomUUID(), items: [custom] }, activeCookie), 201);
     const pendingToApprove = (await json(await get(adminCommerce, owner))).orders.find(order => order.id === checkoutToApprove.id);
     const reviewedApproved = (await json(await mutate(adminCommerce + '/' + pendingToApprove.id, 'PATCH', {
       revision: pendingToApprove.revision,
@@ -650,7 +683,7 @@ try {
       await json(removeResponse, 409);
       assert.equal(revisedApproved.revision, reviewedApproved.revision + 1);
       assert.equal(revisedApproved.lines[0].endDate, '2028-05-01');
-      assert.deepEqual((await json(await get(customerOrders + '?view=history', activeCookie))).orders.find(order => order.id === revisedApproved.id), revisedApproved);
+      assert.deepEqual((await json(await get(customerOrders + '?view=history', activeCookie))).orders.find(order => order.id === revisedApproved.id), withoutCheckoutContact(revisedApproved));
       await json(await removeOrder(reviewedApproved.id,
         { revision: reviewedApproved.revision, confirmation: reviewedApproved.id }), 409);
       assert.deepEqual(await allOrderRows(), afterApprovedRace, 'A stale approval revision cannot erase newer fulfillment edits');
@@ -665,7 +698,7 @@ try {
     assert.ok(!(await json(await get(customerOrders + '?view=overview', activeCookie))).orders.some(order => order.id === reviewedApproved.id));
   }
 
-  const duplicateCheckout = await json(await submit({ requestId: randomUUID(), items: [custom] }, activeCookie), 201);
+  const duplicateCheckout = await json(await submitWithContact({ requestId: randomUUID(), items: [custom] }, activeCookie), 201);
   const duplicatePending = (await json(await get(adminCommerce, owner))).orders.find(order => order.id === duplicateCheckout.id);
   const duplicateApproved = (await json(await mutate(adminCommerce + '/' + duplicatePending.id, 'PATCH', {
     revision: duplicatePending.revision,
@@ -686,7 +719,7 @@ try {
   const readAdminOrder = async orderId => (await json(await get(adminCommerce, owner))).orders.find(order => order.id === orderId);
   const createDecisionOrder = async () => {
     const submission = { requestId: randomUUID(), items: [custom] };
-    const placed = await json(await submit(submission, activeCookie), 201);
+    const placed = await json(await submitWithContact({ ...submission, contact: { method: 'telegram-username', value: '  fixture_buyer  ' } }, activeCookie), 201);
     return { placed, order: await readAdminOrder(placed.id), submission };
   };
   const patchOrder = (orderId, payload, session = owner, origin = base.origin) => mutate(adminCommerce + '/' + orderId, 'PATCH', payload, session, origin);
@@ -713,6 +746,7 @@ try {
   assert.deepEqual(await orderRow(decisionPending.id), beforeDecision, 'Invalid decisions/notes cannot partially change an order');
   const rejected = (await json(await patchOrder(decisionPending.id, rejection))).order;
   assert.equal(rejected.status, 'rejected'); assert.equal(rejected.approvedAt, null); assert.ok(rejected.rejectedAt);
+  assert.deepEqual(rejected.checkoutContact, { method: 'telegram-username', value: '@fixture_buyer' });
   assert.equal(rejected.customerNote, 'Customer notice\nရှင်းလင်းချက်'); assert.equal(rejected.revision, decisionPending.revision + 1);
   assert.ok(rejected.lines.every(line => line.startDate === null && line.endDate === null && !line.accountInfo && !Object.hasOwn(line, 'accountDetails')));
   const rejectedRow = await orderRow(rejected.id);
@@ -722,7 +756,7 @@ try {
   assert.deepEqual(await json(await submit(decisionSubmission, activeCookie)), decisionCheckout);
   assert.ok(!Object.hasOwn(decisionCheckout.order, 'customerNote'));
   const rejectedHistory = (await json(await get(customerOrders + '?view=history', activeCookie))).orders;
-  assert.deepEqual(rejectedHistory.find(order => order.id === rejected.id), rejected);
+  assert.deepEqual(rejectedHistory.find(order => order.id === rejected.id), withoutCheckoutContact(rejected));
   assert.ok(!(await json(await get(customerOrders + '?view=overview', activeCookie))).orders.some(order => order.id === rejected.id));
   assert.ok(!(await json(await get(customerOrders + '?view=history', bob.cookie))).orders.some(order => order.id === rejected.id));
   await json(await patchOrder(rejected.id, { ...rejection, revision: rejected.revision }), 409);
@@ -732,6 +766,7 @@ try {
   const noteText = '<script>literal text only</script>\nမြန်မာ';
   const revisedRejection = (await json(await patchOrder(rejected.id, { action: 'note', revision: rejected.revision, customerNote: noteText }))).order;
   assert.equal(revisedRejection.status, 'rejected'); assert.equal(revisedRejection.rejectedAt, rejected.rejectedAt);
+  assert.deepEqual(revisedRejection.checkoutContact, rejected.checkoutContact);
   assert.equal(revisedRejection.customerNote, noteText); assert.equal((await orderRow(rejected.id)).fulfillment, null);
   const clearedRejection = (await json(await patchOrder(rejected.id, { action: 'note', revision: revisedRejection.revision, customerNote: '  ' }))).order;
   assert.equal(clearedRejection.customerNote, ''); assert.equal(clearedRejection.status, 'rejected');
@@ -789,7 +824,7 @@ try {
   assert.deepEqual(await json(rejectDelete), { removed: true, id: clearedRejection.id });
   assert.equal(await orderRow(clearedRejection.id), undefined, 'Explicit DELETE also works for a rejected order');
 
-  console.log('Commerce integration passed: legacy order migration, accounts, checkout, owner isolation, encrypted fulfillment, customer-facing notes, retained rejections, safe state projections and approval/reject/note/delete revision races.');
+  console.log('Commerce integration passed: legacy order migration and replay, private checkout contact, owner isolation, encrypted fulfillment, customer-facing notes, retained rejections, safe state projections and approval/reject/note/delete revision races.');
 } finally {
   if (server && server.exitCode === null && !server.signalCode) {
     const exit = once(server, 'exit');

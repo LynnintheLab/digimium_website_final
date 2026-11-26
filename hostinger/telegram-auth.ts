@@ -14,6 +14,7 @@ import { telegramBrowserContext, telegramLoginApproved, telegramLoginCaptionFits
 
 const lifetime = 300;
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
+const customerIdPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 type ReturnTo = 'account' | 'checkout' | 'history';
 type Binding = { id: string; browser: string; exp: number };
 type Stage = 'waiting' | 'sending' | 'sent' | 'approved' | 'rejected';
@@ -102,15 +103,22 @@ export async function telegramStart(request: Request) {
   if (!customerMutationAllowed(request)) return commerceJson({ error: 'origin' }, 403);
   try {
     config(); const body = await readCommerceJson(request, 1024);
-    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !['returnTo','purpose'].includes(key)) ||
+    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !['returnTo', 'purpose', 'expectedCustomerId'].includes(key)) ||
       !['account', 'checkout', 'history'].includes((body as { returnTo: string }).returnTo)) throw new CommerceError(400, 'invalid');
-    const requestedPurpose = (body as { purpose?: unknown }).purpose;
+    const { returnTo, purpose: requestedPurpose, expectedCustomerId } = body as {
+      returnTo: ReturnTo; purpose?: unknown; expectedCustomerId?: unknown;
+    };
     if (requestedPurpose !== undefined && requestedPurpose !== 'login' && requestedPurpose !== 'link') throw new CommerceError(400, 'invalid');
+    const checkoutLink = returnTo === 'checkout' && requestedPurpose === 'link';
+    if (checkoutLink && (typeof expectedCustomerId !== 'string' || !customerIdPattern.test(expectedCustomerId))) throw new CommerceError(400, 'invalid');
+    if (!checkoutLink && Object.hasOwn(body, 'expectedCustomerId')) throw new CommerceError(400, 'invalid');
     let link: Flow['link'];
     if (requestedPurpose === 'link') {
-      if ((body as { returnTo: string }).returnTo !== 'account') throw new CommerceError(400, 'invalid');
+      if (returnTo !== 'account' && returnTo !== 'checkout') throw new CommerceError(400, 'invalid');
       const customer = await currentCustomer(request), sessionHash = customerSessionBindingHash(request);
       if (!customer || !sessionHash) throw new CommerceError(401, 'signed_out');
+      // The checkout confirmation belongs to the account seen when its popup opened.
+      if (checkoutLink && customer.id !== expectedCustomerId) throw new CommerceError(401, 'session_changed');
       link = { customerId: customer.id, sessionHash };
     }
     await ensureSchema(); await limit(request, 'start');
@@ -123,7 +131,7 @@ export async function telegramStart(request: Request) {
     while (options.length < 4) { const option = String(randomInt(10000)).padStart(4, '0'); if (!options.includes(option)) options.push(option); }
     for (let index = options.length - 1; index > 0; index--) { const next = randomInt(index + 1); [options[index], options[next]] = [options[next], options[index]]; }
     const location = await loginLocation(request);
-    const flow: Flow = { id, returnTo: (body as { returnTo: ReturnTo }).returnTo, code, options, created,
+    const flow: Flow = { id, returnTo, code, options, created,
       context: telegramBrowserContext(request.headers.get('user-agent') || ''), ...(location ? { location } : {}),
       ...(link ? { purpose: 'link', link } : {}) };
     const browser: Binding = { id, browser: randomBytes(32).toString('base64url'), exp: created + lifetime };

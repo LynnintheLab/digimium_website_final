@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ChevronRight, RefreshCw, Search, X, Pencil, Trash2, Plus } from 'lucide-react';
-import type { CommerceCustomer, CommerceOrder } from '@/lib/commerce-types';
+import type { AdminCommerceOrder, CommerceCustomer, CommerceOrder } from '@/lib/commerce-types';
 import { customerContact } from '@/lib/customer-identity';
 import OrderEditor, { orderReference, orderTotal } from './order-editor';
 import CustomerEditor from './customer-editor';
@@ -10,7 +10,7 @@ import RemoveOrderDialog from './remove-order-dialog';
 import CreateOrder from './create-order';
 import './commerce.css';
 
-type CommerceData = { customers: CommerceCustomer[]; orders: CommerceOrder[] };
+type CommerceData = { customers: CommerceCustomer[]; orders: AdminCommerceOrder[] };
 const dateFormat = new Intl.DateTimeFormat('en-GB', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Yangon' });
 
 export default function AdminCommerce({ view, customerId, initialRecordId, telegramContact, onDirtyChange, clearCustomer, showCustomerOrders }: {

@@ -385,7 +385,9 @@ try {
     name: 'Long product ' + index + ' ' + 'X'.repeat(50), published: true, availability: 'available',
     plans: [{ id: 'month', name: 'Long plan ' + 'Y'.repeat(60), price: '16,000 MMK', duration: '1 month', published: true }] }));
   await json(await mutate('/api/admin/catalog', 'PUT', { products, expectedRevision: original.revision, settings: { ...original.settings, telegram: 'DigimiumCheckout' } }, owner));
-  const cart = { requestId: randomUUID(), items: products.map(product => ({ productId: product.id, planId: 'month', quantity: 1 })) };
+  const contact = { method: 'viber-phone', value: '09777000123' };
+  const cart = { requestId: randomUUID(), expectedCustomerId: alice.id,
+    items: products.map(product => ({ productId: product.id, planId: 'month', quantity: 1 })), contact };
   const checkout = await json(await mutate('/api/customer/orders', 'POST', cart, alice.cookie), 201);
   assert.equal(checkout.order.lines.length, 6, 'Long valid cart labels cannot roll back checkout because of alert display bounds.');
   const newOrder = (await calls()).at(-1);
@@ -395,6 +397,7 @@ try {
   assert.match(newOrder.fields.text, /^Order #[A-F0-9]{8}\n\nLong product 0 .+ — Long plan .+ × 1\n/);
   assert.match(newOrder.fields.text, /\n\nTotal 96,000 MMK$/);
   assert.doesNotMatch(newOrder.fields.text, /Notification Alice|Items:|New Digimium order/);
+  assert.ok(!JSON.stringify(newOrder.fields).includes(contact.value), 'Telegram alerts omit the buyer’s manual contact');
   assert.equal(newOrder.fields.reply_markup.inline_keyboard[0][0].url, base.origin + '/admin?order=' + checkout.id);
   assert.match(await (await get('/admin?order=' + checkout.id, owner)).text(), /<h1>Orders<\/h1>/);
   assert.match(await (await get('/admin?customer=' + topicCustomer.id, owner)).text(), /<h1>Customers<\/h1>/);
@@ -407,7 +410,7 @@ try {
   await control({ delayMs: 200 });
   const concurrentCustomers = await Promise.all(Array.from({ length: 4 }, (_, index) => register('Concurrent Notification ' + index)));
   assert.equal(concurrentCustomers.length, 4, 'Creation hooks release their DB connection before draining a saturated four-connection pool.');
-  const concurrentOrders = await Promise.all(Array.from({ length: 4 }, () => mutate('/api/customer/orders', 'POST', { requestId: randomUUID(), items: [cart.items[0]] }, alice.cookie)));
+  const concurrentOrders = await Promise.all(Array.from({ length: 4 }, () => mutate('/api/customer/orders', 'POST', { ...cart, requestId: randomUUID(), items: [cart.items[0]] }, alice.cookie)));
   for (const response of concurrentOrders) await json(response, 201);
   await control({});
   const outboxBeforeLogin = Number((await db.query('SELECT COUNT(*) AS n FROM digimium_notification_outbox'))[0][0].n);

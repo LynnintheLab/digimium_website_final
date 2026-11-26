@@ -1,3 +1,5 @@
+import type { CheckoutContact } from './order-checkout-contact';
+
 export type CommerceCustomer = {
   id: string;
   name: string;
@@ -57,6 +59,8 @@ export type OrderFulfillment = {
   accountInfo: string;
   accountDetails?: CommerceAccountDetails;
 };
+
+export type AdminCommerceOrder = CommerceOrder & { checkoutContact?: CheckoutContact };
 
 export type TelegramOrder = Pick<CommerceOrder, 'id' | 'totalMmk'> & {
   lines: Pick<CommerceOrderLine, 'productName' | 'planName' | 'duration' | 'price' | 'quantity'>[];

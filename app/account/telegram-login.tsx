@@ -8,7 +8,7 @@ import './telegram-login.css';
 
 type Translate=(en:string,my:string)=>string;
 
-export function TelegramLogin({login,t}:{login:TelegramLoginController;t:Translate}) {
+export function TelegramLogin({login,t,checkout=false}:{login:TelegramLoginController;t:Translate;checkout?:boolean}) {
   const {challenge,status,error,busy,secondsLeft}=login;
   const linking=login.purpose==='link';
   const waiting=status==='waiting';
@@ -44,9 +44,9 @@ export function TelegramLogin({login,t}:{login:TelegramLoginController;t:Transla
     expired:t('This code has expired. Get a new code to continue.','ဒီ code ရဲ့ အချိန်ကုန်သွားပါပြီ။ Code အသစ်ယူပြီး ဆက်လုပ်ပါ။'),
     cancelled:t('This sign-in is no longer active. Get a new code to continue.','ဒီအကောင့်ဝင်ခြင်းကို ပယ်ဖျက်ထားပါတယ်။ Code အသစ်ယူပြီး ဆက်လုပ်ပါ။'),
     signed_out:t('Sign in to your website account before connecting Telegram.','Telegram မချိတ်ခင် website အကောင့်ကို အရင်ဝင်ပါ။'),
-    session_changed:t('Your website session changed. Start again from Account settings.','Website အကောင့်ဝင်ထားမှု ပြောင်းသွားပါတယ်။ Account ဆက်တင်များကနေ ပြန်စပါ။'),
+    session_changed:checkout?t('Your website session changed. Go back to your cart and try again.','Website အကောင့်ဝင်ထားမှု ပြောင်းသွားပါတယ်။ ဈေးခြင်းသို့ ပြန်ပြီး ထပ်စမ်းပါ။'):t('Your website session changed. Start again from Account settings.','Website အကောင့်ဝင်ထားမှု ပြောင်းသွားပါတယ်။ Account ဆက်တင်များကနေ ပြန်စပါ။'),
     telegram_in_use:t('This Telegram is connected to another website account. Use that account or a different Telegram.','ဒီ Telegram ကို အခြား website အကောင့်နဲ့ ချိတ်ထားပြီးပါပြီ။ အဲ့ဒီအကောင့် သို့မဟုတ် အခြား Telegram ကို သုံးပါ။'),
-    telegram_already_linked:t('This account already has a Telegram connection. Refresh Account settings.','ဒီအကောင့်မှာ Telegram ချိတ်ထားပြီးပါပြီ။ Account ဆက်တင်များကို ပြန်ဖွင့်ပါ။'),
+    telegram_already_linked:checkout?t('Telegram is already connected. Return to your cart to place your order.','Telegram ချိတ်ထားပြီးပါပြီ။ အော်ဒါတင်ရန် ဈေးခြင်းသို့ ပြန်ပါ။'):t('This account already has a Telegram connection. Refresh Account settings.','ဒီအကောင့်မှာ Telegram ချိတ်ထားပြီးပါပြီ။ Account ဆက်တင်များကို ပြန်ဖွင့်ပါ။'),
   };
   const label=status==='starting'?t('Preparing your code…','Code ပြင်ဆင်နေပါတယ်…'):status==='approved'?(linking?t('Confirmed. Connecting Telegram…','အတည်ပြုပြီးပါပြီ။ Telegram ချိတ်ဆက်နေပါတယ်…'):t('Confirmed. Signing you in…','အတည်ပြုပြီးပါပြီ။ အကောင့်ဝင်နေပါတယ်…')):status==='expired'?t('Code expired','Code အချိန်ကုန်သွားပါပြီ'):status==='rejected'?t('Request rejected','တောင်းဆိုမှုကို ငြင်းပယ်လိုက်ပါတယ်'):status==='error'?t('Couldn’t continue','ဆက်လုပ်၍ မရသေးပါ'):t('Waiting for Telegram','Telegram မှ အတည်ပြုမှု စောင့်နေပါတယ်');
   const StatusIcon=status==='approved'?CheckCircle2:status==='rejected'||status==='error'?CircleAlert:Clock3;

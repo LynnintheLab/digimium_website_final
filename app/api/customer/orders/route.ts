@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       // Older name-based clients may have signed in from a second tab before submitting.
       body = Object.fromEntries(Object.entries(fields).filter(([field]) => field !== 'guestName'));
     }
-    const result = await submitOrder(customer.id, body);
+    const result = await submitOrder(customer, body);
     return commerceJson({ id: result.order.id, customerId: result.customerId, order: result.order, telegram: result.telegram,
       customer: { name: customer.name, email: customer.email, ...(customer.telegram ? { telegram: { username: customer.telegram.username } } : {}) } }, result.created ? 201 : 200);
   } catch (error) {

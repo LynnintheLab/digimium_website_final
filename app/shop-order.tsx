@@ -6,7 +6,8 @@ import { ArrowUpRight, Check, CheckCircle2, Copy, Minus, Plus, RefreshCw, Shoppi
 import type { Product } from '../lib/catalog';
 import { CART_KEY, orderMessages, resolveOrder, restoreCart, sameItem, telegramDraft, totalMmk, withSelection, type CartItem, type OrderLine } from '../lib/cart-order';
 import { orderTelegramMessages } from '../lib/order-telegram';
-import type { TelegramCheckout, TelegramOrder } from '../lib/commerce-types';
+import type { CommerceCustomer, TelegramCheckout, TelegramOrder } from '../lib/commerce-types';
+import type { CheckoutContact } from '../lib/order-checkout-contact';
 import { ORDER_RECEIPT_KEY, createOrderReceipt, parseOrderReceipt, receiptCanResume, type OrderReceipt } from '../lib/order-receipt';
 import { commerceEnabled } from '../lib/commerce-enabled';
 import { effectivePrice } from '../lib/pricing';
@@ -15,15 +16,23 @@ import { durationDetail, durationText, planName, priceOnEnquiry, priceText, prod
 import { OfferPrice } from './offer-price';
 import { BestSellerBadge } from './best-seller-badge';
 import { PaymentMethods } from './payment-methods';
+import { CheckoutContactForm } from './checkout-contact';
 import './shop-order.css';
+import './checkout-contact.css';
 
 const CheckoutAuth = lazy(() => import('./account/account').then(module => ({default: module.CheckoutAuth})));
 
 type Locale = 'en' | 'my';
 export type ShopOrderHandle = { openProduct(product: Product, planId?: string): void; openCart(): void };
 type Props = { products: Product[]; lang: Locale; telegram: string; hideShortDescriptions?: boolean; onCountChange: (count: number) => void; onOpenChange?: (open: boolean) => void };
-type Screen = 'product' | 'cart' | 'auth' | 'guest' | 'handoff' | null;
-type CheckoutSession = { status: 'checking' | 'signed-in' | 'signed-out' | 'failed'; customerId: string | null };
+type Screen = 'product' | 'cart' | 'contact' | 'auth' | 'guest' | 'handoff' | null;
+type CheckoutIdentity = Pick<CommerceCustomer, 'id' | 'telegram' | 'signInMethods'>;
+type CheckoutSession = { status: 'signed-in'; customerId: string; telegramLinked: boolean } |
+  { status: 'checking' | 'signed-out' | 'failed'; customerId: null };
+
+function signedInSession(customer: CheckoutIdentity): Extract<CheckoutSession, {status: 'signed-in'}> {
+  return {status: 'signed-in', customerId: customer.id, telegramLinked: Boolean(customer.telegram?.id || customer.signInMethods?.telegram === true)};
+}
 
 function orderDescription({product, plan}: OrderLine, lang: Locale) {
   const name = plan ? planName(plan, lang) : lang === 'my' ? 'အစီအစဉ် စုံစမ်းရန်' : 'Plan enquiry';
@@ -77,7 +86,8 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   const [sessionState, setSessionState] = useState<CheckoutSession>({status: 'checking', customerId: null});
   const [savedReceipt, setSavedReceipt] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
-  const [accountNotice, setAccountNotice] = useState(false);
+  const [accountNotice, setAccountNotice] = useState<'signed-in' | 'telegram-linked' | null>(null);
+  const [contactOwner, setContactOwner] = useState<string | null>(null);
   const authInFlight = useRef(false);
   const screenTitle = useRef<HTMLHeadingElement>(null);
   const inFlight = useRef(false);
@@ -125,9 +135,9 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     try {
       const response = await fetch('/api/customer/session', {cache: 'no-store', signal: controller.signal});
       if (!response.ok) throw new Error('session');
-      const data = await response.json() as {customer?: {id?: unknown} | null};
+      const data = await response.json() as {customer?: CheckoutIdentity | null};
       if (data.customer !== null && (!data.customer || typeof data.customer.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(data.customer.id))) throw new Error('session');
-      result = data.customer ? {status: 'signed-in', customerId: data.customer.id as string} : {status: 'signed-out', customerId: null};
+      result = data.customer ? signedInSession(data.customer) : {status: 'signed-out', customerId: null};
     } catch { result = {status: 'failed', customerId: null}; }
     finally { window.clearTimeout(timeout); }
     if (live.current && sequence === sessionRequest.current) setSessionState(result);
@@ -237,7 +247,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     return () => { active = false; document.removeEventListener('visibilitychange', returned); window.removeEventListener('focus', returned); };
   }, [screen, handoffOwner, guestOrder, checkSession, clearHandoff, forgetReceipt, lang]);
   useEffect(() => {
-    if (screen && screen !== 'product') screenTitle.current?.focus({preventScroll: true});
+    if (screen && screen !== 'product' && screen !== 'contact') screenTitle.current?.focus({preventScroll: true});
   }, [screen]);
   useEffect(() => {
     if (!lastAdded) return;
@@ -273,6 +283,12 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     if (inFlight.current || authInFlight.current) return;
     ++receiptRead.current; ++copyAttempt.current;
     sessionAbort.current?.abort();
+    if (screen === 'contact') {
+      setContactOwner(null);
+      setOrderError('');
+      setScreen('cart');
+      return;
+    }
     setScreen(null);
   }
   useImperativeHandle(ref, () => ({
@@ -330,8 +346,8 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     void copy(orderText.join('\n\n'));
     setScreen('handoff');
   }
-  async function placeOrder(asGuest = false) {
-    if (inFlight.current || !checkoutRows.length) return;
+  async function placeOrder(asGuest = false, contact?: CheckoutContact) {
+    if (inFlight.current || authInFlight.current || !checkoutRows.length) return;
     ++receiptRead.current;
     const submittedCart = cartRef.current.map(item => ({...item}));
     const items = checkoutRows.map(({productId, planId, quantity}) => ({productId, planId, quantity}));
@@ -341,18 +357,34 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     setSubmitting(true);
     setOrderError('');
     try {
+      if (!attempt.current) {
+        try { attempt.current = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch { /* Storage is optional. */ }
+      }
+      let customerId: string | null = null;
       if (!asGuest) {
         const identity = await checkSession();
         if (identity.status === 'failed') throw new Error(t('We couldn’t check your account. Please try again.', 'အကောင့်ကို စစ်ဆေးမရသေးပါ။ ပြန်ကြိုးစားပါ။'));
         // Keep a guest's saved retry key intact when reopening checkout after a lost response.
-        if (identity.status !== 'signed-in') { setScreen('auth'); return; }
+        if (identity.status !== 'signed-in') { setContactOwner(null); setScreen('auth'); return; }
+        customerId = identity.customerId;
+        if (contact && contactOwner !== customerId) {
+          setContactOwner(null);
+          setScreen('cart');
+          setOrderError(t('Your account changed. Review your order again.', 'အကောင့် ပြောင်းသွားပါတယ်။ အော်ဒါကို ပြန်စစ်ပါ။'));
+          return;
+        }
+        // A saved request can recover an order that already exists without collecting contact again.
+        const retry = attempt.current?.basket === basket && Boolean(attempt.current.requestId);
+        if (!identity.telegramLinked && !contact && !retry) {
+          setContactOwner(customerId);
+          setScreen('contact');
+          return;
+        }
+        if (identity.telegramLinked) contact = undefined;
       }
       if (asGuest) {
         const guestSession = await fetch('/api/customer/guest-session', {method: 'POST'});
         if (!guestSession.ok) throw new Error(t('We couldn’t prepare your order. Please try again.', 'အော်ဒါကို ပြင်ဆင်မရသေးပါ။ ပြန်ကြိုးစားပါ။'));
-      }
-      if (!attempt.current) {
-        try { attempt.current = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch { /* Storage is optional. */ }
       }
       if (attempt.current?.basket !== basket || !attempt.current?.requestId) {
         attempt.current = {basket, requestId: crypto.randomUUID()};
@@ -360,26 +392,40 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       try { sessionStorage.setItem(key, JSON.stringify(attempt.current)); } catch { /* Retain the in-memory key for retries. */ }
       const response = await fetch('/api/customer/orders', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({items, requestId: attempt.current.requestId, ...(asGuest ? {checkoutMode: 'guest'} : {})}),
+        body: JSON.stringify({items, requestId: attempt.current.requestId, ...(asGuest ? {checkoutMode: 'guest'} : {expectedCustomerId: customerId, ...(contact ? {contact} : {})})}),
       });
       if (response.status === 401) {
         if (!asGuest) setSessionState({status: 'signed-out', customerId: null});
+        setContactOwner(null);
         setScreen(asGuest ? 'guest' : 'auth');
         if (asGuest) setOrderError(t('Please try again to continue without an account.', 'အကောင့်မရှိဘဲ ဆက်ဝယ်ရန် ပြန်ကြိုးစားပါ။'));
         return;
       }
       const data = await response.json() as TelegramCheckout & {error?: string};
+      if (response.status === 409 && data.error === 'checkout_account_changed') {
+        setContactOwner(null);
+        setScreen('cart');
+        setOrderError(t('Your account changed. Review your order again.', 'အကောင့် ပြောင်းသွားပါတယ်။ အော်ဒါကို ပြန်စစ်ပါ။'));
+        return;
+      }
+      if (response.status === 422 && customerId && (data.error === 'checkout_contact_required' || data.error === 'invalid_checkout_contact')) {
+        setContactOwner(customerId);
+        setScreen('contact');
+        if (data.error === 'invalid_checkout_contact') setOrderError(t('Check your contact details and try again.', 'ဆက်သွယ်ရန် အချက်အလက်ကို စစ်ပြီး ပြန်ကြိုးစားပါ။'));
+        return;
+      }
       if (!response.ok || typeof data.id !== 'string' || !data.order || data.order.id !== data.id || !data.customer ||
         (data.customer.guest === true ? data.customerId !== null : typeof data.customerId !== 'string' || !/^[0-9a-f-]{36}$/i.test(data.customerId))) throw new Error(data.error || '');
       const messages = orderTelegramMessages(data.order, data.customer, lang);
-      const contact = telegramDraft(data.telegram, '') ? data.telegram : telegram;
-      const url = telegramDraft(contact, messages[0]);
-      const receipt = createOrderReceipt({customerId: data.customerId, telegram: contact, messages, order: data.order});
+      const sellerContact = telegramDraft(data.telegram, '') ? data.telegram : telegram;
+      const url = telegramDraft(sellerContact, messages[0]);
+      const receipt = createOrderReceipt({customerId: data.customerId, telegram: sellerContact, messages, order: data.order});
       if (receipt) {
         try { sessionStorage.setItem(ORDER_RECEIPT_KEY, JSON.stringify(receipt)); setSavedReceipt(true); } catch { /* The open receipt remains usable without storage. */ }
       } else forgetReceipt();
       // The POST has succeeded. Consume only that exact cart even if the following account check fails.
       clearSubmittedCart(submittedCart);
+      setContactOwner(null);
       attempt.current = null;
       try { sessionStorage.removeItem(key); } catch { /* No persisted attempt. */ }
       // The receipt belongs to the server's actual order owner, not a possibly stale preflight identity.
@@ -393,7 +439,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
           return;
         }
       }
-      setHandoffContact(contact);
+      setHandoffContact(sellerContact);
       setHandoff(messages);
       setCopyStatus('idle');
       setOrderId(data.id);
@@ -440,7 +486,19 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       onCancel={event => { event.preventDefault(); closeOrder(); }}
       onClick={event => { if (event.target === event.currentTarget) closeOrder(); }}>
       <div className="order-surface">
-        <header className="order-heading">
+        {screen === 'contact' && contactOwner ? <CheckoutContactForm key={contactOwner} lang={lang} customerId={contactOwner} submitting={submitting} error={orderError}
+          onEdit={() => setOrderError('')} onBack={closeOrder} onSubmit={contact => void placeOrder(false, contact)}
+          onLinkBusyChange={busy => { authInFlight.current = busy; }}
+          onLinked={customer => {
+            const identity = signedInSession(customer);
+            setContactOwner(null);
+            setScreen('cart');
+            if (identity.customerId !== contactOwner || !identity.telegramLinked) return;
+            setOrderError('');
+            setSessionState(identity);
+            setAccountNotice('telegram-linked');
+            window.dispatchEvent(new Event('digimium-account-changed'));
+          }} /> : <header className="order-heading">
           {screen === 'product' && hideShortDescriptions && product && <Logo product={product}/>}
           <div className="order-heading-title">
             <h2 ref={screenTitle} id="shop-order-title" tabIndex={-1}>{screen === 'product' ? product?.name : screen === 'handoff' ?
@@ -448,7 +506,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
             {screen === 'product' && product?.bestSeller && <BestSellerBadge lang={lang} id="shop-product-badge" />}
           </div>
           <button type="button" disabled={submitting || authBusy} className="order-icon" aria-label={t('Close', 'ပိတ်ရန်')} onClick={closeOrder}><X size={20}/></button>
-        </header>
+        </header>}
         {screen === 'product' && product && <>
           <div className="order-scroll">
             <div className="order-content">
@@ -502,7 +560,8 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
           </div>
           <footer className="order-footer">
             {orderError && <p className="order-checkout-note" role="alert">{orderError}</p>}
-            {accountNotice && sessionState.status === 'signed-in' && <p className="order-account-notice" role="status">{t('You’re signed in. Review your order before continuing.', 'အကောင့်ဝင်ပြီးပါပြီ။ အော်ဒါကို ပြန်စစ်နိုင်ပါတယ်။')}</p>}
+            {accountNotice === 'signed-in' && sessionState.status === 'signed-in' && <p className="order-account-notice" role="status">{t('You’re signed in. Review your order before continuing.', 'အကောင့်ဝင်ပြီးပါပြီ။ အော်ဒါကို ပြန်စစ်နိုင်ပါတယ်။')}</p>}
+            {accountNotice === 'telegram-linked' && sessionState.status === 'signed-in' && sessionState.telegramLinked && <p className="order-account-notice" role="status">{t('Telegram connected. Review your order before continuing.', 'Telegram ချိတ်ဆက်ပြီးပါပြီ။ အော်ဒါကို ပြန်စစ်ပြီး ဆက်တင်နိုင်ပါတယ်။')}</p>}
             {commerceEnabled ? sessionState.status === 'checking' ? <p className="order-session-status" role="status">{t('Checking your account…', 'အကောင့် စစ်ဆေးနေသည်…')}</p>
               : sessionState.status === 'failed' ? <div className="order-session-error"><p className="order-checkout-note" role="alert">{t('We couldn’t check your account. Please try again.', 'အကောင့်ကို စစ်ဆေးမရသေးပါ။ ပြန်ကြိုးစားပါ။')}</p><button type="button" className="order-action order-secondary" onClick={() => void checkSession()}><RefreshCw size={16}/>{t('Try again', 'ပြန်စမ်းမယ်')}</button></div>
               : sessionState.status === 'signed-in' ? <div className="order-actions order-place-action"><button type="button" className="order-action order-primary" disabled={!checkoutAllowed || submitting} onClick={() => void placeOrder()}>{submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Place order', 'Order တင်မည်')}<ArrowUpRight size={17}/></button></div>
@@ -516,7 +575,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
           <div className="order-scroll order-checkout-auth">
             <Suspense fallback={<p role="status">{t('Loading account…', 'အကောင့် ဖွင့်နေသည်…')}</p>}>
               <CheckoutAuth lang={lang} onBusyChange={busy => { authInFlight.current = busy; setAuthBusy(busy); }}
-                onSuccess={customer => { authInFlight.current = false; setAuthBusy(false); setOrderError(''); setSessionState({status: 'signed-in', customerId: customer.id}); setAccountNotice(true); setScreen('cart'); }}
+                onSuccess={customer => { authInFlight.current = false; setAuthBusy(false); setOrderError(''); setSessionState(signedInSession(customer)); setAccountNotice('signed-in'); setScreen('cart'); }}
                 onGuest={() => { setOrderError(''); setScreen('guest'); }} />
             </Suspense>
           </div>

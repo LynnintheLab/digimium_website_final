@@ -7,8 +7,9 @@ import { resolveOrder, totalMmk, type CartItem } from '../lib/cart-order';
 import { decodeSnapshot, getCatalog } from '../lib/catalog-store';
 import type { Catalog } from '../lib/catalog';
 import { CommerceError } from '../lib/commerce-http';
-import type { CommerceOrder, CommerceOrderLine, OrderFulfillment, TelegramOrder } from '../lib/commerce-types';
+import type { AdminCommerceOrder, CommerceCustomer, CommerceOrder, CommerceOrderLine, OrderFulfillment, TelegramOrder } from '../lib/commerce-types';
 import { initialCatalog } from '../lib/initial-catalog';
+import { normalizeCheckoutContact, type CheckoutContact } from '../lib/order-checkout-contact';
 import { effectivePrice, parseMmk } from '../lib/pricing';
 import { resolveTelegramContact } from '../lib/telegram-contact';
 import { priceOnEnquiry } from '../lib/shop-language';
@@ -35,11 +36,12 @@ const itemSchema = z.object({
 const checkoutSchema = z.object({
   requestId: z.string().uuid(), items: z.array(itemSchema).min(1).max(MAX_ORDER_LINES),
 }).strict();
+const signedInCheckoutSchema = checkoutSchema.extend({ contact: z.unknown().optional(), expectedCustomerId: z.uuid().optional() });
 const guestCheckoutSchema = z.union([
   checkoutSchema.extend({ checkoutMode: z.literal('guest') }),
   checkoutSchema.extend({ guestName: z.string().trim().min(1).max(100).refine(value => !/\p{Cc}/u.test(value)) }),
 ]);
-type CheckoutOwner = { customerId: string; guestKey?: never; guestName?: never } |
+type CheckoutOwner = { customerId: string; telegramLinked: boolean; guestKey?: never; guestName?: never } |
   { customerId: null; guestKey: Buffer; guestName: string | null };
 
 function validDate(value: string) {
@@ -100,6 +102,9 @@ interface OrderRow extends RowDataPacket {
   snapshot: string;
   fulfillment: string | null;
 }
+interface AdminOrderRow extends OrderRow {
+  checkout_contact: string | null;
+}
 
 let schemaReady: Promise<void> | undefined;
 async function bootstrap() {
@@ -130,7 +135,7 @@ async function bootstrap() {
   }
   // Additive, independently guarded columns also repair a partially applied manual migration.
   for (const [column, definition] of [
-    ['rejected_at', 'CHAR(24) CHARACTER SET ascii NULL'], ['customer_note', 'TEXT NULL'],
+    ['rejected_at', 'CHAR(24) CHARACTER SET ascii NULL'], ['customer_note', 'TEXT NULL'], ['checkout_contact', 'TEXT NULL'],
   ]) {
     try {
       await pool.query(`SELECT ${column} FROM digimium_orders LIMIT 0`);
@@ -208,6 +213,12 @@ function present(row: OrderRow): CommerceOrder {
   };
 }
 
+function presentAdminOrder(row: AdminOrderRow): AdminCommerceOrder {
+  const order = present(row);
+  const checkoutContact = row.checkout_contact ? JSON.parse(row.checkout_contact) as CheckoutContact : null;
+  return checkoutContact ? { ...order, checkoutContact } : order;
+}
+
 function snapshotCart(items: CartItem[], catalog: Catalog, adminUnitPrices?: (number | undefined)[]): OrderSnapshot {
   const rows = resolveOrder(items, catalog.products);
   if (rows.length !== items.length) throw new CommerceError(409, 'A selected offer is no longer available or appears twice. Review your cart.');
@@ -263,11 +274,17 @@ async function existingCheckout(owner: CheckoutOwner, requestId: string, hash: B
   return { order: telegramOrder(rows[0].id, JSON.parse(rows[0].snapshot)), customerId: rows[0].customer_id as string | null, telegram: await currentOrderContact(), created: false };
 }
 
-export async function submitOrder(customerId: string, body: unknown) {
+export async function submitOrder(customer: Pick<CommerceCustomer, 'id' | 'telegram'>, body: unknown) {
   enforceCollectionLimit(body, 'items');
-  const input = checkoutSchema.safeParse(body);
+  const input = signedInCheckoutSchema.safeParse(body);
   if (!input.success) throw new CommerceError(400, 'Select valid items and quantities before submitting your order.');
-  return storeOrder({ customerId }, input.data);
+  const { contact: rawContact, expectedCustomerId, ...checkout } = input.data;
+  const contact = normalizeCheckoutContact(rawContact);
+  if (rawContact !== undefined && !contact) throw new CommerceError(422, 'invalid_checkout_contact');
+  if ((contact || expectedCustomerId) && expectedCustomerId !== customer.id) {
+    throw new CommerceError(409, 'checkout_account_changed');
+  }
+  return storeOrder({ customerId: customer.id, telegramLinked: Boolean(customer.telegram) }, { ...checkout, contact });
 }
 
 export async function submitGuestOrder(guestKey: Buffer, body: unknown, request: Request) {
@@ -279,14 +296,16 @@ export async function submitGuestOrder(guestKey: Buffer, body: unknown, request:
   return { ...result, guestName };
 }
 
-async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSchema>, request?: Request) {
-  const { items, requestId } = input;
+async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSchema> & { contact?: CheckoutContact | null }, request?: Request) {
+  const { items, requestId, contact } = input;
   const canonical = JSON.stringify(items.map(item => [item.productId, item.planId, item.quantity]));
   // Legacy named guests retain their original retry hashes. Anonymous guests have an empty name prefix.
   const hash = createHash('sha256').update(owner.customerId ? canonical : (owner.guestName ?? '') + '\n' + canonical).digest();
   await ensureOrders();
   const existing = await existingCheckout(owner, requestId, hash);
   if (existing) return existing;
+  // Receipt recovery still works for orders made before checkout contact was collected.
+  if (owner.customerId && !owner.telegramLinked && !contact) throw new CommerceError(422, 'checkout_contact_required');
   if (owner.guestKey && request) await limitGuestCheckout(request, owner.guestKey);
 
   const connection = await getPool().getConnection();
@@ -302,8 +321,8 @@ async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSc
     const snapshot = snapshotCart(items, current);
     const id = randomUUID();
     await connection.execute(
-      'INSERT INTO digimium_orders (id, customer_id, guest_key, guest_name, request_id, request_hash, created_at, snapshot) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, owner.customerId, owner.guestKey ?? null, owner.guestName ?? null, requestId, hash, new Date().toISOString(), JSON.stringify(snapshot)],
+      'INSERT INTO digimium_orders (id, customer_id, guest_key, guest_name, request_id, request_hash, created_at, snapshot, checkout_contact) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, owner.customerId, owner.guestKey ?? null, owner.guestName ?? null, requestId, hash, new Date().toISOString(), JSON.stringify(snapshot), contact ? JSON.stringify(contact) : null],
     );
     // The alert is committed with the order; retries cannot create a second alert.
     const [customers] = owner.customerId ? await connection.execute<(RowDataPacket & { name: string })[]>(
@@ -333,6 +352,7 @@ async function storeOrder(owner: CheckoutOwner, input: z.infer<typeof checkoutSc
 }
 
 const orderColumns = 'id, customer_id, guest_key, guest_name, created_at, approved_at, rejected_at, customer_note, revision, snapshot, fulfillment';
+const adminOrderColumns = orderColumns + ', checkout_contact';
 
 /** Record an existing purchase for a selected account without moving any guest order. */
 export async function createAdminOrder(body: unknown): Promise<{ order: CommerceOrder; created: boolean }> {
@@ -409,9 +429,9 @@ export async function adminCommerce() {
        c.password_hash IS NOT NULL AS password_available, t.telegram_id, t.username AS telegram_username
        FROM digimium_customers c LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id ORDER BY c.created_at DESC, c.id`,
     ),
-    pool.query<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders ORDER BY created_at DESC, id'),
+    pool.query<AdminOrderRow[]>('SELECT ' + adminOrderColumns + ' FROM digimium_orders ORDER BY created_at DESC, id'),
   ]);
-  return { customers: customers.map(presentCustomer), orders: orders.map(present) };
+  return { customers: customers.map(presentCustomer), orders: orders.map(presentAdminOrder) };
 }
 
 export async function saveFulfillment(id: string, body: unknown) {
@@ -423,7 +443,7 @@ export async function saveFulfillment(id: string, body: unknown) {
   const connection = await getPool().getConnection();
   try {
     await connection.beginTransaction();
-    const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
+    const [rows] = await connection.execute<AdminOrderRow[]>('SELECT ' + adminOrderColumns + ' FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
     const row = rows[0];
     if (!row) throw new CommerceError(404, 'Order not found.');
     if (row.revision !== input.data.revision) throw new CommerceError(409, 'This order changed. Refresh before saving.');
@@ -451,7 +471,7 @@ export async function saveFulfillment(id: string, body: unknown) {
     row.fulfillment = encryptFulfillment(id, fulfillmentOwner(row), lines);
     if (input.data.customerNote !== undefined) row.customer_note = input.data.customerNote;
     row.revision++;
-    const order = present(row);
+    const order = presentAdminOrder(row);
     await connection.execute('UPDATE digimium_orders SET approved_at = ?, fulfillment = ?, customer_note = ?, revision = ? WHERE id = ?',
       [row.approved_at, row.fulfillment, row.customer_note, row.revision, id]);
     await connection.commit();
@@ -473,7 +493,7 @@ async function saveOrderDecision(id: string, body: unknown) {
   const connection = await getPool().getConnection();
   try {
     await connection.beginTransaction();
-    const [rows] = await connection.execute<OrderRow[]>('SELECT ' + orderColumns + ' FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
+    const [rows] = await connection.execute<AdminOrderRow[]>('SELECT ' + adminOrderColumns + ' FROM digimium_orders WHERE id = ? FOR UPDATE', [id]);
     const row = rows[0];
     if (!row) throw new CommerceError(404, 'Order not found.');
     if (row.revision !== input.data.revision) throw new CommerceError(409, 'This order changed. Refresh before saving.');
@@ -483,7 +503,7 @@ async function saveOrderDecision(id: string, body: unknown) {
     }
     if (input.data.customerNote !== undefined) row.customer_note = input.data.customerNote;
     row.revision++;
-    const order = present(row);
+    const order = presentAdminOrder(row);
     await connection.execute('UPDATE digimium_orders SET rejected_at = ?, customer_note = ?, revision = ? WHERE id = ?',
       [row.rejected_at, row.customer_note, row.revision, id]);
     await connection.commit();

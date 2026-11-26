@@ -20,7 +20,7 @@ function challengeFrom(value:TelegramResult,purpose:'login'|'link'):TelegramChal
   return {flow:value.flow,code:value.code,url:value.url,expiresAt:value.expiresAt,purpose};
 }
 
-export function useTelegramLogin(returnTo:'account'|'checkout'|'history',callbacks:Callbacks,options:{autoResume?:boolean;purpose?:'login'|'link'}={}) {
+export function useTelegramLogin(returnTo:'account'|'checkout'|'history',callbacks:Callbacks,options:{autoResume?:boolean;purpose?:'login'|'link';expectedCustomerId?:string}={}) {
   const purpose=options.purpose??'login';
   const [enabled,setEnabled] = useState<boolean|null>(null);
   const [active,setActive] = useState(false);
@@ -178,7 +178,7 @@ export function useTelegramLogin(returnTo:'account'|'checkout'|'history',callbac
       if(oldFlow)await discard(oldFlow);
       if(!isCurrent(run))return;
       try {
-        const response=await fetch('/api/customer/telegram/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnTo,...(purpose==='link'?{purpose}:{})}),cache:'no-store',signal:AbortSignal.timeout(15000)});
+        const response=await fetch('/api/customer/telegram/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnTo,...(purpose==='link'?{purpose,expectedCustomerId:options.expectedCustomerId}:{})}),cache:'no-store',signal:AbortSignal.timeout(15000)});
         const data=await response.json() as TelegramResult;
         const created=challengeFrom(data,purpose);
         if(!isCurrent(run)){if(created)await discard(created.flow);return;}
