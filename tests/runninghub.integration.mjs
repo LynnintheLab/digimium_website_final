@@ -281,6 +281,24 @@ try {
   const duplicateReview = (await json(await proof(bob, duplicate))).order;
   const duplicateResult = await json(await decide(duplicateReview, {}), 409);
   assert.match(JSON.stringify(duplicateResult), /screenshot.*already used/i);
+  const duplicateReceipt = await providerCall(call => ['sendPhoto', 'sendDocument'].includes(call.method) &&
+    String(call.fields.caption).toLowerCase().includes(duplicateReview.id.slice(0, 8).toLowerCase()));
+  const duplicateToken = markup(duplicateReceipt.fields).inline_keyboard.flat().find(button => button.callback_data).callback_data;
+  const duplicateCallback = callback(duplicateReceipt, duplicateToken);
+  const wrongDuplicateOwner = structuredClone(duplicateCallback); wrongDuplicateOwner.callback_query.from.id++;
+  assert.doesNotMatch((await webhook(wrongDuplicateOwner)).body.text, /screenshot.*already used/i,
+    'Order failure details are disclosed only after the owner/chat/topic/bot checks.');
+  const duplicateAlert = await webhook(duplicateCallback);
+  assert.equal(duplicateAlert.response.status, 200);
+  assert.equal(duplicateAlert.body.method, 'answerCallbackQuery');
+  assert.equal(duplicateAlert.body.show_alert, true);
+  assert.match(duplicateAlert.body.text, /screenshot.*already used/i);
+  assert.match(duplicateAlert.body.text, /different transfer.*payment receipt/i);
+  assert.ok(duplicateAlert.body.text.length <= 200);
+  for (const privateDetail of [first.id, duplicate.id, alice.id, bob.id, alice.name, bob.email]) {
+    assert.ok(!duplicateAlert.body.text.includes(privateDetail), 'Failure text does not identify another order or customer.');
+  }
+  assert.equal((await json(await get(customer + '/' + duplicate.id, bob.cookie))).apiKey, undefined);
   assert.equal((await json(await get(customer + '/' + duplicate.id, bob.cookie))).order.status, 'payment_review');
   const rejected = (await json(await decide(duplicateReview, {
     action: 'reject', paymentReference: undefined, proofRequestId: undefined, note: 'Synthetic screenshot already used.',
@@ -497,9 +515,19 @@ try {
 
   // A receipt's signed button becomes stale after a website decision; neither route bypasses the other.
   const stale = await reviewViaBot(telegramStale);
+  await db.execute('UPDATE digimium_runninghub_orders SET revision = revision + 1 WHERE id = ?', [stale.order.id]);
+  const changedAlert = await webhook(callback(stale.receipt, stale.token));
+  assert.equal(changedAlert.body.show_alert, true);
+  assert.match(changedAlert.body.text, /changed after this button/i);
+  const changedDetail = await json(await get(customer + '/' + stale.order.id, telegramStale.cookie));
+  assert.equal(changedDetail.order.status, 'payment_review'); assert.equal(changedDetail.apiKey, undefined);
+  await db.execute('UPDATE digimium_runninghub_orders SET revision = ? WHERE id = ?', [stale.order.revision, stale.order.id]);
   await json(await decide(stale.order, { action: 'reject', paymentReference: undefined, proofRequestId: undefined, note: 'Synthetic receipt mismatch.' }));
   const beforeStale = (await validPrompts()).length;
-  assert.equal((await webhook(callback(stale.receipt, stale.token))).response.status, 200);
+  const rejectedAlert = await webhook(callback(stale.receipt, stale.token));
+  assert.equal(rejectedAlert.response.status, 200);
+  assert.equal(rejectedAlert.body.show_alert, true);
+  assert.match(rejectedAlert.body.text, /order was rejected/i);
   assert.equal((await validPrompts()).length, beforeStale);
   const staleDetail = await json(await get(customer + '/' + stale.order.id, telegramStale.cookie));
   assert.equal(staleDetail.order.status, 'rejected'); assert.equal(staleDetail.apiKey, undefined);

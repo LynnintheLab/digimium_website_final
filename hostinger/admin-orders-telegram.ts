@@ -1,4 +1,27 @@
 import { timingSafeEqual } from 'node:crypto';
+import { CommerceError } from '../lib/commerce-http';
+
+// Only these fixed messages may be shown for a recognized, authenticated payment action.
+// Never forward arbitrary exception text or interpolate customer/payment data into a bot reply.
+const actionFailures = {
+  receipt_used: 'This exact screenshot was already used for an approved order. No key was issued. For a different transfer, ask for its payment receipt.',
+  receipt_changed: 'This button is for an older receipt. Open the latest receipt or review the current screenshot in website Admin.',
+  receipt_missing: 'This order has no current payment screenshot to approve. Review it in website Admin.',
+  order_changed: 'This order changed after this button was created. Review the current payment in website Admin.',
+  order_rejected: 'This order was rejected. No key was issued by this click. Review it in website Admin.',
+  order_expired: 'This unpaid order expired. No key was issued by this click. Review it in website Admin.',
+  order_approved: 'This order is already approved. Open website Admin to check the issued key.',
+  order_missing: 'This order is no longer available. Open website Admin to review current orders.',
+  stock_unavailable: 'The reserved key is unavailable. No key was issued by this click. Check stock and the order in website Admin.',
+  request_conflict: 'This approval conflicts with an earlier action. No key was issued by this click. Review the order in website Admin.',
+  reference_used: 'This wallet transaction reference was already used for an approved order. No key was issued by this click. Review the payment in website Admin.',
+} as const;
+
+export class AdminOrdersActionError extends CommerceError {
+  constructor(public readonly code: keyof typeof actionFailures) {
+    super(code === 'order_missing' ? 404 : 409, actionFailures[code]);
+  }
+}
 
 export type AdminOrdersBotConfig = {
   token: string; ownerId: string; botId: string; secret: string; topicId?: number; origin: string;

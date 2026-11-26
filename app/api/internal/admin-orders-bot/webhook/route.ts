@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { commerceEnabled } from '@/lib/commerce-enabled';
 import { CommerceError, readCommerceJson } from '@/lib/commerce-http';
-import { adminOrdersBotConfig, equalAdminOrdersBotSecret, type AdminOrdersBotAdapter, type AdminOrdersBotConfig } from '@/hostinger/admin-orders-telegram';
+import { AdminOrdersActionError, adminOrdersBotConfig, equalAdminOrdersBotSecret, type AdminOrdersBotAdapter, type AdminOrdersBotConfig } from '@/hostinger/admin-orders-telegram';
 import { runningHubAdminOrdersAdapter } from '@/hostinger/runninghub-admin-bot';
 
 export const dynamic = 'force-dynamic';
@@ -52,6 +52,7 @@ export async function POST(request: Request) {
     try {
       return answer(value.id, await matching[0].beginApproval(config, value.data));
     } catch (error) {
+      if (error instanceof AdminOrdersActionError) return answer(value.id, error.message, true);
       return error instanceof CommerceError && error.status < 500
         ? answer(value.id, 'This order changed, was already reviewed, or is unavailable. Review it in Admin.', true) : empty(503);
     }

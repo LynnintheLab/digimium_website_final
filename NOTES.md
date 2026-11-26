@@ -6,7 +6,7 @@ Production Running HUB checkout has KPay and AYA Pay enabled. The owner-provided
 
 The production storefront lists Running HUB API Key as the first product card under All services and AI & productivity, with the official RunningHub mark. Storefront search finds Running HUB, RunningHub and API Key. This card opens the dedicated checkout, with both bundle prices coming from the checkout definitions. The subscription catalog data is separate.
 
-The Main site uses the shared `@DigimiumAdminOrdersBot` connection for private receipt delivery and payment approval. Running HUB is the first connected checkout flow. The owner reviews the original receipt and checks the receiving wallet, then issues the reserved key with a single approval in Telegram or website Admin. Future website checkout products can use the same bot. See [Admin Orders bot setup](docs/ADMIN-ORDERS-BOT.md).
+The Main site uses the shared `@DigimiumAdminOrdersBot` connection for private receipt delivery and payment approval. Running HUB is the first connected checkout flow. The owner reviews the original receipt and checks the receiving wallet, then issues the reserved key with a single approval in Telegram or website Admin. Telegram identifies duplicate receipts and other known approval blockers in the callback alert. Future website checkout products can use the same bot. See [Admin Orders bot setup](docs/ADMIN-ORDERS-BOT.md).
 
 Running HUB API Key is a separate Hostinger storefront purchase flow on the production branch. It offers 10 USD for 70,000 MMK and 20 USD for 138,000 MMK. Admin can set up KPay and AYA Pay, import encrypted stock, verify original receipts and issue the reserved key by approving payment. Buyers see their assigned key in the Running HUB checkout and can recover it in their dedicated order history. Admin Orders records the customer and issued stock ID. Customer Order history lists pending, purchased and closed Running HUB orders with links to their protected detail pages. See [Running HUB setup](docs/RUNNINGHUB.md).
 
@@ -94,7 +94,7 @@ The shared catalog starts with 54 products and 104 plans, including the 50 appro
 
 ## Last thing done
 
-Made Running HUB approval a single action in Telegram and website Admin. Existing orders now appear in the signed-in customer’s general Order history, with a link to the dedicated purchase page. Verified the Telegram callback, one-click website review, Pending-to-Purchased transition and owner-only key reveal with disposable orders. The recorded purchase receipt image also prevents issuing a second key against the exact same screenshot.
+Made Running HUB approval a single action in Telegram and website Admin. Existing orders now appear in the signed-in customer’s general Order history, with a link to the dedicated purchase page. Verified the Telegram callback, one-click website review, Pending-to-Purchased transition and owner-only key reveal with disposable orders. The recorded purchase receipt image also prevents issuing a second key against the exact same screenshot. Fixed the generic callback alert after comparing the two submitted images and confirming they were byte-identical.
 
 Saved and verified the production Running HUB payment configuration through Admin. Confirmed the live buyer could select 10 USD and continue to payment. At that check the 20 USD bundle had zero available keys. No live order was created during verification.
 
@@ -252,7 +252,7 @@ Tested the Node 24 production server with disposable MariaDB, including concurre
 
 - Buyers can use Products → Running HUB API Key (the green R logo) or open `/runninghub` directly. Check current stock before verifying purchase availability.
 
-- Use the shared Digimium Admin Orders bot with the verified store owner's private Telegram chat. The setup helper checks the bot identity and registered webhook. Check the receiving wallet before approving a live order. Use synthetic receipts for local approval checks.
+- Use the shared Digimium Admin Orders bot with the verified store owner's private Telegram chat. The setup helper checks the bot identity and registered webhook. Check the receiving wallet before approving a live order. Use distinct synthetic receipts for approval checks in a disposable environment.
 
 - Import funded API keys in Admin → Running HUB → Inventory for each bundle. Add the AYA Pay receiving QR in Payment settings when the owner supplies it.
 

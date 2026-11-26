@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { CommerceError } from '../lib/commerce-http';
-import type { AdminOrdersBotAdapter } from './admin-orders-telegram';
+import { AdminOrdersActionError, type AdminOrdersBotAdapter } from './admin-orders-telegram';
 
 type ApprovalBinding = { id: string; proofRequestId: string; revision: number };
 const uuid = z.string().uuid();
@@ -56,14 +56,20 @@ export const runningHubAdminOrdersAdapter: AdminOrdersBotAdapter = {
     const binding = readRunningHubApproval(config.secret, code);
     if (!binding) throw new CommerceError(400, 'Invalid Running HUB approval.');
     const { runningHubOrder, decideRunningHubOrder } = await import('./runninghub');
-    const { order } = await runningHubOrder(binding.id);
+    const { order } = await runningHubOrder(binding.id).catch(error => {
+      if (error instanceof CommerceError && error.status === 404) throw new AdminOrdersActionError('order_missing');
+      throw error;
+    });
     // This also recognizes completed legacy reference-based approvals without changing their receipts.
     if (order.status === 'approved' && order.proofRequestId === binding.proofRequestId && order.revision === binding.revision + 1) {
       return 'This payment was already approved. The key is available in the customer’s website purchase details.';
     }
-    if (order.status !== 'payment_review' || order.proofRequestId !== binding.proofRequestId || order.revision !== binding.revision) {
-      throw new CommerceError(409, 'The Running HUB order changed.');
-    }
+    if (order.status === 'rejected') throw new AdminOrdersActionError('order_rejected');
+    if (order.status === 'expired') throw new AdminOrdersActionError('order_expired');
+    if (order.status === 'approved') throw new AdminOrdersActionError('order_approved');
+    if (order.status !== 'payment_review' || !order.proofRequestId) throw new AdminOrdersActionError('receipt_missing');
+    if (order.proofRequestId !== binding.proofRequestId) throw new AdminOrdersActionError('receipt_changed');
+    if (order.revision !== binding.revision) throw new AdminOrdersActionError('order_changed');
     const result = await decideRunningHubOrder(binding.id, {
       action: 'approve', revision: binding.revision, proofRequestId: binding.proofRequestId,
       requestId: runningHubApprovalRequestId(config.secret, code),

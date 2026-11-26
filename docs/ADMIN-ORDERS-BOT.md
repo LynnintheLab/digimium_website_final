@@ -31,6 +31,6 @@ After the production deployment has the matching values, connect and verify the 
 node --env-file=.env.admin-orders-bot.local scripts/configure-admin-orders-bot.mjs --apply
 ```
 
-A receipt alert contains the submitted image, the order reference, the payment method and the expected amount. Check the transfer amount and recipient in the receiving wallet, then tap **Approve payment** on the receipt alert. This records the decision and issues the reserved key to the buyer’s website account in one action.
+A receipt alert contains the submitted image, the order reference, the payment method and the expected amount. Check the transfer amount and recipient in the receiving wallet, then tap **Approve payment** on the receipt alert. This records the decision and issues the reserved key to the buyer’s website account in one action. If the exact same screenshot was already used for an approved order, the bot identifies it as a duplicate. Get the payment-specific receipt before approving a different transfer.
 
 The standalone scheduler retries delivery and queues still-pending receipts when the bot is first enabled. For an older alert whose signing secret has been changed, review the order through the Admin website. The original receipt stays available to the owner in the private Telegram chat and the Admin order.

@@ -9,6 +9,7 @@ import { identifyLogo, LogoInputError, validateLogoReferences } from '../lib/log
 import { RUNNINGHUB_PACKS, RUNNINGHUB_PROOF_MAX_BYTES, RUNNINGHUB_RESERVATION_MINUTES, normalizeRunningHubReference,
   type RunningHubOrder, type RunningHubPackId, type RunningHubPaymentMethod, type RunningHubStock } from '../lib/runninghub';
 import { ensureCustomerSchema } from './customer-auth';
+import { AdminOrdersActionError } from './admin-orders-telegram';
 import { getPool } from './mysql';
 import { drainRunningHubAdminReceipts, enqueueRunningHubAdminReceipt } from './runninghub-admin-bot-outbox';
 
@@ -319,29 +320,37 @@ export async function decideRunningHubOrder(id: string, body: unknown, actor: st
     ? digest('decision-request-v2', JSON.stringify([id, input.action, input.revision, input.proofRequestId, input.note ?? '']))
     : digest('decision-request', JSON.stringify([id, input.action, input.action === 'approve' ? input.proofRequestId : null, reference, input.note ?? '']));
   return transaction(async connection => {
-    const previous = await replay(connection, input.requestId, hash);
-    const row = await rowFor(connection, id, undefined, ', proof_cipher, proof_hash');
+    const previous = await replay(connection, input.requestId, hash).catch(error => {
+      if (error instanceof CommerceError && error.status === 409) throw new AdminOrdersActionError('request_conflict');
+      throw error;
+    });
+    const row = await rowFor(connection, id, undefined, ', proof_cipher, proof_hash').catch(error => {
+      if (error instanceof CommerceError && error.status === 404) throw new AdminOrdersActionError('order_missing');
+      throw error;
+    });
     if (previous) return { order: present(row), applied: false };
+    if (row.status === 'rejected') throw new AdminOrdersActionError('order_rejected');
+    if (row.status === 'expired') throw new AdminOrdersActionError('order_expired');
+    if (row.status === 'approved') throw new AdminOrdersActionError('order_approved');
     if (row.revision !== input.revision || !['awaiting_payment', 'payment_review'].includes(row.status)) {
-      throw new CommerceError(409, 'This order changed. Reload before making a payment decision.');
+      throw new AdminOrdersActionError('order_changed');
     }
     const [stock] = await connection.execute<StockRow[]>('SELECT id, pack_id, key_cipher, reserved_order_id, issued_order_id, retired FROM digimium_runninghub_stock WHERE id = ?', [row.stock_id]);
     if (!stock[0] || stock[0].retired || stock[0].issued_order_id || stock[0].reserved_order_id !== id) {
-      throw new CommerceError(409, 'The reserved key is unavailable. Review stock before making this decision.');
+      throw new AdminOrdersActionError('stock_unavailable');
     }
     if (input.action === 'approve') {
-      if (row.status !== 'payment_review' || !row.proof_cipher || !row.proof_hash || row.proof_request_id !== input.proofRequestId) {
-        throw new CommerceError(409, 'Review the currently submitted payment screenshot first.');
-      }
+      if (row.status !== 'payment_review' || !row.proof_cipher || !row.proof_hash) throw new AdminOrdersActionError('receipt_missing');
+      if (row.proof_request_id !== input.proofRequestId) throw new AdminOrdersActionError('receipt_changed');
       // The settings-row mutex serializes this check and issuance across all Running HUB orders.
       const [sameProof] = await connection.execute<RowDataPacket[]>(
         "SELECT id FROM digimium_runninghub_orders WHERE status = 'approved' AND proof_hash = ? LIMIT 1", [row.proof_hash]);
-      if (sameProof.length) throw new CommerceError(409, 'This exact payment screenshot was already used for an approved Running HUB order. Review the payment in Admin.');
+      if (sameProof.length) throw new AdminOrdersActionError('receipt_used');
       const payment = JSON.parse(row.payment) as RunningHubPaymentMethod;
       const referenceHash = reference ? digest('payment-reference', reference) : null;
       if (referenceHash) {
         const [used] = await connection.execute<RowDataPacket[]>('SELECT order_id FROM digimium_runninghub_payments WHERE method = ? AND reference_hash = ?', [payment.id, referenceHash]);
-        if (used.length) throw new CommerceError(409, 'This wallet transaction reference was already used for an approved Running HUB order.');
+        if (used.length) throw new AdminOrdersActionError('reference_used');
       }
       const key = decrypt('stock/' + stock[0].id + '/' + stock[0].pack_id, Buffer.from(stock[0].key_cipher, 'base64'));
       const delivery = encrypt('delivery/' + id + '/' + row.customer_id, key).toString('base64');
