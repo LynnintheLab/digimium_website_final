@@ -112,7 +112,6 @@ html[data-shop-theme="dark"] .order-option[data-best-seller] {
 html[data-shop-theme="dark"] .order-option[data-best-seller]:has(input:checked) { background: linear-gradient(115deg, #fff8dc, #ffe7a0); border-color: #b9ccff; outline: 2px solid #b9ccff; outline-offset: 2px; }
 html[data-shop-theme="dark"] .order-option[data-best-seller] input:focus-visible { outline-color: #123499; }
 html[data-shop-theme="dark"] .order-checkout-note { color: #ffb6c2; }
-html[data-shop-theme="dark"] .order-guest-notice { background: #332b1c; border-color: #9f803e; color: #ffdea1; }
 html[data-shop-theme="dark"] :is(.order-account-notice,.order-receipt-reference > strong,.order-handoff .order-saved-status,.order-handoff > .order-send-instruction),
 html[data-shop-theme="dark"] .shop-order[data-screen="cart"] .order-total > strong,
 html[data-shop-theme="dark"] .order-handoff .order-total > strong { color: var(--brand-text); }

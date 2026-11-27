@@ -26,7 +26,8 @@ const CheckoutAuth = lazy(() => import('./account/account').then(module => ({def
 type Locale = 'en' | 'my';
 export type ShopOrderHandle = { openProduct(product: Product, planId?: string): void; openCart(): void };
 type Props = { products: Product[]; lang: Locale; telegram: string; hideShortDescriptions?: boolean; onCountChange: (count: number) => void; onOpenChange?: (open: boolean) => void };
-type Screen = 'product' | 'cart' | 'contact' | 'auth' | 'guest' | 'handoff' | null;
+type Screen = 'product' | 'cart' | 'contact' | 'auth' | 'handoff' | null;
+type CheckoutAttempt = { mode?: 'account' | 'guest' | 'auto'; item?: CartItem; contact?: CheckoutContact };
 type CheckoutIdentity = Pick<CommerceCustomer, 'id' | 'email' | 'telegram' | 'signInMethods'>;
 type CheckoutSession = { status: 'signed-in'; customerId: string; telegramLinked: boolean; draftIdentity: OrderTelegramIdentity } |
   { status: 'checking' | 'signed-out' | 'failed'; customerId: null };
@@ -92,7 +93,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   const [savedReceipt, setSavedReceipt] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [accountNotice, setAccountNotice] = useState<'signed-in' | 'telegram-linked' | null>(null);
-  const [contactOwner, setContactOwner] = useState<string | null>(null);
+  const [contactCheckout, setContactCheckout] = useState<{ customerId: string; item?: CartItem } | null>(null);
   const authInFlight = useRef(false);
   const screenTitle = useRef<HTMLHeadingElement>(null);
   const inFlight = useRef(false);
@@ -111,7 +112,8 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
   const count = rows.reduce((total, item) => total + item.quantity, 0);
   const selected: CartItem | undefined = product && product.published && product.availability !== 'unavailable' &&
     (!plans.length || plans.some(plan => plan.id === planId)) ? {productId: product.id, planId, quantity: 1} : undefined;
-  const effectiveCart = screen === 'product' && selected ? withSelection(cart, selected, false) : cart;
+  const effectiveCart = screen === 'product' && selected
+    ? (commerceEnabled ? [selected] : withSelection(cart, selected, false)) : cart;
   const checkoutRows = resolveOrder(effectiveCart, products);
   const sum = totalMmk(checkoutRows);
   const formattedTotal = sum === undefined ? '' : priceText(`${sum.toLocaleString('en-US')} MMK`, lang);
@@ -290,9 +292,9 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     ++receiptRead.current; ++copyAttempt.current;
     sessionAbort.current?.abort();
     if (screen === 'contact') {
-      setContactOwner(null);
+      setContactCheckout(null);
       setOrderError('');
-      setScreen('cart');
+      setScreen(contactCheckout?.item ? 'product' : 'cart');
       return;
     }
     setScreen(null);
@@ -352,12 +354,12 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
     void copy(orderText.join('\n\n'));
     setScreen('handoff');
   }
-  async function placeOrder(asGuest = false, contact?: CheckoutContact) {
-    if (inFlight.current || authInFlight.current || !checkoutRows.length) return;
+  async function placeOrder({mode = 'account', item, contact}: CheckoutAttempt = {}) {
+    const purchaseRows = item ? resolveOrder([item], products) : rows;
+    if (inFlight.current || authInFlight.current || !purchaseRows.length) return;
     ++receiptRead.current;
     const submittedCart = cartRef.current.map(item => ({...item}));
-    const items = checkoutRows.map(({productId, planId, quantity}) => ({productId, planId, quantity}));
-    const basket = JSON.stringify({items, mode: asGuest ? 'guest' : 'account'});
+    const items = purchaseRows.map(({productId, planId, quantity}) => ({productId, planId, quantity}));
     const key = 'digimium-checkout-attempt';
     inFlight.current = true;
     setSubmitting(true);
@@ -366,23 +368,29 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       if (!attempt.current) {
         try { attempt.current = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch { /* Storage is optional. */ }
       }
-      let customerId: string | null = null;
-      if (!asGuest) {
-        const identity = await checkSession();
-        if (identity.status === 'failed') throw new Error(t('We couldn’t check your account. Please try again.', 'အကောင့်ကို စစ်ဆေးမရသေးပါ။ ပြန်ကြိုးစားပါ။'));
-        // Keep a guest's saved retry key intact when reopening checkout after a lost response.
-        if (identity.status !== 'signed-in') { setContactOwner(null); setScreen('auth'); return; }
-        customerId = identity.customerId;
-        if (contact && contactOwner !== customerId) {
-          setContactOwner(null);
-          setScreen('cart');
+      const identity = mode === 'guest' ? null : await checkSession();
+      if (identity?.status === 'failed') throw new Error(t('We couldn’t check your account. Please try again.', 'အကောင့်ကို စစ်ဆေးမရသေးပါ။ ပြန်ကြိုးစားပါ။'));
+      const asGuest = mode === 'guest' || (mode === 'auto' && identity?.status === 'signed-out');
+      const basket = JSON.stringify({items, mode: asGuest ? 'guest' : 'account'});
+      const customerId = identity?.status === 'signed-in' ? identity.customerId : null;
+      // Keep a guest's saved retry key intact when reopening checkout after a lost response.
+      if (!asGuest && !customerId) {
+        setContactCheckout(null);
+        setScreen(item ? 'product' : 'auth');
+        if (item) setOrderError(t('Your account changed. Review your order again.', 'အကောင့် ပြောင်းသွားပါတယ်။ အော်ဒါကို ပြန်စစ်ပါ။'));
+        return;
+      }
+      if (identity?.status === 'signed-in') {
+        if (contact && contactCheckout?.customerId !== identity.customerId) {
+          setContactCheckout(null);
+          setScreen(item ? 'product' : 'cart');
           setOrderError(t('Your account changed. Review your order again.', 'အကောင့် ပြောင်းသွားပါတယ်။ အော်ဒါကို ပြန်စစ်ပါ။'));
           return;
         }
         // A saved request can recover an order that already exists without collecting contact again.
         const retry = attempt.current?.basket === basket && Boolean(attempt.current.requestId);
         if (!identity.telegramLinked && !contact && !retry) {
-          setContactOwner(customerId);
+          setContactCheckout({customerId: identity.customerId, item});
           setScreen('contact');
           return;
         }
@@ -401,21 +409,25 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
         body: JSON.stringify({items, requestId: attempt.current.requestId, ...(asGuest ? {checkoutMode: 'guest'} : {expectedCustomerId: customerId, ...(contact ? {contact} : {})})}),
       });
       if (response.status === 401) {
-        if (!asGuest) setSessionState({status: 'signed-out', customerId: null});
-        setContactOwner(null);
-        setScreen(asGuest ? 'guest' : 'auth');
-        if (asGuest) setOrderError(t('Please try again to continue without an account.', 'အကောင့်မရှိဘဲ ဆက်ဝယ်ရန် ပြန်ကြိုးစားပါ။'));
+        setContactCheckout(null);
+        if (asGuest) {
+          setOrderError(t('Please try again to continue without an account.', 'အကောင့်မရှိဘဲ ဆက်ဝယ်ရန် ပြန်ကြိုးစားပါ။'));
+        } else {
+          setSessionState({status: 'signed-out', customerId: null});
+          setScreen(item ? 'product' : 'auth');
+          if (item) setOrderError(t('Your account changed. Review your order again.', 'အကောင့် ပြောင်းသွားပါတယ်။ အော်ဒါကို ပြန်စစ်ပါ။'));
+        }
         return;
       }
       const data = await response.json() as TelegramCheckout & {error?: string};
       if (response.status === 409 && data.error === 'checkout_account_changed') {
-        setContactOwner(null);
-        setScreen('cart');
+        setContactCheckout(null);
+        setScreen(item ? 'product' : 'cart');
         setOrderError(t('Your account changed. Review your order again.', 'အကောင့် ပြောင်းသွားပါတယ်။ အော်ဒါကို ပြန်စစ်ပါ။'));
         return;
       }
       if (response.status === 422 && customerId && (data.error === 'checkout_contact_required' || data.error === 'invalid_checkout_contact')) {
-        setContactOwner(customerId);
+        setContactCheckout({customerId, item});
         setScreen('contact');
         if (data.error === 'invalid_checkout_contact') setOrderError(t('Check your contact details and try again.', 'ဆက်သွယ်ရန် အချက်အလက်ကို စစ်ပြီး ပြန်ကြိုးစားပါ။'));
         return;
@@ -431,9 +443,9 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       if (receipt) {
         try { sessionStorage.setItem(ORDER_RECEIPT_KEY, JSON.stringify(receipt)); setSavedReceipt(true); } catch { /* The open receipt remains usable without storage. */ }
       } else forgetReceipt();
-      // The POST has succeeded. Consume only that exact cart even if the following account check fails.
-      clearSubmittedCart(submittedCart);
-      setContactOwner(null);
+      // Only cart checkout consumes the exact submitted basket.
+      if (!item) clearSubmittedCart(submittedCart);
+      setContactCheckout(null);
       attempt.current = null;
       try { sessionStorage.removeItem(key); } catch { /* No persisted attempt. */ }
       // The receipt belongs to the server's actual order owner, not a possibly stale preflight identity.
@@ -473,11 +485,11 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       {...entry, quantity: Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, entry.quantity + difference))} : entry));
   }
   const checkoutAllowed = ready && Boolean(checkoutUrl) && checkoutRows.length > 0 && (screen !== 'product' || Boolean(selected));
+  const telegramPurchaseLabel = submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Buy on Telegram', 'Telegram မှဝယ်မည်');
   const checkoutControl = commerceEnabled
     ? <button type="button" className="order-action order-primary" disabled={!checkoutAllowed || submitting} onClick={() => {
-        if (screen === 'product') { saveCart(effectiveCart); begin('cart'); }
-        else void placeOrder();
-      }}>{screen === 'product' ? t('Buy', 'ဝယ်ယူမည်') : submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Place order', 'Order တင်မည်')}<ArrowUpRight size={17}/></button>
+        if (selected) void placeOrder({mode: 'auto', item: selected});
+      }}>{telegramPurchaseLabel}<ArrowUpRight size={17}/></button>
     : checkoutAllowed
     ? <a className="order-action order-primary" href={checkoutUrl} target="_blank" rel="noopener noreferrer" onClick={checkout}>
         {t('Buy on Telegram', 'ဝယ်ယူမည်')}<ArrowUpRight size={17}/>
@@ -494,14 +506,14 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
       onCancel={event => { event.preventDefault(); closeOrder(); }}
       onClick={event => { if (event.target === event.currentTarget) closeOrder(); }}>
       <div className="order-surface">
-        {screen === 'contact' && contactOwner ? <CheckoutContactForm key={contactOwner} lang={lang} customerId={contactOwner} submitting={submitting} error={orderError}
-          onEdit={() => setOrderError('')} onBack={closeOrder} onSubmit={contact => void placeOrder(false, contact)}
+        {screen === 'contact' && contactCheckout ? <CheckoutContactForm key={contactCheckout.customerId} lang={lang} customerId={contactCheckout.customerId} submitting={submitting} error={orderError}
+          onEdit={() => setOrderError('')} onBack={closeOrder} onSubmit={contact => void placeOrder({contact, item: contactCheckout.item})}
           onLinkBusyChange={busy => { authInFlight.current = busy; }}
           onLinked={customer => {
             const identity = signedInSession(customer);
-            setContactOwner(null);
-            setScreen('cart');
-            if (identity.customerId !== contactOwner || !identity.telegramLinked) return;
+            setContactCheckout(null);
+            setScreen(contactCheckout.item ? 'product' : 'cart');
+            if (identity.customerId !== contactCheckout.customerId || !identity.telegramLinked) return;
             setOrderError('');
             setSessionState(identity);
             setAccountNotice('telegram-linked');
@@ -510,7 +522,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
           {screen === 'product' && hideShortDescriptions && product && <Logo product={product}/>}
           <div className="order-heading-title">
             <h2 ref={screenTitle} id="shop-order-title" tabIndex={-1}>{screen === 'product' ? product?.name : screen === 'handoff' ?
-              t('Order placed', 'အော်ဒါတင်ပြီးပါပြီ') : screen === 'guest' ? t('Buy on Telegram', 'Telegram မှဝယ်ယူမည်') : screen === 'auth' ? t('Create account', 'အကောင့်ဖွင့်မည်') : t('Your order', 'သင့်အော်ဒါ')}</h2>
+              t('Order placed', 'အော်ဒါတင်ပြီးပါပြီ') : screen === 'auth' ? t('Create account', 'အကောင့်ဖွင့်မည်') : t('Your order', 'သင့်အော်ဒါ')}</h2>
             {screen === 'product' && product?.bestSeller && <BestSellerBadge lang={lang} id="shop-product-badge" />}
           </div>
           <button type="button" disabled={submitting || authBusy} className="order-icon" aria-label={t('Close', 'ပိတ်ရန်')} onClick={closeOrder}><X size={20}/></button>
@@ -519,7 +531,7 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
           <div className="order-scroll">
             <div className="order-content">
               {!hideShortDescriptions && <div className="order-intro"><Logo product={product}/><p>{productDescription(product, lang)}</p></div>}
-              <fieldset className="order-options" disabled={product.availability === 'unavailable'}>
+              <fieldset className="order-options" disabled={submitting || product.availability === 'unavailable'}>
                 <legend>{t('Choose a plan', 'အစီအစဉ် ရွေးပါ')}</legend>
                 {plans.length ? plans.map(plan => {
                   const name = planName(plan, lang);
@@ -540,7 +552,9 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
             </div>
           </div>
           <footer className="order-footer">
-            <div className="order-actions"><button type="button" disabled={!ready || !selected} className="order-action order-secondary" onClick={add}>
+            {orderError && <p className="order-checkout-note" role="alert">{orderError}</p>}
+            {accountNotice === 'telegram-linked' && sessionState.status === 'signed-in' && sessionState.telegramLinked && <p className="order-account-notice" role="status">{t('Telegram connected.', 'Telegram ချိတ်ဆက်ပြီးပါပြီ။')}</p>}
+            <div className="order-actions"><button type="button" disabled={!ready || !selected || submitting} className="order-action order-secondary" onClick={add}>
               <ShoppingBag size={16}/>{t('Add to cart', 'ဈေးခြင်းထဲ ထည့်မယ်')}</button>{checkoutControl}</div>
           </footer>
         </>}
@@ -575,8 +589,9 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
               : sessionState.status === 'signed-in' ? <div className="order-actions order-place-action"><button type="button" className="order-action order-primary" disabled={!checkoutAllowed || submitting} onClick={() => void placeOrder()}>{submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Place order', 'Order တင်မည်')}<ArrowUpRight size={17}/></button></div>
               : <div className="order-actions order-purchase-options">
                 <button type="button" className="order-action order-secondary" disabled={!checkoutAllowed || submitting} onClick={() => { setOrderError(''); setScreen('auth'); }}><strong>{t('Create account', 'အကောင့်ဖွင့်မည်')}</strong></button>
-                <button type="button" className="order-action order-primary" disabled={!checkoutAllowed || submitting} onClick={() => { setOrderError(''); setScreen('guest'); }}><strong>{t('Buy on Telegram', 'Telegram မှဝယ်မည်')}</strong></button>
+                <button type="button" className="order-action order-primary" disabled={!checkoutAllowed || submitting} onClick={() => void placeOrder({mode: 'guest'})}><strong>{telegramPurchaseLabel}</strong></button>
               </div> : <div className="order-actions"><button type="button" className="order-action order-secondary" onClick={closeOrder}>{t('Keep browsing', 'ဆက်လက် ရွေးချယ်ရန်')}</button>{checkoutControl}</div>}
+            {commerceEnabled && savedReceipt && <button type="button" className="order-auth-back" disabled={submitting} onClick={() => void resumeReceipt()}>{t('View saved order', 'သိမ်းထားတဲ့ အော်ဒါ ကြည့်မယ်')}</button>}
           </footer>
         </> : <div className="order-empty"><ShoppingBag size={30}/><p>{t('Your cart is empty. Choose a product and add a plan.', 'ဈေးခြင်းထဲမှာ ပစ္စည်း မရှိသေးပါ။ ဝန်ဆောင်မှုတစ်ခု ရွေးပြီး အစီအစဉ်ကို ထည့်လိုက်ပါ။')}</p>{orderError && <p className="order-checkout-note" role="alert">{orderError}</p>}{commerceEnabled && savedReceipt && <button className="order-action order-primary" onClick={() => void resumeReceipt()}>{t('View saved order', 'သိမ်းထားတဲ့ အော်ဒါ ကြည့်မယ်')}</button>}<button className="order-action order-secondary" onClick={closeOrder}>{t('Browse products', 'ပစ္စည်းများ ကြည့်ရန်')}</button></div>)}
         {screen === 'auth' && <>
@@ -584,23 +599,10 @@ export const ShopOrder = forwardRef<ShopOrderHandle, Props>(function ShopOrder({
             <Suspense fallback={<p role="status">{t('Loading account…', 'အကောင့် ဖွင့်နေသည်…')}</p>}>
               <CheckoutAuth lang={lang} onBusyChange={busy => { authInFlight.current = busy; setAuthBusy(busy); }}
                 onSuccess={customer => { authInFlight.current = false; setAuthBusy(false); setOrderError(''); setSessionState(signedInSession(customer)); setAccountNotice('signed-in'); setScreen('cart'); }}
-                onGuest={() => { setOrderError(''); setScreen('guest'); }} />
+                onGuest={() => { setScreen('cart'); void placeOrder({mode: 'guest'}); }} />
             </Suspense>
           </div>
-          <footer className="order-footer order-auth-footer"><button type="button" className="order-guest-back" disabled={authBusy} onClick={() => { setSessionState({status: 'checking', customerId: null}); setScreen('cart'); }}>{t('Back to cart', 'ဈေးခြင်းသို့ ပြန်ရန်')}</button></footer>
-        </>}
-        {screen === 'guest' && <>
-          <div className="order-scroll order-content">
-            <div id="order-guest-notice" className="order-guest-notice">
-              <strong>{t('Your order history stays in Telegram', 'အော်ဒါမှတ်တမ်းကို Telegram မှာ သိမ်းထားပါ')}</strong>
-              <p>{t('You’ll buy directly with the Digimium admin in Telegram. This purchase and its expiry date won’t appear in your website account history.', 'Telegram မှာ Admin နဲ့ တိုက်ရိုက်ဆက်သွယ်ပြီး ဝယ်ယူရမှာပါ။ ဒီဝယ်ယူမှုနဲ့ သက်တမ်းကုန်ရက်ကို website ရဲ့ အော်ဒါမှတ်တမ်းမှာ ပြန်ကြည့်လို့ရမှာ မဟုတ်ပါ။')}</p>
-            </div>
-          </div>
-          <footer className="order-footer order-guest-footer">
-            {orderError && <p className="order-checkout-note" role="alert">{orderError}</p>}
-            <button type="button" className="order-action order-primary" aria-describedby="order-guest-notice" disabled={submitting || !checkoutAllowed} onClick={() => void placeOrder(true)}>{submitting ? t('Preparing order…', 'အော်ဒါ ပြင်ဆင်နေသည်…') : t('Buy on Telegram', 'Telegram မှဝယ်ယူမည်')}<ArrowUpRight size={17}/></button>
-            <button type="button" className="order-guest-back" disabled={submitting} onClick={() => { setOrderError(''); setSessionState({status: 'checking', customerId: null}); setScreen('cart'); }}>{t('Back to cart', 'ဈေးခြင်းသို့ ပြန်ရန်')}</button>
-          </footer>
+          <footer className="order-footer order-auth-footer"><button type="button" className="order-auth-back" disabled={authBusy} onClick={() => { setSessionState({status: 'checking', customerId: null}); setScreen('cart'); }}>{t('Back to cart', 'ဈေးခြင်းသို့ ပြန်ရန်')}</button></footer>
         </>}
         {screen === 'handoff' && !canShowHandoff && <div className="order-content order-handoff-locked">
           <p role={sessionState.status === 'failed' ? 'alert' : 'status'}>{sessionState.status === 'failed' ? t('We couldn’t verify your account. Your saved order is still available after verification.', 'အကောင့်ကို အတည်ပြုမရသေးပါ။ အတည်ပြုပြီးရင် သိမ်းထားတဲ့ အော်ဒါကို ပြန်ကြည့်နိုင်ပါတယ်။') : t('Checking your account before showing the saved order…', 'သိမ်းထားတဲ့ အော်ဒါမပြမီ အကောင့် စစ်ဆေးနေသည်…')}</p>

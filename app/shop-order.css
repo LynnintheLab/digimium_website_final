@@ -185,16 +185,11 @@
 }
 
 .order-account-history { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; color: var(--blue); font-size: 14px; }
-.order-guest-notice { padding: 16px; border: 1px solid #d9bb77; border-radius: 8px; background: #fff6df; color: #664a18; font-size: 15px; line-height: 1.7; }
-.order-guest-notice p { margin: 6px 0 0; }
-.order-guest-footer { padding-top: 18px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
-.order-guest-footer .order-primary { min-height: 52px; font-size: 16px; }
-.order-guest-back { min-height: 44px; padding: 6px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 14px; }
-.order-guest-back:hover { color: var(--blue); }
+.order-auth-back { min-height: 44px; padding: 6px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 14px; width: 100%; }
+.order-auth-back:hover { color: var(--blue); }
 
 .order-checkout-auth { padding: 22px 26px; }
 .order-auth-footer { padding-top: 10px; border-top: 1px solid var(--line); }
-.order-auth-footer .order-guest-back { width: 100%; }
 .order-heading h2:focus { outline: none; }
 .order-account-notice { margin: 0 0 14px; color: var(--blue); font-size: 14px; }
 .order-purchase-options { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
