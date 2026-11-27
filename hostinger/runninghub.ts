@@ -47,6 +47,10 @@ type StockRow = RowDataPacket & { id: string; pack_id: RunningHubPackId; key_cip
   issued_order_id: string | null; retired: number; created_at: string };
 type SettingsRow = RowDataPacket & { revision: number; methods: string };
 type PackCountRow = RowDataPacket & { pack_id: RunningHubPackId; available: number };
+type AdminCustomerRow = RowDataPacket & {
+  name: string; email: string | null; telegramId: string | null; telegramUsername: string | null;
+};
+const adminCustomerFields = 'c.name, c.email, t.telegram_id AS telegramId, t.username AS telegramUsername';
 
 let schemaReady: Promise<void> | undefined;
 export function ensureRunningHub() {
@@ -274,7 +278,7 @@ export async function runningHubProof(id: string, customerId?: string) {
 }
 
 /** Original pending receipt plus the minimal metadata permitted in the private Admin bot. */
-export async function runningHubAdminBotReceipt(id: string, proofRequestId: string) {
+export async function runningHubAdminBotReceipt(id: string, proofRequestId: string, includeCustomer = false) {
   validId(id); validId(proofRequestId);
   return transaction(async connection => {
     const row = await rowFor(connection, id, undefined, ', proof_mime, proof_cipher');
@@ -283,8 +287,16 @@ export async function runningHubAdminBotReceipt(id: string, proofRequestId: stri
     }
     const contentType = z.enum(['image/png', 'image/jpeg', 'image/webp']).parse(row.proof_mime);
     const paymentMethod = methodId.parse((JSON.parse(row.payment) as RunningHubPaymentMethod).id);
+    let customer: AdminCustomerRow | undefined;
+    if (includeCustomer) {
+      const [[profile]] = await connection.execute<AdminCustomerRow[]>(
+        `SELECT ${adminCustomerFields} FROM digimium_customers c
+         LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id WHERE c.id = ?`, [row.customer_id],
+      );
+      customer = profile;
+    }
     return { id: row.id, proofRequestId, revision: row.revision, packLabel: row.pack_label, priceMmk: row.price_mmk, paymentMethod, contentType,
-      createdAt: row.created_at, bytes: decrypt('proof/' + id + '/' + row.customer_id, row.proof_cipher) };
+      createdAt: row.created_at, customer, bytes: decrypt('proof/' + id + '/' + row.customer_id, row.proof_cipher) };
   });
 }
 
@@ -292,17 +304,16 @@ export async function runningHubAdminBotReceipt(id: string, proofRequestId: stri
 export async function runningHubAdminBotApproval(id: string) {
   validId(id);
   await ensureRunningHub();
-  const [rows] = await getPool().execute<(RowDataPacket & { id: string; created_at: string; pack_label: string; price_mmk: number; payment_method: string;
-    customer_name: string; customer_email: string | null; telegram_username: string | null })[]>(
+  const [rows] = await getPool().execute<(AdminCustomerRow & { id: string; created_at: string; pack_label: string; price_mmk: number; payment_method: string })[]>(
     `SELECT o.id, o.created_at, o.pack_label, o.price_mmk, JSON_UNQUOTE(JSON_EXTRACT(o.payment, '$.id')) AS payment_method,
-       c.name AS customer_name, c.email AS customer_email, t.username AS telegram_username
+       ${adminCustomerFields}
      FROM digimium_runninghub_orders o JOIN digimium_customers c ON c.id = o.customer_id
      LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id
      WHERE o.id = ? AND o.status = 'approved' AND o.delivery_cipher IS NOT NULL`, [id]);
   const row = rows[0];
   if (!row) throw new CommerceError(404, 'Approved Running HUB order not found.');
   return { id: row.id, createdAt: row.created_at, packLabel: row.pack_label, priceMmk: row.price_mmk, paymentMethod: methodId.parse(row.payment_method),
-    customerName: row.customer_name, customerEmail: row.customer_email, telegramUsername: row.telegram_username };
+    customer: { name: row.name, email: row.email, telegramId: row.telegramId, telegramUsername: row.telegramUsername } };
 }
 
 /** A matching historical button may recover one notice, never issue or reveal another key. */

@@ -1,4 +1,4 @@
-import { cleanAdminTelegramValue, formatAdminTelegramNotice, formatAdminTimestamp } from './admin-telegram-message.ts';
+import { cleanAdminTelegramValue, formatAdminOrderCustomer, formatAdminTelegramNotice, formatAdminTimestamp } from './admin-telegram-message.ts';
 import type { CheckoutContact } from './order-checkout-contact.ts';
 import { displayOrderReference } from './order-reference.ts';
 
@@ -19,6 +19,7 @@ type OrderNoticeDetails = {
   totalMmk: number | null;
   customerName?: string | null;
   customerEmail?: string | null;
+  telegramId?: string | null;
   telegramUsername?: string | null;
   checkoutContact?: CheckoutContact | null;
   guest?: boolean;
@@ -41,14 +42,14 @@ export function formatAdminOrderDetailsNotice(order: OrderNoticeDetails) {
     time && 'Order time: ' + time,
     'Status: ' + statusLabels[order.status],
   ].filter(Boolean).join('\n');
-  const name = order.guest ? 'Guest' : cleanAdminTelegramValue(order.customerName, 100);
-  const email = order.guest ? '' : cleanAdminTelegramValue(order.customerEmail, 254);
-  const username = !order.guest && /^[A-Za-z0-9_]{5,32}$/.test(order.telegramUsername ?? '') ? order.telegramUsername : '';
   const contact = order.guest ? null : order.checkoutContact;
   const buyer = [
-    name && 'Customer: ' + name,
-    email && 'Email: ' + email,
-    username && 'Telegram: @' + username,
+    order.guest ? 'Customer: Guest' : formatAdminOrderCustomer({
+      name: order.customerName,
+      email: order.customerEmail,
+      telegramId: order.telegramId,
+      telegramUsername: order.telegramUsername,
+    }),
     contact && 'Checkout contact: ' + checkoutContactLabels[contact.method] + ' · ' + contact.value,
   ].filter(Boolean).join('\n');
   const total = 'Total: ' + (order.totalMmk == null ? 'Price on request' : order.totalMmk.toLocaleString('en-US') + ' MMK');

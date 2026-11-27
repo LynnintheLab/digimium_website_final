@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
-import { formatAdminTimestamp } from '../lib/admin-telegram-message';
+import { formatAdminOrderCustomer, formatAdminTimestamp } from '../lib/admin-telegram-message';
 import { CommerceError } from '../lib/commerce-http';
 import { RUNNINGHUB_PRODUCT_NAME, type RunningHubPaymentMethod } from '../lib/runninghub';
 import { AdminOrdersActionError, type AdminOrdersBotAdapter } from './admin-orders-telegram';
@@ -22,15 +22,17 @@ export function signRunningHubApproval(secret: string, order: ApprovalBinding): 
 }
 export function runningHubAdminMessage(order: {
   id: string; createdAt: string; packLabel: string; paymentMethod: RunningHubPaymentMethod['id']; priceMmk: number;
-}, status: 'payment_review' | 'approved') {
+}, status: 'payment_review' | 'approved', customer?: Parameters<typeof formatAdminOrderCustomer>[0]) {
   const reference = order.id.slice(0, 8).toUpperCase();
   const time = formatAdminTimestamp(order.createdAt);
   const method = order.paymentMethod === 'kpay' ? 'KPay' : 'AYA Pay';
+  const customerDetails = customer ? formatAdminOrderCustomer(customer) : '';
   return [
     status === 'payment_review' ? '🧾 Payment review' : '✅ Payment approved',
     'Order ID: #' + reference,
     ...(time ? ['Order time: ' + time] : []),
     '',
+    ...(customerDetails ? [customerDetails, ''] : []),
     RUNNINGHUB_PRODUCT_NAME + ' — ' + order.packLabel,
     `Payment: ${method} · ${order.priceMmk.toLocaleString('en-US')} MMK`,
   ];

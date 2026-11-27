@@ -2,6 +2,8 @@
 
 ## Current status
 
+The private Running HUB Orders topic shows available buyer name, Gmail or other email, and verified Telegram username and numeric ID in new order, payment review, and payment approval messages. The private standard Orders topic uses the same customer fields, with the existing checkout contact when applicable.
+
 Buy on Telegram opens the seller chat with the saved draft from the signed-out cart, the embedded account form, or a product drawer. Buying directly from a product submits one selected plan and preserves the shopping cart. Signed-in customers use their account and complete the required contact step when necessary. Saved receipts are available from both empty and nonempty carts.
 
 New standard orders get a public reference such as `DG - 2026NOV27 - 003`. The sequence starts at `001` each Myanmar calendar day and is shared across storefront and Admin-created standard orders. The saved reference appears in the customer draft, receipt, website history, Telegram history, and private Orders topic, and is searchable in Admin. Existing orders keep their short IDs.
@@ -131,6 +133,8 @@ The catalog shows two product cards per row up to 700px and three above. Hosting
 The shared catalog starts with 54 products and 104 plans, including the 50 approved visible plans. The bilingual storefront, cart, Telegram checkout, mobile UI and existing brand assets are included. On Hostinger, MySQL persists admin changes and uploaded logo bytes. The earlier ChatGPT Sites target retains separate D1/R2 storage and ChatGPT authorization. Its live data is outside Git.
 
 ## Last thing done
+
+Added customer identity to the protected Admin Orders bot topics. The Node 24 build, strict lint, typecheck, 105 unit tests, and the disposable Running HUB and notification integrations passed. Fixtures verified Gmail-only, email-only, Telegram without a username, linked identity, approval and document receipt captions, and legacy routing.
 
 Removed the separate guest confirmation dialog and wired direct purchases from the cart, account form and product drawer. A Node 24 production build, strict lint, typecheck and 105 unit tests passed. Local WebKit and Chromium at 320px verified the guest and signed-in paths, the product-only payload, cart preservation, retry request IDs, and receipt recovery after the Telegram handoff.
 
@@ -329,6 +333,8 @@ Added the Node 24/Next.js standalone build, Hostinger database schema and storag
 Tested the Node 24 production server with disposable MariaDB, including concurrent saves, hidden plan/description filtering, image bytes, and data surviving an application restart. Verified sign-in, signed-out and forged-header denial, CSRF checks, sign-out and session invalidation, and a simulated HTTPS proxy with a Secure HttpOnly cookie. Unit tests, type checks, the separate Sites build, and local Sites catalog/logo integration suites passed. No real customer message was sent.
 
 ## Next steps
+
+- Check the buyer details on the next real Running HUB order and its payment alerts during normal production use.
 
 - Confirm the one-step Telegram handoff on the next real checkout in the cart and product drawer.
 

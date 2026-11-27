@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { formatAdminOrderDetailsNotice } from '../lib/admin-order-details-notice';
-import { cleanAdminTelegramValue as cleanAlert, formatAdminRegistrationNotice, formatAdminTelegramNotice, formatAdminTimestamp } from '../lib/admin-telegram-message';
+import { cleanAdminTelegramValue as cleanAlert, formatAdminOrderCustomer, formatAdminRegistrationNotice, formatAdminTelegramNotice, formatAdminTimestamp } from '../lib/admin-telegram-message';
 import { CommerceError } from '../lib/commerce-http';
 import type { CustomerNotification, CustomerNotificationPage } from '../lib/notification-types';
 import { normalizeNotificationActionLabel, normalizeNotificationActionUrl } from '../lib/notification-action';
@@ -192,6 +192,7 @@ function telegramConfiguration(): AlertConfig | null {
 }
 type AlertEntity = RowDataPacket & {
   createdAt?: string; name?: string; email?: string | null; telegramUsername?: string | null;
+  telegramId?: string | null;
   customerId?: string | null; orderStatus?: 'pending' | 'approved' | 'rejected'; orderSnapshot?: string;
   orderReference?: string | null; googleCheckoutContact?: string | null;
 };
@@ -229,6 +230,7 @@ function alertMessage(payload: NotificationAlertInput, dedicated: boolean, entit
       totalMmk: snapshot.data.totalMmk,
       customerName: entity.name,
       customerEmail: entity.email,
+      telegramId: entity.telegramId,
       telegramUsername: entity.telegramUsername,
       checkoutContact: entity.googleCheckoutContact ? normalizeCheckoutContact(JSON.parse(entity.googleCheckoutContact)) : null,
       guest: entity.customerId === null,
@@ -246,7 +248,8 @@ function alertMessage(payload: NotificationAlertInput, dedicated: boolean, entit
   if (dedicated) {
     const items = payload.productSummary?.split('\n').map(line => cleanAlert(line, 350).replace(' · ', ' — ')).filter(Boolean);
     const header = ['🛒 New order', reference, orderTime].filter(Boolean).join('\n');
-    return formatAdminTelegramNotice([header, items?.join('\n'), 'Total: ' + total].filter(Boolean).join('\n\n'));
+    const customer = formatAdminOrderCustomer(entity);
+    return formatAdminTelegramNotice([header, customer, items?.join('\n'), 'Total: ' + total].filter(Boolean).join('\n\n'));
   }
   const rows = [registration ? 'New Digimium customer' : 'New Digimium order', reference];
   if (orderTime) rows.push(orderTime);
@@ -279,9 +282,15 @@ const orderDetailsQuery = `SELECT o.created_at AS createdAt, o.snapshot AS order
   CASE WHEN JSON_VALID(o.checkout_contact) AND EXISTS (
     SELECT 1 FROM digimium_google_identities g WHERE g.customer_id = o.customer_id
   ) THEN o.checkout_contact END AS googleCheckoutContact,
-  c.name, c.email, t.username AS telegramUsername
+  c.name, c.email, t.telegram_id AS telegramId, t.username AS telegramUsername
   FROM digimium_orders o LEFT JOIN digimium_customers c ON c.id = o.customer_id
   LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id WHERE o.id = ?`;
+
+const runningHubOrderDetailsQuery = `SELECT o.created_at AS createdAt, c.name, c.email,
+  t.telegram_id AS telegramId, t.username AS telegramUsername
+  FROM digimium_runninghub_orders o JOIN digimium_customers c ON c.id = o.customer_id
+  LEFT JOIN digimium_telegram_identities t ON t.customer_id = c.id
+  WHERE o.id = ? AND o.status NOT IN ('expired', 'rejected')`;
 
 const alertEntityQueries: Record<NotificationAlertInput['kind'], string> = {
   'customer-created': 'SELECT id FROM digimium_customers WHERE id = ?',
@@ -330,6 +339,7 @@ export async function drainAdminNotificationAlerts(options: { limit?: number; bu
       if (config.topics) {
         if (payload.kind === 'customer-created') entityQuery = registrationProfileQuery;
         if (payload.kind === 'order-created') entityQuery = orderDetailsQuery;
+        if (payload.kind === 'runninghub-order-created') entityQuery = runningHubOrderDetailsQuery;
       }
       const [[entity]] = await getPool().execute<AlertEntity[]>(entityQuery, [payload.entityId]);
       if (!entity) {

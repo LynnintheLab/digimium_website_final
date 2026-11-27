@@ -55,9 +55,8 @@ function cookie(response, name) {
   assert.match(raw ?? '', /httponly/i);
   return raw.split(';')[0];
 }
-async function addCustomer(name) {
+async function addCustomer(name, email = name.toLowerCase() + '@example.invalid') {
   const id = randomUUID(), token = randomBytes(32).toString('base64url');
-  const email = name.toLowerCase() + '@example.invalid';
   await db.execute('INSERT INTO digimium_customers (id, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, UTC_TIMESTAMP(3))',
     [id, name, email, 'fixture-preserved-hash-' + randomUUID()]);
   await db.execute('INSERT INTO digimium_customer_sessions (token_hash, customer_id, expires_at) VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 HOUR))',
@@ -150,6 +149,16 @@ try {
   const redacted = value => {
     for (const secret of [...keys, ...sensitiveReferences]) assert.ok(!JSON.stringify(value).includes(secret), 'Sensitive keys and wallet references are scoped to explicit reads');
   };
+  function buyerIdentity(text, expected) {
+    const rows = text.split('\n').filter(line => /^(Customer|Email|Gmail|Telegram|Telegram ID): /.test(line));
+    assert.deepEqual(rows, expected);
+  }
+  function assertOrderProjection(order, buyer, ...telegramDetails) {
+    const serialized = JSON.stringify(order);
+    for (const detail of [buyer.name, buyer.email, ...telegramDetails].filter(Boolean)) {
+      assert.ok(!serialized.includes(detail), 'Order responses do not add Admin bot identity fields.');
+    }
+  }
   const create = (buyer, packId, method, requestId = randomUUID(), extra = {}) => mutate(customer, 'POST',
     { requestId, expectedCustomerId: buyer.id, packId, method, ...extra }, buyer.cookie);
   const proof = (buyer, order, bytes = proofPng, mime = 'image/png', requestId = randomUUID()) => request(
@@ -280,10 +289,13 @@ try {
   assert.deepEqual(orderCreated.fields.entities, boldTitle('🛒 New order'));
   assert.match(orderCreated.fields.text, /Running HUB API Key — 10 USD bundle × 1/);
   assert.match(orderCreated.fields.text, /70,000 MMK/);
+  buyerIdentity(orderCreated.fields.text, ['Customer: ' + alice.name, 'Email: ' + alice.email]);
+  assert.equal(String(orderCreated.fields.chat_id), String(botOwnerId));
   assert.equal(Number(orderCreated.fields.message_thread_id), botTopic);
+  assert.equal(orderCreated.fields.protect_content, true);
   assert.ok(markup(orderCreated.fields).inline_keyboard.flat().some(button =>
     button.url === base.origin + '/admin/runninghub?order=' + first.id));
-  for (const privateDetail of [alice.email, alice.id, ...settings.methods.map(method => method.accountNumber)]) {
+  for (const privateDetail of [alice.id, ...settings.methods.map(method => method.accountNumber)]) {
     assert.ok(!JSON.stringify(orderCreated.fields).includes(privateDetail));
   }
   redacted(orderCreated);
@@ -294,6 +306,8 @@ try {
   await json(await create(alice, 'usd20', 'aya'), 409);
   const firstPath = customer + '/' + first.id;
   const preApproval = await json(await get(firstPath, alice.cookie));
+  assertOrderProjection(first, alice);
+  assertOrderProjection(preApproval, alice);
   redacted(preApproval);
   assert.equal(preApproval.apiKey, undefined);
   assert.equal(preApproval.order.keyName, null);
@@ -485,26 +499,40 @@ try {
   }
 
   // Dedicated Admin bot: receipt-bound single-click approval, legacy button compatibility and owner-only delivery.
-  const telegramBuyer = await addCustomer('TelegramBuyerFixture');
-  const telegramSecond = await addCustomer('TelegramSecondFixture');
-  const telegramStale = await addCustomer('TelegramStaleFixture');
+  const telegramBuyer = await addCustomer('TelegramBuyerFixture', 'digimium-receipt-fixture@gmail.com');
+  const telegramSecond = await addCustomer('TelegramSecondFixture', null);
+  const telegramStale = await addCustomer('TelegramStaleFixture', null);
   const telegramUsername = 'digimium_fixture_buyer';
   const telegramIdentity = '98765432111223';
-  await db.execute('UPDATE digimium_customers SET email = NULL WHERE id = ?', [telegramSecond.id]);
+  const identityWithoutUsername = '98765432111224';
   await db.execute('INSERT INTO digimium_telegram_identities (telegram_id, customer_id, username, created_at) VALUES (?, ?, ?, UTC_TIMESTAMP(3))',
     [telegramIdentity, telegramSecond.id, telegramUsername]);
+  await db.execute('INSERT INTO digimium_telegram_identities (telegram_id, customer_id, username, created_at) VALUES (?, ?, NULL, UTC_TIMESTAMP(3))',
+    [identityWithoutUsername, telegramStale.id]);
+  const gmailIdentity = ['Customer: ' + telegramBuyer.name, 'Gmail: ' + telegramBuyer.email];
+  const linkedIdentity = ['Customer: ' + telegramSecond.name, 'Telegram: @' + telegramUsername, 'Telegram ID: ' + telegramIdentity];
   const telegramKeys = Array.from({ length: 3 }, () => 'fixture-telegram-key-' + randomBytes(24).toString('hex'));
   keys.push(...telegramKeys);
   await json(await restock({ requestId: randomUUID(), packId: 'usd10', keys: telegramKeys }), 201);
-  async function reviewViaBot(buyer, method = 'kpay', fallback = false) {
+  async function reviewViaBot(buyer, identity, photoFallback = false) {
+    const createAfter = (await calls()).length;
+    const method = 'kpay';
     const pendingOrder = (await json(await create(buyer, 'usd10', method), 201)).order;
+    const createdNotice = await providerCall(call => call.method === 'sendMessage' &&
+      call.fields.text?.startsWith('🛒 New order\n' + orderIdLine(pendingOrder) + '\n'), createAfter);
+    buyerIdentity(createdNotice.fields.text, identity);
+    assert.equal(createdNotice.fields.protect_content, true);
+    const [[{ payload }]] = await db.execute('SELECT payload FROM digimium_notification_outbox WHERE dedupe_key = ?',
+      ['runninghub-order-created:' + pendingOrder.id]);
+    assertOrderProjection(JSON.parse(payload), buyer, telegramIdentity, identityWithoutUsername, telegramUsername);
+    assertOrderProjection(pendingOrder, buyer, telegramIdentity, identityWithoutUsername, telegramUsername);
     // Receipt and approval alerts must show the original order time, even across a date boundary.
     await db.execute('UPDATE digimium_runninghub_orders SET created_at = ? WHERE id = ?', ['2025-12-31T19:00:00.000Z', pendingOrder.id]);
     const after = (await calls()).length;
-    if (fallback) await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, JSON.stringify({ rejectPhoto: true }));
+    if (photoFallback) await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, JSON.stringify({ rejectPhoto: true }));
     const proofRequestId = randomUUID(), receiptBytes = uniqueProofPng();
     const reviewed = (await json(await proof(buyer, pendingOrder, receiptBytes, 'image/png', proofRequestId))).order;
-    const receipt = await providerCall(call => call.method === (fallback ? 'sendDocument' : 'sendPhoto') &&
+    const receipt = await providerCall(call => call.method === (photoFallback ? 'sendDocument' : 'sendPhoto') &&
       String(call.fields.caption).toLowerCase().includes(reviewed.id.slice(0, 8).toLowerCase()), after);
     await writeFile(env.RUNNINGHUB_FIXTURE_CONTROL, '{}');
     const callCount = (await calls()).length;
@@ -519,24 +547,27 @@ try {
     assert.equal(String(receipt.fields.chat_id), String(botOwnerId));
     assert.equal(String(receipt.fields.message_thread_id), String(botTopic));
     assert.equal(String(receipt.fields.protect_content), 'true');
-    assert.ok(receipt.fields.caption.startsWith('🧾 Payment review\n' + orderIdLine(reviewed) + '\n' + orderTimeLine + '\n\nRunning HUB API Key — 10 USD bundle\n'));
+    assert.ok(receipt.fields.caption.startsWith('🧾 Payment review\n' + orderIdLine(reviewed) + '\n' + orderTimeLine + '\n\n'));
+    assert.match(receipt.fields.caption, /\n\nRunning HUB API Key — 10 USD bundle\n/);
+    buyerIdentity(receipt.fields.caption, identity);
     assert.deepEqual(JSON.parse(receipt.fields.caption_entities), boldTitle('🧾 Payment review'));
     assert.ok(receipt.fields.caption.length <= 1024, 'The receipt caption remains below Telegram’s limit.');
     assert.match(receipt.fields.caption, /70[,. ]?000/);
-    assert.match(receipt.fields.caption, method === 'kpay' ? /KPay/i : /AYA/i);
+    assert.match(receipt.fields.caption, /KPay/i);
     const buttons = markup(receipt.fields).inline_keyboard.flat();
     const approvalButton = buttons.find(button => button.callback_data);
     assert.ok(approvalButton, 'The private receipt includes a signed payment approval button.');
     assert.match(approvalButton.callback_data, /^[A-Za-z0-9_-]{64}$/);
     assert.ok(buttons.some(button => button.url === base.origin + '/admin/runninghub?order=' + reviewed.id));
-    if (fallback) assert.ok((await calls()).slice(after).some(call => call.method === 'sendPhoto'), 'A rejected photo falls back to uploading the original document.');
-    for (const forbidden of [buyer.email, buyer.name, buyer.id, ...settings.methods.map(method => method.accountNumber)]) {
-      assert.ok(!JSON.stringify(receipt.fields).includes(forbidden), 'Alert metadata must omit customer identity and receiving-account details.');
+    if (photoFallback) assert.ok((await calls()).slice(after).some(call => call.method === 'sendPhoto'), 'A rejected photo falls back to uploading the original document.');
+    for (const forbidden of [buyer.id, ...settings.methods.map(method => method.accountNumber)]) {
+      assert.ok(!JSON.stringify(receipt.fields).includes(forbidden), 'Receipt captions omit the internal customer ID and receiving-account details.');
     }
+    assertOrderProjection(reviewed, buyer, telegramIdentity, identityWithoutUsername, telegramUsername);
     redacted(receipt);
     return { order: reviewed, receipt, token: approvalButton.callback_data };
   }
-  const telegram = await reviewViaBot(telegramBuyer);
+  const telegram = await reviewViaBot(telegramBuyer, gmailIdentity);
   const acceptedCallback = callback(telegram.receipt, telegram.token);
   assert.equal((await request('/api/internal/runninghub-bot/webhook', { method: 'POST', headers: {
     'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_WEBHOOK_SECRET,
@@ -597,8 +628,13 @@ try {
   assert.equal((await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie))).order.status, 'payment_review');
   async function approvalMessages(order) {
     const alerts = (await calls()).filter(call => call.method === 'sendMessage' &&
-      call.fields.text?.startsWith('✅ Payment approved\n' + orderIdLine(order) + '\n' + orderTimeLine + '\n\nRunning HUB API Key — '));
-    for (const alert of alerts) assert.deepEqual(alert.fields.entities, boldTitle('✅ Payment approved'));
+      call.fields.text?.startsWith('✅ Payment approved\n' + orderIdLine(order) + '\n' + orderTimeLine + '\n\n'));
+    for (const alert of alerts) {
+      assert.deepEqual(alert.fields.entities, boldTitle('✅ Payment approved'));
+      assert.equal(alert.fields.protect_content, true);
+      assert.match(alert.fields.text, /\n\nRunning HUB API Key — 10 USD bundle\n/);
+      for (const method of settings.methods) assert.ok(!alert.fields.text.includes(method.accountNumber));
+    }
     return alerts;
   }
   // A provider outage cannot undo the approval or key delivery.
@@ -616,8 +652,7 @@ try {
   const [failedNotice] = await approvalMessages(telegram.order);
   assert.ok(failedNotice);
   assert.equal(failedNotice.fields.reply_markup, undefined, 'Approval asks for no follow-up reply.');
-  assert.ok(failedNotice.fields.text.includes('Customer: ' + telegramBuyer.name));
-  assert.ok(failedNotice.fields.text.includes('Email: ' + telegramBuyer.email));
+  buyerIdentity(failedNotice.fields.text, gmailIdentity);
   redacted(failedNotice);
   const [[queuedNotice]] = await db.execute(
     'SELECT attempts, sent_at FROM digimium_runninghub_approval_outbox WHERE order_id = ?', [telegram.order.id]);
@@ -625,6 +660,7 @@ try {
   assert.equal(queuedNotice.sent_at, null);
   const delivered = await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie));
   assert.equal(delivered.order.status, 'approved'); assert.ok(telegramKeys.includes(delivered.apiKey));
+  assertOrderProjection(delivered.order, telegramBuyer);
   await db.execute('UPDATE digimium_runninghub_approval_outbox SET next_attempt_at = UTC_TIMESTAMP(3) WHERE order_id = ?', [telegram.order.id]);
   const run = await request('/api/internal/notifications/run', { method: 'POST', headers: { Authorization: 'Bearer ' + env.NOTIFICATIONS_CRON_SECRET } });
   assert.equal(run.status, 200);
@@ -646,7 +682,7 @@ try {
   assert.equal(Number(telegramAudit.total), 1);
   assert.equal((await approvalMessages(telegram.order)).length, 2, 'A replay does not resend an acknowledged confirmation.');
 
-  const fallback = await reviewViaBot(telegramSecond, 'kpay', true);
+  const fallback = await reviewViaBot(telegramSecond, linkedIdentity, true);
   // Existing signed buttons remain usable after a legacy reference-based Admin approval.
   const legacyBotReference = 'LEGACY-BOT-881201'; sensitiveReferences.push(legacyBotReference);
   const legacyBotDecision = { requestId: randomUUID(), paymentReference: legacyBotReference };
@@ -654,9 +690,7 @@ try {
   assert.equal((await json(await decide(fallback.order, legacyBotDecision))).applied, false);
   const [websiteNotice] = await approvalMessages(fallback.order);
   assert.ok(websiteNotice, 'Website approval also posts a persistent confirmation.');
-  assert.ok(!websiteNotice.fields.text.includes(telegramSecond.name), 'Telegram identity is shown only as its verified username.');
-  assert.ok(websiteNotice.fields.text.includes('Telegram: @' + telegramUsername));
-  assert.ok(!websiteNotice.fields.text.includes(telegramIdentity));
+  buyerIdentity(websiteNotice.fields.text, linkedIdentity);
   assert.ok(!websiteNotice.fields.text.includes(telegramSecond.id));
   // Simulate an approved order from before confirmations were introduced.
   await db.execute('DELETE FROM digimium_runninghub_approval_outbox WHERE order_id = ?', [fallback.order.id]);
@@ -669,9 +703,10 @@ try {
   const fallbackDelivery = await json(await get(customer + '/' + fallback.order.id, telegramSecond.cookie));
   assert.equal(fallbackDelivery.order.status, 'approved'); assert.notEqual(fallbackDelivery.apiKey, delivered.apiKey);
   assert.ok(telegramKeys.includes(fallbackDelivery.apiKey));
+  assertOrderProjection(fallbackDelivery, telegramSecond, telegramIdentity, telegramUsername);
 
   // A receipt's signed button becomes stale after a website decision; neither route bypasses the other.
-  const stale = await reviewViaBot(telegramStale);
+  const stale = await reviewViaBot(telegramStale, ['Customer: ' + telegramStale.name, 'Telegram ID: ' + identityWithoutUsername]);
   await db.execute('UPDATE digimium_runninghub_orders SET revision = revision + 1 WHERE id = ?', [stale.order.id]);
   const changedAlert = await webhook(callback(stale.receipt, stale.token));
   assert.equal(changedAlert.body.show_alert, true);
@@ -711,7 +746,28 @@ try {
     assert.match(result.body.text, /already approved/i, 'A valid existing General button survives cutover.');
     assert.equal((await json(await get(customer + '/' + telegram.order.id, telegramBuyer.cookie))).apiKey, delivered.apiKey);
   }
-  console.log('Running HUB integration passed: isolated catalog, exact MMK prices, protected receipts, website and Admin Orders Telegram approval, signed owner/topic/bot checks, single-click proof/revision replay and duplicate-image prevention, protected approval confirmations and retries, document fallback, owner-only key delivery, customer history and concurrent customer removal.');
+
+  // Before a Running HUB Orders topic is configured, the legacy payment topic keeps its previous disclosures.
+  await stop();
+  await start({ DIGIMIUM_ADMIN_ORDERS_TELEGRAM_RUNNINGHUB_TOPIC_ID: '' });
+  const legacyTopicKey = 'fixture-legacy-topic-key-' + randomBytes(24).toString('hex');
+  keys.push(legacyTopicKey);
+  await json(await restock({ requestId: randomUUID(), packId: 'usd10', keys: [legacyTopicKey] }), 201);
+  const beforeLegacyTopic = (await calls()).length;
+  const legacyTopicOrder = (await json(await create(telegramSecond, 'usd10', 'kpay'), 201)).order;
+  assert.equal((await calls()).length, beforeLegacyTopic, 'New Running HUB orders wait for the dedicated topic.');
+  await db.execute('UPDATE digimium_runninghub_orders SET created_at = ? WHERE id = ?', ['2025-12-31T19:00:00.000Z', legacyTopicOrder.id]);
+  const legacyTopicReview = (await json(await proof(telegramSecond, legacyTopicOrder, uniqueProofPng()))).order;
+  const legacyTopicReceipt = await providerCall(call => call.method === 'sendPhoto' &&
+    call.fields.caption?.includes(orderIdLine(legacyTopicReview)), beforeLegacyTopic);
+  assert.equal(Number(legacyTopicReceipt.fields.message_thread_id), legacyPaymentTopic);
+  buyerIdentity(legacyTopicReceipt.fields.caption, []);
+  await json(await decide(legacyTopicReview, {}));
+  const [legacyTopicApproval] = await approvalMessages(legacyTopicReview);
+  assert.equal(Number(legacyTopicApproval.fields.message_thread_id), legacyPaymentTopic);
+  buyerIdentity(legacyTopicApproval.fields.text, ['Telegram: @' + telegramUsername]);
+  redacted((await calls()).slice(beforeLegacyTopic));
+  console.log('Running HUB integration passed: isolated catalog, exact MMK prices, private buyer identity and legacy topic boundaries, protected receipts, website and Admin Orders Telegram approval, signed owner/topic/bot checks, single-click proof/revision replay and duplicate-image prevention, protected approval confirmations and retries, document fallback, owner-only key delivery, customer history and concurrent customer removal.');
 } finally {
   await stop();
   await db.end();

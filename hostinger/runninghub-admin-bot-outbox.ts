@@ -60,7 +60,7 @@ async function sendReceipt(config: BotConfig, receipt: Receipt, deadline: number
   if (!extension || !receipt.bytes.length || receipt.bytes.length > RUNNINGHUB_PROOF_MAX_BYTES || Date.now() >= deadline) return false;
   // The owner requires the original uploaded image, including on the document fallback.
   const image = new Blob([new Uint8Array(receipt.bytes)], { type: receipt.contentType });
-  const { text: caption, entities } = formatAdminTelegramNotice(runningHubAdminMessage(receipt, 'payment_review').join('\n'));
+  const { text: caption, entities } = formatAdminTelegramNotice(runningHubAdminMessage(receipt, 'payment_review', receipt.customer).join('\n'));
   const keyboard = { inline_keyboard: [
     [{ text: 'Review on website', url: `${config.origin}/admin/runninghub?order=${receipt.id}` }],
     [{ text: 'Approve payment', callback_data: signRunningHubApproval(config.secret, {
@@ -127,7 +127,7 @@ export async function drainRunningHubAdminReceipts(options: {
     if (!row) break;
     let posted = false;
     try {
-      const receipt = await runningHubAdminBotReceipt(row.order_id, row.proof_request_id);
+      const receipt = await runningHubAdminBotReceipt(row.order_id, row.proof_request_id, config.runningHubTopicId !== undefined);
       if (Date.now() < deadline) posted = await sendReceipt(config, receipt, deadline);
     } catch (error) {
       if (error instanceof CommerceError && [404, 409].includes(error.status)) {

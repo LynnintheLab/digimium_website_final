@@ -478,7 +478,7 @@ try {
   assert.equal(googleFallbackOrder.shared, false);
   assert.deepEqual(googleFallbackOrder.fields.text.split('\n').slice(0, 2),
     ['New Digimium order', 'Order ID: ' + googleOrderReference]);
-  assert.doesNotMatch(googleFallbackOrder.fields.text, /Checkout contact:|09777000125/);
+  assert.doesNotMatch(googleFallbackOrder.fields.text, /Checkout contact:|09777000125|Email:|Gmail:|topic-google@example\.invalid/);
 
   const legacyOrder = await seedOrder(telegramSignup.id, 'Queued order fixture', { status: 'approved' });
   await db.execute('UPDATE digimium_orders SET created_at = ?, customer_note = ? WHERE id = ?',
@@ -489,18 +489,30 @@ try {
   const legacyText = (await calls()).at(-1).fields.text;
   assert.equal(legacyText, [
     '🛒 New order\nOrder ID: #' + legacyOrder.id.slice(0, 8).toUpperCase() + '\nOrder time: 27 Nov 2026, 01:15 MMT\nStatus: Approved',
-    'Customer: Edited Website Name\nTelegram: @topic_fixture',
+    'Customer: Edited Website Name\nTelegram: @topic_fixture\nTelegram ID: 999900039',
     'Queued order fixture — Fixture plan × 1\n1 month · 16,000 MMK each',
     'Total: 16,000 MMK',
   ].join('\n\n'), 'Queued alerts use the saved order, current status, and actual order time across Myanmar midnight.');
   assert.doesNotMatch(legacyText, /PRIVATE-CUSTOMER-NOTE|PRIVATE-NOTIFICATION|secret@example\.invalid/);
+  const telegramFallback = { ...legacyAlert, dedupeKey: 'fixture:' + randomUUID() };
+  await enqueue(notifications, telegramFallback);
+  try {
+    process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_ORDERS_TOPIC_ID = '';
+    process.env.DIGIMIUM_ADMIN_ORDERS_TELEGRAM_REGISTRATION_TOPIC_ID = '';
+    assert.equal((await notifications.drainAdminNotificationAlerts({ dedupeKey: telegramFallback.dedupeKey })).sent, 1);
+  } finally {
+    Object.assign(process.env, sharedBotEnvironment);
+  }
+  const fallbackLinkedOrder = (await calls()).at(-1);
+  assert.equal(fallbackLinkedOrder.shared, false);
+  assert.doesNotMatch(fallbackLinkedOrder.fields.text, /Telegram:|Telegram ID:|topic_fixture|999900039/);
   const guestOrder = await seedOrder(null, 'Guest order fixture', { status: 'pending', guest: true });
   const guestAlert = { kind: 'order-created', dedupeKey: 'fixture:' + randomUUID(), entityId: guestOrder.id };
   await enqueue(notifications, guestAlert);
   assert.equal((await notifications.drainAdminNotificationAlerts({ dedupeKey: guestAlert.dedupeKey })).sent, 1);
   const guestText = (await calls()).at(-1).fields.text;
   assert.match(guestText, /\n\nCustomer: Guest\n\nGuest order fixture/);
-  assert.doesNotMatch(guestText, /Fixture guest|Email:|Telegram: @/);
+  assert.doesNotMatch(guestText, /Fixture guest|Email:|Gmail:|Telegram: @|Telegram ID:/);
   const { formatAdminOrderDetailsNotice } = await import('../lib/admin-order-details-notice.ts');
   const packed = formatAdminOrderDetailsNotice({ id: guestOrder.id, createdAt: '2026-11-26T18:45:35.000Z',
     status: 'rejected', lines: Array.from({ length: 30 }, () => ({

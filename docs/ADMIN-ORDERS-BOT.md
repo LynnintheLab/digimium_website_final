@@ -5,14 +5,14 @@ Use [Digimium Admin Orders](https://t.me/DigimiumAdminOrdersBot) as the private 
 | Topic | What appears |
 | --- | --- |
 | Orders | New standard storefront orders with an Order ID, original Myanmar-time timestamp, order status, registered customer details when available, item quantities, durations, prices, total, and an Admin link |
-| Running HUB Orders | New Running HUB API Key reservations, original payment receipts with the approval button, and payment confirmations. Each shows the Order ID and original order time in Myanmar time. |
+| Running HUB Orders | New Running HUB API Key reservations, original payment receipts with the approval button, and payment confirmations. Each shows the Order ID, original Myanmar-time order timestamp, and available customer details. |
 | Account Registration | New website accounts with the sign-up method, name, available email and verified Telegram username, Telegram display name for Telegram sign-ups, registration time in Myanmar time, and an Admin link |
 
 Each alert starts with one icon and a bold heading. The account or order ID and original timestamp are grouped at the top. The relevant account or order details follow underneath.
 
 The customer’s Telegram draft and the private Orders topic show the saved Order ID searchable in Admin. New standard orders use the Myanmar date and a daily sequence, for example `DG - 2026NOV27 - 003`. Existing orders use their original short ID. The draft also shows a verified Telegram username and email linked to Google sign-in when available. Each purchased unit has its own line for regular-size orders, followed by the saved total.
 
-The private Orders topic shows the checkout contact method and saved value for Google-linked customers who supplied a Telegram username, Telegram phone number, or Viber phone number.
+The private Orders and Running HUB Orders topics show the customer’s account name and saved Gmail or other email when available. For a linked Telegram account they show the verified Telegram ID and any available username. The private Orders topic also shows the checkout contact method and saved value for Google-linked buyers who supplied a Telegram username, Telegram phone number, or Viber phone number.
 
 Enable Threaded mode and the topic sidebar for the dedicated bot in Telegram. Create the topics in the store owner's existing private chat and retain their IDs. Keep `callback_query_mode` set to `default` for the existing approval buttons. [Telegram bot settings](https://core.telegram.org/bots/api#setmysettings)
 
@@ -48,6 +48,6 @@ node --env-file=.env.admin-orders-bot.local scripts/configure-admin-orders-bot.m
 
 A receipt alert identifies the product as **Running HUB API Key** and includes the submitted image, order reference, payment method and expected amount. Check the transfer amount and recipient in the receiving wallet, then tap **Approve payment** on the receipt alert. This records the decision and issues the reserved key to the buyer’s website account in one action. If the exact same screenshot was already used for an approved order, the bot identifies it as a duplicate. Get the payment-specific receipt before approving a different transfer.
 
-After a successful approval, the Running HUB Orders topic gets a confirmation with the order reference and available contact label. Telegram customers are shown by their verified username when available. Email accounts can be identified by their registered email. The buyer opens the issued key on the website.
+After a successful approval, the Running HUB Orders topic gets a confirmation with the order reference and the same available customer details. The buyer opens the issued key on the website.
 
 The standalone scheduler retries receipts and approval confirmations, and queues still-pending receipts when the bot is first enabled. For an older alert whose signing secret has been changed, review the order through the Admin website. The original receipt stays available to the owner in the private Telegram chat and the Admin order.

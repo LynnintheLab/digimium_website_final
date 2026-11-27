@@ -8,7 +8,7 @@ export function formatAdminTimestamp(value: string | null | undefined): string {
 }
 
 export function cleanAdminTelegramValue(value: string | null | undefined, maximum: number): string {
-  const clean = (value ?? '').replace(/[\p{Cc}\u202a-\u202e\u2066-\u2069]/gu, ' ')
+  const clean = (value ?? '').replace(/[\p{Cc}\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu, ' ')
     .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/gu, '');
   let result = '';
   for (const point of clean) {
@@ -22,6 +22,25 @@ export function formatAdminTelegramNotice(text: string) {
   const newline = text.indexOf('\n');
   // Telegram counts UTF-16 units, including both halves of a supplementary emoji.
   return { text, entities: [{ type: 'bold' as const, offset: 0, length: newline < 0 ? text.length : newline }] };
+}
+
+export function formatAdminOrderCustomer(input: {
+  name?: string | null;
+  email?: string | null;
+  telegramId?: string | null;
+  telegramUsername?: string | null;
+}): string {
+  const name = cleanAdminTelegramValue(input.name, 100);
+  const email = cleanAdminTelegramValue(input.email, 254);
+  const username = /^[A-Za-z0-9_]{5,32}$/.test(input.telegramUsername ?? '') ? input.telegramUsername : null;
+  const telegramId = /^[1-9]\d{0,15}$/.test(input.telegramId ?? '') && Number(input.telegramId) <= 2 ** 52 - 1
+    ? input.telegramId : null;
+  return [
+    name && 'Customer: ' + name,
+    email && (/@gmail\.com$/i.test(email) ? 'Gmail: ' : 'Email: ') + email,
+    username && 'Telegram: @' + username,
+    telegramId && 'Telegram ID: ' + telegramId,
+  ].filter(Boolean).join('\n');
 }
 
 export function formatAdminRegistrationNotice(input: {

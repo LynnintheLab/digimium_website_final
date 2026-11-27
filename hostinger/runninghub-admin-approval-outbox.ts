@@ -25,17 +25,19 @@ function plain(value: unknown, max: number) {
 }
 
 async function sendApproval(config: BotConfig, approval: Approval, deadline: number) {
-  const email = z.email().max(254).safeParse(approval.customerEmail);
-  const username = typeof approval.telegramUsername === 'string' && /^[A-Za-z0-9_]{5,32}$/.test(approval.telegramUsername)
-    ? approval.telegramUsername : null;
-  const details = runningHubAdminMessage(approval, 'approved');
-  if (username) {
-    details.push('', 'Telegram: @' + username);
-  } else if (email.success) {
-    const name = plain(approval.customerName, 100);
-    details.push('');
-    if (name) details.push('Customer: ' + name);
-    details.push('Email: ' + email.data);
+  const dedicatedTopic = config.runningHubTopicId !== undefined;
+  const details = runningHubAdminMessage(approval, 'approved', dedicatedTopic ? approval.customer : undefined);
+  if (!dedicatedTopic) {
+    const { name, email, telegramUsername } = approval.customer;
+    const legacyEmail = z.email().max(254).safeParse(email);
+    if (telegramUsername && /^[A-Za-z0-9_]{5,32}$/.test(telegramUsername)) {
+      details.push('', 'Telegram: @' + telegramUsername);
+    } else if (legacyEmail.success) {
+      const legacyName = plain(name, 100);
+      details.push('');
+      if (legacyName) details.push('Customer: ' + legacyName);
+      details.push('Email: ' + legacyEmail.data);
+    }
   }
   details.push('', 'The key is now available in the customer’s website purchase details.');
   const notice = formatAdminTelegramNotice(details.join('\n'));
